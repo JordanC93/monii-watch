@@ -1,14 +1,23 @@
-# Monii Watch sync server — drop-in compose for your Plex box / NAS / Pi.
+# Monii Watch self-hosted server — drop-in compose for your Plex box / NAS / Pi.
 #
-#   docker compose up -d
+#   cd server
+#   docker compose up -d --build
 #
-# By default this exposes a plaintext `ws://<host>:1234` endpoint.
-# For `wss://` (recommended for anything outside your LAN) put it behind
-# a TLS-terminating reverse proxy. See README.md.
+# By default this exposes:
+#   - http://<host>:1234/          — the web UI (any browser can hit it)
+#   - ws://<host>:1234/<doc-name>  — the sync endpoint native apps use
+#
+# For wss:// + https:// (recommended for anything outside your LAN) put it
+# behind a TLS-terminating reverse proxy (Caddy / nginx). See README.md.
 
 services:
   monii-sync:
-    build: .
+    build:
+      # Build context is the repo root (one level up) so the multi-stage
+      # Dockerfile can pull in the SPA source and bake a fresh dist/ into
+      # the image. The Dockerfile lives in server/ but builds from ..
+      context: ..
+      dockerfile: server/Dockerfile
     image: monii-sync:latest
     container_name: monii-sync
     restart: unless-stopped
@@ -17,6 +26,7 @@ services:
     environment:
       # Persist docs between restarts. Comment out for in-memory only.
       MONII_PERSIST_DIR: /data
+      # MONII_PUBLIC_DIR: /app/public  # baked-in default; override only if you mount custom HTML
     volumes:
       - monii-sync-data:/data
     # Resource ceiling — y-websocket is light, but containers love defaults.
