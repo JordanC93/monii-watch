@@ -4,24 +4,24 @@ Read this first when picking up work on this project.
 
 ## What this is
 
-A YNAB-style envelope budgeting app the user (the project owner)
-asked Claude to build. Goal: privacy-first, cross-platform (Mac/Windows/iOS),
-syncs peer-to-peer between his devices, and is shareable with friends/family
-**without** them needing to create accounts on a service.
+A YNAB-style envelope budgeting app the project owner asked Claude to build.
+Goal: privacy-first, cross-platform (Mac/Windows/iOS), syncs peer-to-peer
+between their devices, and is shareable with friends/family **without** them
+needing to create accounts on a service.
 
 It is *both* a PWA (for iOS Add-to-Home-Screen) and a Tauri-wrapped desktop
 app (for Mac/Windows/Linux installers). Same Vite codebase compiles to both.
 
 ## Critical context
 
-- **The project owner uses Firefox**, not Chrome. Firefox dropped desktop PWA install in
-  2021, so he and any Firefox-using friends/family **cannot** install via PWA.
-  This is why Tauri is mandatory for desktop, not optional.
+- **The project owner uses Firefox**, not Chrome. Firefox dropped desktop PWA
+  install in 2021, so they and any Firefox-using friends/family **cannot**
+  install via PWA. This is why Tauri is mandatory for desktop, not optional.
 - **They have a Plex server** at home. Eventual plan: a self-hosted sync server
   endpoint (y-websocket) on that box, with the current WebRTC P2P kept as
   fallback when devices can't reach the server.
-- **No third-party financial accounts**, ever. They explicitly rejected Notion,
-  Supabase, etc. WebRTC + future-self-host is the deal.
+- **No third-party financial accounts**, ever. The project owner explicitly
+  rejected Notion, Supabase, etc. WebRTC + future-self-host is the deal.
 - **They explicitly approved**:
   - Vite + React + TypeScript + Tailwind PWA stack
   - Yjs CRDT sync layer behind a provider abstraction
@@ -42,8 +42,8 @@ app (for Mac/Windows/Linux installers). Same Vite codebase compiles to both.
 - **Calc parser:** Tiny precedence parser in [src/domain/calc.ts](src/domain/calc.ts)
   so amount inputs accept `23.45 + 10.50`.
 - **Desktop wrapper:** Tauri 2 with stub `src-tauri/` Rust files. Rust is
-  **not installed** on the maintainer's machine — desktop builds happen via the
-  GitHub Actions workflow at [.github/workflows/release.yml](.github/workflows/release.yml).
+  **not installed** on the maintainer's primary machine — desktop builds
+  happen via the GitHub Actions workflow at [.github/workflows/release.yml](.github/workflows/release.yml).
 
 ## Architecture
 
@@ -654,7 +654,8 @@ git tag v0.1.0 && git push origin v0.1.0
 
 ## Memory
 
-A pointer to this file lives in `~/.claude/projects/C--Users-<user>-Budget-app/memory/MEMORY.md`.
-If you discover something non-obvious about the project owner's preferences during a
-future conversation (a workflow he likes, a constraint he mentioned, a
-correction he made), save it as a feedback memory there.
+A pointer to this file lives in `~/.claude/projects/<repo-slug>/memory/MEMORY.md`
+(in the maintainer's local Claude installation). If you discover something
+non-obvious about the project owner's preferences during a future conversation
+(a workflow they like, a constraint they mentioned, a correction they made),
+save it as a feedback memory there.
