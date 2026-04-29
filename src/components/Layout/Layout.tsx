@@ -37,60 +37,67 @@ export function Layout({ children }: { children: ReactNode }) {
   const isCompact = layout === 'compact';
 
   return (
-    <div className="relative h-screen flex text-fg overflow-hidden">
+    <div className="relative h-screen flex flex-col text-fg overflow-hidden">
       <GlassBackdrop />
 
       {/*
-        macOS traffic-light drag region. Tauri's "Overlay" titlebar style
-        leaves a transparent ~28 px strip at the top — the OS draws the
-        traffic lights on top of our webview, so we (a) reserve that
-        space via padding on the sidebar header below, and (b) mark a
-        wide drag-region strip across the top so the user can drag the
-        window anywhere along the title-bar area.
+        macOS title-bar drag strip — sits at the very top of the window
+        on the Mac desktop build only. 28 px tall, transparent. The OS
+        draws the traffic lights inside this strip; the strip itself is
+        the drag region (drag = move window, dbl-click = maximize).
 
-        `data-tauri-drag-region` makes the OS treat the element as the
-        title bar for drag/double-click-to-maximize behavior. CSS
-        scoping (`[data-host-os="macos"][data-host-tauri="1"]`) means it
-        only renders in the desktop Mac app — Windows / Linux / browser
-        / iOS get nothing.
+        Implemented as a regular flex-col child rather than position:fixed
+        so it (a) actually reserves space, pushing all UI elements
+        cleanly below the title-bar zone, and (b) registers as a drag
+        region with WebKit reliably (position:fixed elements behave
+        unpredictably with -webkit-app-region: drag on Tauri's
+        WKWebView).
+
+        On every other host (Windows / Linux / iOS / browser PWA) the
+        CSS rule sets `display: none` so the strip collapses and the UI
+        is pixel-identical to before. Scoping is via `data-host-os` /
+        `data-host-tauri` attributes set in main.tsx.
       */}
       <div
         data-tauri-drag-region
-        className="mac-titlebar-drag"
+        className="mac-titlebar-drag flex-shrink-0"
         aria-hidden
       />
 
-      {/* Sidebar (regular layout) */}
-      {isRegular && (
-        <div className="flex relative z-10">
-          <Sidebar />
-        </div>
-      )}
-
-      {/* Mobile drawer slide-in. Now optional in the compact layout —
-          the new MorePage is the primary path to secondary pages, but
-          the drawer is kept as a fast switcher for accounts. */}
-      {isCompact && (
-        <div className={cn(
-          'fixed inset-0 z-40 transition pointer-events-none',
-          drawer && 'pointer-events-auto',
-        )}>
-          <div
-            className={cn('absolute inset-0 bg-black/50 transition-opacity', drawer ? 'opacity-100' : 'opacity-0')}
-            onClick={() => setDrawer(false)}
-          />
-          <div className={cn(
-            'absolute inset-y-0 left-0 transition-transform shadow-glass-lg',
-            drawer ? 'translate-x-0' : '-translate-x-full',
-          )}>
-            <Sidebar onNavigate={() => setDrawer(false)} />
+      {/* Main row: sidebar + content area side by side. Lives below the
+          drag strip when on Mac, full window otherwise. */}
+      <div className="flex flex-1 min-h-0">
+        {/* Sidebar (regular layout) */}
+        {isRegular && (
+          <div className="flex relative z-10">
+            <Sidebar />
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="flex-1 min-w-0 flex flex-col relative z-10">
-        <TopBar onOpenMenu={() => setDrawer(true)} layout={layout} />
-        <TabBar />
+        {/* Mobile drawer slide-in. Now optional in the compact layout —
+            the new MorePage is the primary path to secondary pages, but
+            the drawer is kept as a fast switcher for accounts. */}
+        {isCompact && (
+          <div className={cn(
+            'fixed inset-0 z-40 transition pointer-events-none',
+            drawer && 'pointer-events-auto',
+          )}>
+            <div
+              className={cn('absolute inset-0 bg-black/50 transition-opacity', drawer ? 'opacity-100' : 'opacity-0')}
+              onClick={() => setDrawer(false)}
+            />
+            <div className={cn(
+              'absolute inset-y-0 left-0 transition-transform shadow-glass-lg',
+              drawer ? 'translate-x-0' : '-translate-x-full',
+            )}>
+              <Sidebar onNavigate={() => setDrawer(false)} />
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 min-w-0 flex flex-col relative z-10">
+          <TopBar onOpenMenu={() => setDrawer(true)} layout={layout} />
+          <TabBar />
         {/*
           Main content area:
           - Bottom: 56px nav bar + safe-area-inset-bottom (home indicator) — compact only
@@ -117,6 +124,7 @@ export function Layout({ children }: { children: ReactNode }) {
           {children}
         </main>
         <DesktopStatusBar />
+        </div>
       </div>
 
       {isCompact && <BottomNav />}
