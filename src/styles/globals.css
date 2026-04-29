@@ -837,3 +837,50 @@ input[type='number'] { -moz-appearance: textfield; }
 @media (prefers-reduced-motion: reduce) {
   .glass-panel.hover-lift:hover { transform: none; }
 }
+
+/* ---------- macOS traffic-light handling (Tauri Overlay titlebar) ---------- */
+/* The drag strip is hidden by default and only appears on the desktop
+ * Mac build. Windows / Linux / iOS / browser PWA all skip it. The strip
+ * is a thin 28px-tall region at the very top of the window:
+ *   - Marked `data-tauri-drag-region` so the OS treats it as title bar
+ *     (drag = move window, double-click = maximize)
+ *   - Sits in front of everything visually but is fully transparent
+ *   - Only ~80 px wide on the left (where the lights live) takes
+ *     priority over click events; the rest of the strip lets clicks
+ *     fall through to underlying buttons
+ */
+.mac-titlebar-drag {
+  display: none;
+}
+[data-host-os="macos"][data-host-tauri="1"] .mac-titlebar-drag {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  z-index: 30;
+  /* Transparent to the eye; the OS draws the traffic lights on top. */
+  background: transparent;
+  /* Pointer-events on so the OS receives drag/dblclick. We intentionally
+   * eat clicks here (clicking the title bar shouldn't pass through to a
+   * button underneath — that matches every other Mac app). */
+  pointer-events: auto;
+}
+
+/* Push the sidebar's logo block down so the traffic lights have room.
+ * Without this, "My Budget" / "Monii Watch" sits underneath the lights
+ * and gets visually obscured. 28px (light height) + the existing 1rem
+ * breathing room from `pt-4`. */
+[data-host-os="macos"][data-host-tauri="1"] aside.glass-panel > div:first-child {
+  padding-top: calc(1rem + 28px);
+}
+
+/* Same for the regular-layout TopBar — the leftmost cell sits where
+ * the traffic lights would appear on macOS Tauri when the sidebar is
+ * collapsed. Add an equivalent inset.
+ *
+ * Scoped to the header element so it doesn't bleed into TabBar / main. */
+[data-host-os="macos"][data-host-tauri="1"] .topbar-inset-mac {
+  padding-top: 28px;
+}

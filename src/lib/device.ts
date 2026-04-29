@@ -46,3 +46,34 @@ export function isTauri(): boolean {
   const w = window as any;
   return !!(w.__TAURI_INTERNALS__ || w.__TAURI__);
 }
+
+/** True when the host is macOS (covers Tauri's WKWebView on Mac, the
+ *  PWA in Safari/Chrome on Mac, and the dev server when run on Mac).
+ *  iPadOS spoofs Mac in its UA, so explicitly exclude touch devices. */
+export function isMacOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  if (isIPad() || isIPhone()) return false;
+  // Modern: navigator.userAgentData.platform; fallback: legacy navigator.platform.
+  const uaData = (navigator as any).userAgentData;
+  if (uaData?.platform) return /mac/i.test(uaData.platform);
+  return /Mac/.test(navigator.platform);
+}
+
+/**
+ * Boot-time hook that stamps `data-tauri-os` on `<html>` so CSS can
+ * scope rules like the macOS traffic-light inset. Idempotent — safe
+ * to call multiple times.
+ *
+ * Runs on every host (Tauri or browser); the attribute is just a
+ * platform tag. CSS rules can layer additional scoping like
+ * `[data-tauri-os="macos"]:where(...)` if needed.
+ */
+export function applyHostAttributes(): void {
+  if (typeof document === 'undefined') return;
+  let os: string | null = null;
+  if (isMacOS()) os = 'macos';
+  else if (typeof navigator !== 'undefined' && /Win/.test(navigator.platform)) os = 'windows';
+  else if (typeof navigator !== 'undefined' && /Linux/.test(navigator.platform)) os = 'linux';
+  if (os) document.documentElement.setAttribute('data-host-os', os);
+  if (isTauri()) document.documentElement.setAttribute('data-host-tauri', '1');
+}

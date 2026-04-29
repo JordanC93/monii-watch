@@ -40,6 +40,26 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="relative h-screen flex text-fg overflow-hidden">
       <GlassBackdrop />
 
+      {/*
+        macOS traffic-light drag region. Tauri's "Overlay" titlebar style
+        leaves a transparent ~28 px strip at the top — the OS draws the
+        traffic lights on top of our webview, so we (a) reserve that
+        space via padding on the sidebar header below, and (b) mark a
+        wide drag-region strip across the top so the user can drag the
+        window anywhere along the title-bar area.
+
+        `data-tauri-drag-region` makes the OS treat the element as the
+        title bar for drag/double-click-to-maximize behavior. CSS
+        scoping (`[data-host-os="macos"][data-host-tauri="1"]`) means it
+        only renders in the desktop Mac app — Windows / Linux / browser
+        / iOS get nothing.
+      */}
+      <div
+        data-tauri-drag-region
+        className="mac-titlebar-drag"
+        aria-hidden
+      />
+
       {/* Sidebar (regular layout) */}
       {isRegular && (
         <div className="flex relative z-10">

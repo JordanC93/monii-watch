@@ -8,6 +8,7 @@ import { initDb, materializeDueScheduled, ensureCreditCardPaymentCategoriesExist
 import { initPersistence, initSync } from './sync/provider';
 import { wireStoreToYjs } from './store/budget';
 import { installLogCapture } from './lib/logs';
+import { applyHostAttributes } from './lib/device';
 
 async function bootstrap() {
   // Install log capture FIRST so boot-time errors land in the in-app viewer.
@@ -22,6 +23,9 @@ async function bootstrap() {
   const isMac = /Mac/i.test(navigator.platform) || /Mac/i.test(navigator.userAgent);
   if (isTauriApp && isMac) document.body.setAttribute('data-platform', 'mac-desktop');
   else if (isTauriApp) document.body.setAttribute('data-platform', 'desktop');
+  // Stamp `data-host-os` + `data-host-tauri` on <html> so CSS can scope
+  // the macOS traffic-light inset and any other host-specific tweaks.
+  applyHostAttributes();
 
   // OAuth callback short-circuit. When this page loads as a Google
   // OAuth redirect (popup window opened by the Drive flow), the URL
