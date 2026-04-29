@@ -34,11 +34,11 @@ export function BulkPasteModal({ open, onClose, accountId }: { open: boolean; on
     }
     // Stash the pasted text + pending receipt-modal File on a window
     // global. The ReceiptUploadModal's mount-time effect picks the
-    // pending File up directly (see __cashbookPendingFile path), so
+    // pending File up directly (see __moniiPendingFile path), so
     // there's no setTimeout race — the file is sitting there waiting
     // when the modal mounts.
     const file = new File([text], 'pasted.txt', { type: 'text/plain' });
-    (window as any).__cashbookPendingFile = file;
+    (window as any).__moniiPendingFile = file;
     onClose();
     openModal({ type: 'receiptUpload' });
   }

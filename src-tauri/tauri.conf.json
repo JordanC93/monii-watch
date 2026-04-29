@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Cashbook",
+  "productName": "Monii Watch",
   "version": "0.1.0",
-  "identifier": "com.cashbook.app",
+  "identifier": "com.moniiwatch.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Cashbook",
+        "title": "Monii Watch",
         "width": 1280,
         "height": 800,
         "minWidth": 360,
@@ -34,7 +34,7 @@
     "targets": "all",
     "category": "Finance",
     "shortDescription": "Envelope budgeting that syncs peer-to-peer.",
-    "longDescription": "Cashbook is a privacy-first envelope budgeting app inspired by YNAB. All data is stored locally on your device and syncs peer-to-peer with WebRTC — no servers, no accounts.",
+    "longDescription": "Monii Watch is a privacy-first envelope budgeting app inspired by YNAB. All data is stored locally on your device and syncs peer-to-peer with WebRTC — no servers, no accounts.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -56,7 +56,7 @@
       "active": true,
       "dialog": false,
       "endpoints": [
-        "https://github.com/jordancabacungan/Cashbook/releases/latest/download/latest.json"
+        "https://github.com/JordanC93/monii-watch/releases/latest/download/latest.json"
       ],
       "pubkey": "REPLACE_WITH_YOUR_TAURI_UPDATER_PUBKEY"
     }

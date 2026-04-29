@@ -70,7 +70,7 @@ export function DebugLogsModal({ open, onClose }: { open: boolean; onClose: () =
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `cashbook-logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+    a.download = `monii-watch-logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   }

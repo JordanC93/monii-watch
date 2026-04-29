@@ -1,4 +1,4 @@
-# Cashbook
+# Monii Watch
 
 Envelope-method budgeting (YNAB-style) that runs as a real desktop app on Mac
 and Windows, and as a Home Screen app on iOS. All data is stored on your
@@ -137,9 +137,9 @@ The web build is wrapped by a small Rust shell that produces real installers:
 
 | OS      | Output                                |
 |---------|---------------------------------------|
-| Windows | `Cashbook_0.1.0_x64-setup.exe`        |
-| Mac     | `Cashbook_0.1.0_universal.dmg`        |
-| Linux   | `cashbook_0.1.0_amd64.AppImage`       |
+| Windows | `Monii Watch_0.1.0_x64-setup.exe`        |
+| Mac     | `Monii Watch_0.1.0_universal.dmg`        |
+| Linux   | `monii-watch_0.1.0_amd64.AppImage`       |
 
 There are two paths to building installers:
 
@@ -205,7 +205,7 @@ involved, dock/start-menu icon, alt-tabs like any other app.
 ## Sharing with friends and family
 
 Each person installs the app on their devices and runs **their own** budget.
-Cashbook is multi-device-per-person, not multi-user-per-budget. Their
+Monii Watch is multi-device-per-person, not multi-user-per-budget. Their
 pairing phrase is private to them and their devices.
 
 Two practical paths to distribute the app:

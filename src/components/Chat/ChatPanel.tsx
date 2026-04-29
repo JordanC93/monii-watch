@@ -64,11 +64,11 @@ export function ChatPanel() {
     setOpen(false);
     let tries = 0;
     const tick = () => {
-      const fn = (window as any).__cashbookIngestFile as ((f: File) => void) | undefined;
+      const fn = (window as any).__moniiIngestFile as ((f: File) => void) | undefined;
       if (typeof fn === 'function') { fn(file); return; }
       if (tries++ < 80) setTimeout(tick, 50);
       else {
-        (window as any).__cashbookPendingFile = file;
+        (window as any).__moniiPendingFile = file;
         console.warn('[chat] paste: ingest hook never appeared after 4s; file stashed for manual pick');
       }
     };

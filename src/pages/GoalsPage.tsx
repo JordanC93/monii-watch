@@ -93,7 +93,7 @@ export function GoalsPage() {
           <div className="text-[16px] font-semibold leading-tight flex items-center gap-1">
             Goals
             <HelpHint title="Goals" side="bottom">
-              <p>Pick a category, set a target amount (and optionally a deadline), and Cashbook tracks your progress automatically as you assign money to it.</p>
+              <p>Pick a category, set a target amount (and optionally a deadline), and Monii Watch tracks your progress automatically as you assign money to it.</p>
               <p className="mt-1">Per-paycheck math uses your pay frequency from Settings → General.</p>
             </HelpHint>
           </div>
@@ -157,7 +157,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         <div className="text-[14px] font-semibold mb-1">No goals yet</div>
         <div className="text-[12.5px] text-fg-subtle max-w-md mx-auto mb-4">
           Save for a thing — a PS5, a vacation, a down payment. Set a target
-          amount and (optionally) a deadline; Cashbook tracks your progress
+          amount and (optionally) a deadline; Monii Watch tracks your progress
           and tells you when you'll get there at your current saving rate.
         </div>
         <Button variant="primary" onClick={onAdd}>

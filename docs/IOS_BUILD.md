@@ -1,4 +1,4 @@
-# Building Cashbook as a native iOS app
+# Building Monii Watch as a native iOS app
 
 The same Tauri shell that produces Mac / Windows / Linux installers also
 produces a native iOS `.ipa`. This is **a real iOS app** — not a PWA in
@@ -61,7 +61,7 @@ machines and Cargo workspaces don't fight over the generated files.
 
 After init, merge the permission keys from
 [`src-tauri/ios-config/Info.plist.snippets.xml`](../src-tauri/ios-config/Info.plist.snippets.xml)
-into the generated `src-tauri/gen/apple/cashbook_iOS/Info.plist` (open
+into the generated `src-tauri/gen/apple/monii-watch_iOS/Info.plist` (open
 in Xcode or any text editor; paste the keys into the top-level `<dict>`).
 These declare camera / photo / local-network usage strings that the
 existing OCR + LAN-sync flows need. Without them, Apple rejects the
@@ -115,7 +115,7 @@ with it depends on how you're distributing:
 
 ### Option A — TestFlight / App Store (Apple Developer required)
 
-1. Open `src-tauri/gen/apple/cashbook.xcodeproj` in Xcode
+1. Open `src-tauri/gen/apple/monii-watch.xcodeproj` in Xcode
 2. Product → Archive
 3. Window → Organizer → select the archive → Distribute App
 4. "App Store Connect" → upload
@@ -177,8 +177,8 @@ machinery Apple could object to.
 - **"No iOS targets for Rust" error**: run
   `rustup target add aarch64-apple-ios aarch64-apple-ios-sim`
 - **"Bundle identifier already taken"**: change `identifier` in
-  `tauri.conf.json` from `com.cashbook.app` to something unique like
-  `com.<yourname>.cashbook`
+  `tauri.conf.json` from `com.moniiwatch.app` to something unique like
+  `com.<yourname>.moniiwatch`
 - **Camera permission prompt never shows**: you forgot to merge the
   `NSCameraUsageDescription` key from the snippets file into the
   generated `Info.plist`. Apple silently fails camera APIs until that
@@ -188,4 +188,4 @@ machinery Apple could object to.
   your Team. The CLI doesn't have a UI for cert troubleshooting.
 - **WebRTC sync doesn't find peers on LAN**: iOS prompts for the
   Local Network permission the first time. If you tapped Don't Allow,
-  go to Settings → Cashbook → Local Network and toggle it on
+  go to Settings → Monii Watch → Local Network and toggle it on

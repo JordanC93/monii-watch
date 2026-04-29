@@ -1,4 +1,4 @@
-# Cashbook — Claude Reference
+# Monii Watch — Claude Reference
 
 Read this first when picking up work on this project.
 
@@ -35,7 +35,7 @@ app (for Mac/Windows/Linux installers). Same Vite codebase compiles to both.
 
 - **Frontend:** Vite 6, React 18, TypeScript 5, Tailwind 3, lucide-react icons
 - **State:** Zustand stores mirror a Yjs document; React subscribes to Zustand
-- **Persistence:** y-indexeddb (local) — `cashbook-doc-v1` IndexedDB database
+- **Persistence:** y-indexeddb (local) — `monii-watch-doc-v1` IndexedDB database
 - **Sync:** y-webrtc with public signaling (`signaling.yjs.dev` etc.)
 - **Charts:** Recharts (lazy-loaded — only on Reports page)
 - **Money math:** Integer cents only. Never floats. See [src/domain/money.ts](src/domain/money.ts).
@@ -285,10 +285,10 @@ server/                  Self-hosted y-websocket sync server (Docker Compose
     Same caution for any visual rule keyed off a generic Tailwind
     class.
 
-19. **Modal / sheet hand-offs go via `__cashbookPendingFile`, NOT
+19. **Modal / sheet hand-offs go via `__moniiPendingFile`, NOT
     setTimeout-based hooks.** When one modal needs to hand a payload
     to another (BulkPaste → ReceiptUpload), stash on the global
-    `window.__cashbookPendingFile` and let the destination modal's
+    `window.__moniiPendingFile` and let the destination modal's
     mount-time effect read it. setTimeouts that race the mount
     lifecycle break unpredictably. The chat-panel paste flow uses
     the same convention — keep them aligned.
@@ -334,7 +334,7 @@ on settings changes so other devices follow.
 Four independent layers; all opt-in except local persistence:
 
 1. **Local persistence** (`y-indexeddb`) — always on. App is fully usable
-   offline. The doc DB name is `cashbook-doc-v1`.
+   offline. The doc DB name is `monii-watch-doc-v1`.
 2. **WebRTC peer sync** (`y-webrtc`) — friends-and-family default,
    activated by Settings → Sync. The pairing phrase is BOTH the room
    name AND the encryption password; y-webrtc encrypts the data stream
@@ -382,7 +382,7 @@ field. Power users opt in, configure once, forget about it.
 
 Server-side: [`server/`](server/) ships a drop-in y-websocket runtime
 (`server.js` + `Dockerfile` + `docker-compose.yml` + README with TLS
-proxy recipes). Optional LevelDB persistence via `CASHBOOK_PERSIST_DIR`.
+proxy recipes). Optional LevelDB persistence via `MONII_PERSIST_DIR`.
 
 ## Conventions
 
@@ -524,7 +524,7 @@ Rules to preserve:
   mutator. Save current-month assignments as a snapshot, apply with
   one click
 - **Bulk paste**: BulkPasteModal dispatches pasted text via the
-  existing `__cashbookPendingFile` global so the receipt modal
+  existing `__moniiPendingFile` global so the receipt modal
   picks it up on mount (no setTimeout race)
 - **Monthly review**: auto-prompts on first visit each new month;
   `Settings.monthlyReviews[]` builds a journal; `useRef` session

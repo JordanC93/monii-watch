@@ -204,15 +204,15 @@ export function wireStoreToYjs() {
     }
     if (t !== 'auto') {
       document.documentElement.setAttribute('data-theme', t);
-      try { localStorage.setItem('cashbook:theme', t); } catch {}
+      try { localStorage.setItem('monii:theme', t); } catch {}
     } else {
       // Auto theme: defer to the resolver in theme.ts which listens to the
       // OS preference. Just mark the stored preference so reload picks
       // it up.
-      try { localStorage.setItem('cashbook:theme', 'auto'); } catch {}
+      try { localStorage.setItem('monii:theme', 'auto'); } catch {}
       // Trigger a re-resolve by dispatching a change event the resolver
       // already subscribes to.
-      window.dispatchEvent(new CustomEvent('cashbook:theme-change'));
+      window.dispatchEvent(new CustomEvent('monii:theme-change'));
     }
   });
   doc.getMap(MAPS.accounts).observeDeep(refreshAccounts);

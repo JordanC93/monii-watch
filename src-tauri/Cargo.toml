@@ -1,8 +1,8 @@
 [package]
-name = "cashbook"
+name = "monii-watch"
 version = "0.1.0"
 description = "Envelope-method budgeting that syncs peer-to-peer."
-authors = ["Cashbook"]
+authors = ["Monii Watch"]
 license = ""
 repository = ""
 edition = "2021"
@@ -11,7 +11,7 @@ rust-version = "1.77.2"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "cashbook_lib"
+name = "monii_watch_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

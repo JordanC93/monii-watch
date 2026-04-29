@@ -2,7 +2,7 @@ import type { ThemeName } from '../domain/types';
 import { setSettingsField, getSettings } from '../db/repo';
 import { applyGlassPalette } from '../lib/glassPalettes';
 
-const KEY = 'cashbook:theme';
+const KEY = 'monii:theme';
 
 /**
  * `theme-color` controls the tint behind the iOS status bar / Dynamic
@@ -83,7 +83,7 @@ function ensureOsListener() {
 
   // Custom event: budget-store fires this when the synced settings.theme
   // updates, so the Auto resolver picks it up without polling.
-  window.addEventListener('cashbook:theme-change' as any, () => {
+  window.addEventListener('monii:theme-change' as any, () => {
     const stored = readStored();
     reapply(stored);
   });

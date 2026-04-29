@@ -48,13 +48,13 @@ export function TabBar() {
         nav(t.path);
       }
     }
-    window.addEventListener('cashbook:new-tab', onNew);
-    window.addEventListener('cashbook:close-tab', onClose);
-    window.addEventListener('cashbook:jump-tab', onJump);
+    window.addEventListener('monii:new-tab', onNew);
+    window.addEventListener('monii:close-tab', onClose);
+    window.addEventListener('monii:jump-tab', onJump);
     return () => {
-      window.removeEventListener('cashbook:new-tab', onNew);
-      window.removeEventListener('cashbook:close-tab', onClose);
-      window.removeEventListener('cashbook:jump-tab', onJump);
+      window.removeEventListener('monii:new-tab', onNew);
+      window.removeEventListener('monii:close-tab', onClose);
+      window.removeEventListener('monii:jump-tab', onJump);
     };
   }, [activeTabId, tabs, location.pathname, newTab, closeTab, switchTab, nav]);
 

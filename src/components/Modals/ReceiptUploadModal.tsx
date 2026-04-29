@@ -331,15 +331,15 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
   // The modal exposes a global ref via a side-channel attribute on window.
   useEffect(() => {
     if (!open) return;
-    (window as any).__cashbookIngestFile = (file: File) => ingest(file);
+    (window as any).__moniiIngestFile = (file: File) => ingest(file);
     // If the chat panel timed out waiting for us (slow lazy-chunk load),
     // it stashes the file here. Pick it up automatically.
-    const pending = (window as any).__cashbookPendingFile as File | undefined;
+    const pending = (window as any).__moniiPendingFile as File | undefined;
     if (pending) {
-      delete (window as any).__cashbookPendingFile;
+      delete (window as any).__moniiPendingFile;
       ingest(pending);
     }
-    return () => { delete (window as any).__cashbookIngestFile; };
+    return () => { delete (window as any).__moniiIngestFile; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 

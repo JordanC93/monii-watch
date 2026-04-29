@@ -87,13 +87,13 @@ export function useGlobalShortcuts() {
       // ⌘T — open new in-app tab (Tier 5 #7).
       if (meta && e.key.toLowerCase() === 't' && !e.shiftKey) {
         e.preventDefault();
-        window.dispatchEvent(new CustomEvent('cashbook:new-tab'));
+        window.dispatchEvent(new CustomEvent('monii:new-tab'));
         return;
       }
       // ⌘W — close current tab.
       if (meta && e.key.toLowerCase() === 'w') {
         e.preventDefault();
-        window.dispatchEvent(new CustomEvent('cashbook:close-tab'));
+        window.dispatchEvent(new CustomEvent('monii:close-tab'));
         return;
       }
       // ⌘1..⌘9 — jump to tab N.
@@ -101,7 +101,7 @@ export function useGlobalShortcuts() {
         // Don't preempt the existing 1-5 number nav for keyboard tabs;
         // require Cmd modifier. Dispatch for the TabBar to handle.
         e.preventDefault();
-        window.dispatchEvent(new CustomEvent('cashbook:jump-tab', { detail: parseInt(e.key, 10) - 1 }));
+        window.dispatchEvent(new CustomEvent('monii:jump-tab', { detail: parseInt(e.key, 10) - 1 }));
         return;
       }
 

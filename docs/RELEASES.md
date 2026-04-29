@@ -1,6 +1,6 @@
 # Release & auto-update workflow
 
-How to ship a new version of Cashbook so existing desktop installs upgrade themselves.
+How to ship a new version of Monii Watch so existing desktop installs upgrade themselves.
 
 This doc is for **you** (the maintainer). End users never see any of this.
 
@@ -17,10 +17,10 @@ The Tauri auto-updater verifies bundles against an Ed25519 signature so a man-in
 
 ```bash
 # Generate the key pair. Pick a strong password — you'll need it on every release.
-npx @tauri-apps/cli signer generate -w ~/.cashbook/updater.key
+npx @tauri-apps/cli signer generate -w ~/.monii-watch/updater.key
 
 # This prints two blocks:
-#   PRIVATE KEY (save to ~/.cashbook/updater.key — already done by -w)
+#   PRIVATE KEY (save to ~/.monii-watch/updater.key — already done by -w)
 #   PUBLIC  KEY (paste into tauri.conf.json)
 ```
 
@@ -35,7 +35,7 @@ In GitHub repo settings → Secrets and variables → Actions, add:
 
 | Secret name | Value |
 |---|---|
-| `TAURI_SIGNING_PRIVATE_KEY` | Contents of `~/.cashbook/updater.key` |
+| `TAURI_SIGNING_PRIVATE_KEY` | Contents of `~/.monii-watch/updater.key` |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | The password you set when generating |
 
 The release workflow already reads these — see `.github/workflows/release.yml`.
@@ -56,9 +56,9 @@ git push origin main v0.2.0
 
 # 3. GitHub Actions runs the matrix (Mac universal, Windows x64, Linux AMD64).
 #    When it finishes, a draft release is sitting in the Releases tab with:
-#      - Cashbook_0.2.0_universal.dmg                 (+ .dmg.sig)
-#      - Cashbook_0.2.0_x64-setup.exe                 (+ .exe.sig)
-#      - cashbook_0.2.0_amd64.AppImage                (+ .AppImage.sig)
+#      - Monii Watch_0.2.0_universal.dmg                 (+ .dmg.sig)
+#      - Monii Watch_0.2.0_x64-setup.exe                 (+ .exe.sig)
+#      - monii-watch_0.2.0_amd64.AppImage                (+ .AppImage.sig)
 #      - latest.json                                   (the manifest)
 
 # 4. Edit the release notes if you want, then click "Publish release".

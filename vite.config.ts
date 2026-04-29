@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Cashbook',
-        short_name: 'Cashbook',
+        name: 'Monii Watch',
+        short_name: 'Monii',
         description: 'Envelope-method budgeting that syncs peer-to-peer.',
         theme_color: '#0e7490',
         background_color: '#0b0d12',

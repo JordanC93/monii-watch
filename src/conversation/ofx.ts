@@ -23,7 +23,7 @@ import { extractInnerVendor, inferVendorCategoryHint } from './vendors';
 export type ParsedOfx = {
   rows: ParsedStatementRow[];
   /** Bank account ID from the file, if present. Not auto-mapped to a
-   *  Cashbook account — the user picks the destination. */
+   *  Monii Watch account — the user picks the destination. */
   bankAccountId: string | null;
   /** ISO yyyy-mm-dd of the statement period start (DTSTART), if present. */
   periodStart: string | null;

@@ -1,6 +1,6 @@
-# Installing Cashbook on Your Devices
+# Installing Monii Watch on Your Devices
 
-Cashbook is a privacy-first budgeting app that runs entirely on your device.
+Monii Watch is a privacy-first budgeting app that runs entirely on your device.
 Data never goes to a server you don't own. To use it on your iPad, iPhone, or
 a different PC, you have two routes:
 
@@ -26,7 +26,7 @@ On a machine with Node.js installed:
 
 ```bash
 git clone <this-repo>
-cd Budget-app
+cd monii-watch
 npm install
 npm run build
 ```
@@ -61,7 +61,7 @@ Any HTTP server will do. The simplest:
 
 ```bash
 # On the server:
-cd /var/www/cashbook
+cd /var/www/monii-watch
 unzip dist.zip       # or rsync the dist folder up
 # Use any static server (caddy, nginx, lighttpd, even `python -m http.server`)
 ```
@@ -69,8 +69,8 @@ unzip dist.zip       # or rsync the dist folder up
 Caddy one-liner that handles HTTPS automatically:
 
 ```caddyfile
-cashbook.your-domain.tld {
-    root * /var/www/cashbook
+monii-watch.your-domain.tld {
+    root * /var/www/monii-watch
     file_server
     try_files {path} /index.html
 }
@@ -100,7 +100,7 @@ For a long-term LAN setup, a Tailscale (or other VPN) URL works great too.
 
 ## Step 3 — Install on each device
 
-Once you have a URL like `https://cashbook.your-domain.tld`:
+Once you have a URL like `https://monii-watch.your-domain.tld`:
 
 ### iPad / iPhone — two options
 
@@ -121,7 +121,7 @@ install via **Safari**, not Chrome or Firefox.
 3. Scroll down and tap **Add to Home Screen**.
 4. Tap **Add** in the upper-right.
 
-The Cashbook icon appears on your Home Screen. Tap it to launch — it runs
+The Monii Watch icon appears on your Home Screen. Tap it to launch — it runs
 full-screen with no Safari chrome and behaves like a native app.
 
 **Dynamic Island (iPhone 14 Pro and newer)** is fully supported. The app:
@@ -150,14 +150,14 @@ full-screen with no Safari chrome and behaves like a native app.
 
 1. Open the URL in **Safari** (Mac Safari supports PWA install since Sonoma)
    or **Chrome** / **Edge** (Brave works too).
-2. In Chrome: **File → Install Cashbook**. In Safari: **File → Add to Dock**.
+2. In Chrome: **File → Install Monii Watch**. In Safari: **File → Add to Dock**.
 3. The app gets a real Dock icon and launches in its own window.
 
 ### Windows (PWA)
 
 1. Open the URL in **Chrome** or **Edge**.
 2. Click the install icon in the address bar (looks like a monitor with a
-   down-arrow), or **⋮ menu → Install Cashbook**.
+   down-arrow), or **⋮ menu → Install Monii Watch**.
 3. The app gets a real Start-menu entry and runs in its own window.
 
 > **Firefox users on desktop:** Firefox dropped PWA install in 2021. You
@@ -178,9 +178,9 @@ npm run tauri:build
 ```
 
 Output is in `src-tauri/target/release/bundle/`:
-- Windows: `Cashbook_X.Y.Z_x64-setup.exe` — double-click to install.
-- Mac: `Cashbook_X.Y.Z_universal.dmg` — drag to Applications.
-- Linux: `cashbook_X.Y.Z_amd64.AppImage` — `chmod +x` and run.
+- Windows: `Monii Watch_X.Y.Z_x64-setup.exe` — double-click to install.
+- Mac: `Monii Watch_X.Y.Z_universal.dmg` — drag to Applications.
+- Linux: `monii-watch_X.Y.Z_amd64.AppImage` — `chmod +x` and run.
 
 If you don't want to install a Rust toolchain, the GitHub Actions workflow
 at `.github/workflows/release.yml` builds all three on free runners:
@@ -253,7 +253,7 @@ also disconnects when a tab closes — re-open both devices.
 iOS clears Home Screen PWAs when storage gets very low. Re-add from Safari.
 If you exported a JSON backup, you can also restore from it.
 
-**Cashbook icon missing on the Home Screen after iOS update.**
+**Monii Watch icon missing on the Home Screen after iOS update.**
 Same as above — re-add from Safari. Pair with your other device to recover
 data via sync, or import your latest JSON backup.
 

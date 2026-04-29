@@ -1,11 +1,11 @@
-# Cashbook self-hosted sync server
+# Monii Watch self-hosted sync server
 
-Tiny Node service that gives your Cashbook devices a hub to sync through.
-**Optional** — Cashbook works fine without it via WebRTC peer-to-peer. Set
+Tiny Node service that gives your Monii Watch devices a hub to sync through.
+**Optional** — Monii Watch works fine without it via WebRTC peer-to-peer. Set
 this up only when you want hub-and-spoke sync (so a device coming online
 catches up even if the other device is offline).
 
-This is part of the [Cashbook](../README.md) project. Friends and family
+This is part of the [Monii Watch](../README.md) project. Friends and family
 sharing the app over WebRTC don't need any of this — they just paste the
 pairing phrase. This server is for power users who want their own hub.
 
@@ -16,7 +16,7 @@ pairing phrase. This server is for power users who want their own hub.
   every other device is offline
 - Optional disk persistence (LevelDB) so a server restart doesn't drop
   the in-memory snapshot
-- Hub-and-spoke + WebRTC mesh together: Cashbook keeps both transports
+- Hub-and-spoke + WebRTC mesh together: Monii Watch keeps both transports
   active, so peer-to-peer still works on your LAN even when the server
   is unreachable
 
@@ -38,7 +38,7 @@ cd server
 docker compose up -d
 ```
 
-That gets you `ws://<your-host>:1234`. Point Cashbook at it via Settings →
+That gets you `ws://<your-host>:1234`. Point Monii Watch at it via Settings →
 Sync → Self-hosted server.
 
 ### Option B — Bare Node
@@ -50,8 +50,8 @@ npm start
 ```
 
 ```
-[cashbook-sync] listening on 0.0.0.0:1234
-[cashbook-sync] point Cashbook at:  ws://<your-host>:1234
+[monii-sync] listening on 0.0.0.0:1234
+[monii-sync] point Monii Watch at:  ws://<your-host>:1234
 ```
 
 ### Behind TLS (recommended for anything off your LAN)
@@ -92,12 +92,12 @@ server {
 |-----|---------|---------|
 | `PORT` | `1234` | TCP port to listen on |
 | `HOST` | `0.0.0.0` | Bind address |
-| `CASHBOOK_PERSIST_DIR` | *(unset)* | Path for LevelDB on-disk persistence |
+| `MONII_PERSIST_DIR` | *(unset)* | Path for LevelDB on-disk persistence |
 
-## Connecting Cashbook to it
+## Connecting Monii Watch to it
 
 1. Run the server (see above)
-2. Open Cashbook → Settings → Sync
+2. Open Monii Watch → Settings → Sync
 3. Expand **Self-hosted server (advanced)**
 4. Paste the URL: `ws://<host>:1234` (LAN) or `wss://sync.example.com` (TLS)
 5. Click Save. The status row should show **Server: connected**
@@ -125,8 +125,8 @@ docker compose up -d --build   # or `npm install && npm start`
   phrase**. The server segregates docs by phrase; mismatched phrases land
   in different docs and never see each other.
 - **"Server: reconnecting…" in the modal**: the URL is configured but the
-  server isn't responding. Check `docker logs cashbook-sync` or the
+  server isn't responding. Check `docker logs monii-sync` or the
   bare-node console.
 - **Data missing after restart**: enable persistence by setting
-  `CASHBOOK_PERSIST_DIR` and remounting the volume. Docker Compose does
+  `MONII_PERSIST_DIR` and remounting the volume. Docker Compose does
   this by default.

@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Cashbook" />
+    <meta name="apple-mobile-web-app-title" content="Monii Watch" />
     <meta name="theme-color" content="#0b0d12" />
     <meta name="description" content="Envelope-method budgeting that syncs peer-to-peer." />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
-    <title>Cashbook</title>
+    <title>Monii Watch</title>
     <script>
       // Apply theme + matching iOS Dynamic Island / status-bar tint as
       // early as possible to avoid FOUC. Mirrors the table in
@@ -18,7 +18,7 @@
       // theme to dark/light based on the OS preference.
       (function () {
         try {
-          var saved = localStorage.getItem('cashbook:theme') || 'dark';
+          var saved = localStorage.getItem('monii:theme') || 'dark';
           var concrete = saved;
           if (saved === 'auto') {
             var mql = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');

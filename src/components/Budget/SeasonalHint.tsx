@@ -20,7 +20,7 @@ export function SeasonalHint() {
   const fmt = useFormatMoney();
 
   const [dismissedKey, setDismissedKey] = useState<string | null>(() => {
-    try { return localStorage.getItem('cashbook:dismissed-seasonal'); } catch { return null; }
+    try { return localStorage.getItem('monii:dismissed-seasonal'); } catch { return null; }
   });
 
   const hint = useMemo(() => detectSeasonalHint(txns, accounts, month), [txns, accounts, month]);
@@ -29,7 +29,7 @@ export function SeasonalHint() {
   if (dismissedKey === month) return null;
 
   function dismiss() {
-    try { localStorage.setItem('cashbook:dismissed-seasonal', month); } catch {}
+    try { localStorage.setItem('monii:dismissed-seasonal', month); } catch {}
     setDismissedKey(month);
   }
 

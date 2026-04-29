@@ -95,5 +95,5 @@ export const toast = Object.assign(
 // imports statically (dynamic `import('/src/lib/toast.ts')` from the
 // console creates a separate instance and would silently lie).
 if (import.meta.env.DEV) {
-  (window as any).__cashbookToast = { toast, listToasts, dismissToast };
+  (window as any).__moniiToast = { toast, listToasts, dismissToast };
 }

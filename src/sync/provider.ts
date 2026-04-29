@@ -61,7 +61,7 @@ let lastError: string | null = null;
 const listeners = new Set<Listener>();
 const detailListeners = new Set<DetailListener>();
 
-const DOC_NAME = 'cashbook-doc-v1';
+const DOC_NAME = 'monii-watch-doc-v1';
 
 export function onSyncStatus(cb: Listener): () => void {
   listeners.add(cb);
@@ -136,7 +136,7 @@ export function connectWebrtc(room: string) {
   setStatus('connecting');
   try {
     const doc = getDoc();
-    webrtc = new WebrtcProvider(`cashbook-${room}`, doc, {
+    webrtc = new WebrtcProvider(`monii-watch-${room}`, doc, {
       // Default y-webrtc signaling servers are public — fine for v1, but the
       // user can host their own later (Plex box, etc.) and we'll point here.
       signaling: ['wss://signaling.yjs.dev', 'wss://y-webrtc-signaling-eu.herokuapp.com'],
@@ -190,7 +190,7 @@ export function connectWebsocket(serverUrl: string, room: string) {
   setStatus('connecting');
   try {
     const doc = getDoc();
-    websocket = new WebsocketProvider(url, `cashbook-${room}`, doc, {
+    websocket = new WebsocketProvider(url, `monii-watch-${room}`, doc, {
       // y-websocket reconnects automatically on drop. Default backoff is fine.
       connect: true,
       // y-websocket doesn't natively encrypt the stream the way y-webrtc does

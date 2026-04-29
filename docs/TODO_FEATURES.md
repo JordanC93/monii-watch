@@ -1,4 +1,4 @@
-# Cashbook — Feature Backlog
+# Monii Watch — Feature Backlog
 
 Next-up features Claude proposed. Numbered for picker shorthand: the
 project owner says **"Tier X #N"** to select. Each entry is sized to
@@ -14,7 +14,7 @@ When working from this list:
    - All mutations through `db/repo.ts` inside `tx()`
    - Local-per-device settings go to localStorage, NOT synced Yjs
    - Don't write global selectors on Tailwind utility classes (rule #18)
-   - Modal hand-offs use `__cashbookPendingFile`, not setTimeout (rule #19)
+   - Modal hand-offs use `__moniiPendingFile`, not setTimeout (rule #19)
 
 ---
 
@@ -391,7 +391,7 @@ forever.
 
 **Pillar 2: Three-pane workflow.** Mail.app's three-column layout
 (folders / list / detail) is the single best pattern for desktop
-data-management apps. Right now Cashbook switches between full-page
+data-management apps. Right now Monii Watch switches between full-page
 views; on a 27" iMac that wastes half the screen. Three panes turn
 horizontal real estate into productivity: pick an account, scan
 transactions, edit in place.

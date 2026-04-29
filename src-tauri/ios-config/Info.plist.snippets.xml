@@ -1,5 +1,5 @@
 <!--
-  iOS-specific Info.plist additions for Cashbook.
+  iOS-specific Info.plist additions for Monii Watch.
 
   After running `npm run ios:init` (which calls `tauri ios init`), Tauri
   generates `src-tauri/gen/apple/<bundle-id>_iOS/Info.plist`. Open that
@@ -23,19 +23,19 @@
 
 <!-- Camera (receipt OCR). -->
 <key>NSCameraUsageDescription</key>
-<string>Cashbook reads receipt photos on-device with Tesseract OCR to pre-fill transactions. Photos never leave your device.</string>
+<string>Monii Watch reads receipt photos on-device with Tesseract OCR to pre-fill transactions. Photos never leave your device.</string>
 
 <!-- Photo library (pick existing receipts, goal avatar uploads). -->
 <key>NSPhotoLibraryUsageDescription</key>
-<string>Cashbook reads receipt and goal-avatar photos on-device. Selected photos never leave your device.</string>
+<string>Monii Watch reads receipt and goal-avatar photos on-device. Selected photos never leave your device.</string>
 
 <!-- Saving exported JSON backups to Photos / Files. -->
 <key>NSPhotoLibraryAddUsageDescription</key>
-<string>Cashbook saves your exported JSON backup file when you tap Export.</string>
+<string>Monii Watch saves your exported JSON backup file when you tap Export.</string>
 
 <!-- WebRTC LAN sync without round-tripping the public signaling server. -->
 <key>NSLocalNetworkUsageDescription</key>
-<string>Cashbook discovers your other devices on the same Wi-Fi to sync directly. No data leaves your network.</string>
+<string>Monii Watch discovers your other devices on the same Wi-Fi to sync directly. No data leaves your network.</string>
 
 <key>NSBonjourServices</key>
 <array>

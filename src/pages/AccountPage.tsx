@@ -38,7 +38,7 @@ export function AccountPage() {
     : null;
 
   // Tier 4 #6: drag-drop CSV/OFX/QFX onto the account header opens the
-  // import modal. Stashes the File on `__cashbookPendingFile` so the
+  // import modal. Stashes the File on `__moniiPendingFile` so the
   // import modal's mount-time effect picks it up — same convention as
   // the receipt + bulk-paste paths (iron rule #19).
   const [dragHover, setDragHover] = useState(false);
@@ -49,7 +49,7 @@ export function AccountPage() {
     if (!file) return;
     const ok = /\.(csv|ofx|qfx|txt)$/i.test(file.name);
     if (!ok) return;
-    (window as any).__cashbookPendingFile = file;
+    (window as any).__moniiPendingFile = file;
     openModal({ type: 'importCsv', accountId: account!.id });
   }
 

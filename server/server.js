@@ -1,7 +1,7 @@
 /**
- * Cashbook self-hosted sync server (y-websocket).
+ * Monii Watch self-hosted sync server (y-websocket).
  *
- * This is the *server* that Cashbook clients connect to when you've
+ * This is the *server* that Monii Watch clients connect to when you've
  * configured `Settings → Sync → Self-hosted server URL` in the app.
  *
  * It is OPTIONAL. The app works fine without it via WebRTC peer-to-peer.
@@ -12,14 +12,14 @@
  *   client also has a complete local copy in IndexedDB and re-syncs on
  *   reconnect, so this is safe.
  *
- * - To persist documents to disk between restarts, set `CASHBOOK_PERSIST_DIR`
+ * - To persist documents to disk between restarts, set `MONII_PERSIST_DIR`
  *   to a writable directory. The y-leveldb persistence plugin is loaded
  *   on demand if present.
  *
  * Environment variables:
  *   PORT             — TCP port to listen on (default: 1234)
  *   HOST             — bind address (default: 0.0.0.0 — all interfaces)
- *   CASHBOOK_PERSIST_DIR — optional, path for on-disk persistence
+ *   MONII_PERSIST_DIR — optional, path for on-disk persistence
  *
  * Run: `npm install && npm start`
  *
@@ -33,7 +33,7 @@ import { setupWSConnection, setPersistence } from 'y-websocket/bin/utils.js';
 
 const PORT = parseInt(process.env.PORT || '1234', 10);
 const HOST = process.env.HOST || '0.0.0.0';
-const PERSIST_DIR = process.env.CASHBOOK_PERSIST_DIR || '';
+const PERSIST_DIR = process.env.MONII_PERSIST_DIR || '';
 
 // Optional disk persistence — only loaded when configured. Saves the doc to
 // LevelDB so a server restart doesn't drop the in-memory snapshot.
@@ -56,17 +56,17 @@ if (PERSIST_DIR) {
       writeState: async () => {},
       provider: persistence,
     });
-    console.log(`[cashbook-sync] persistence enabled at ${PERSIST_DIR}`);
+    console.log(`[monii-sync] persistence enabled at ${PERSIST_DIR}`);
   } catch (e) {
-    console.warn(`[cashbook-sync] persistence requested but y-leveldb not installed; running in-memory.`);
-    console.warn(`[cashbook-sync] install with: npm install y-leveldb`);
-    console.warn(`[cashbook-sync] underlying error:`, e?.message ?? e);
+    console.warn(`[monii-sync] persistence requested but y-leveldb not installed; running in-memory.`);
+    console.warn(`[monii-sync] install with: npm install y-leveldb`);
+    console.warn(`[monii-sync] underlying error:`, e?.message ?? e);
   }
 }
 
 const server = http.createServer((_req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Cashbook sync server. WebSocket endpoint only.\n');
+  res.end('Monii Watch sync server. WebSocket endpoint only.\n');
 });
 
 const wss = new WebSocketServer({ server });
@@ -75,13 +75,13 @@ wss.on('connection', (conn, req) => {
   // y-websocket's setupWSConnection takes care of the protocol handshake,
   // gc, doc lookup, and broadcast.
   setupWSConnection(conn, req, {
-    // Doc name is taken from the URL path. Cashbook uses `cashbook-<phrase>`.
+    // Doc name is taken from the URL path. Monii Watch uses `monii-watch-<phrase>`.
     gc: true,
   });
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`[cashbook-sync] listening on ${HOST}:${PORT}`);
-  console.log(`[cashbook-sync] point Cashbook at:  ws://<your-host>:${PORT}`);
-  console.log(`[cashbook-sync] (use wss:// behind a TLS proxy in production)`);
+  console.log(`[monii-sync] listening on ${HOST}:${PORT}`);
+  console.log(`[monii-sync] point Monii Watch at:  ws://<your-host>:${PORT}`);
+  console.log(`[monii-sync] (use wss:// behind a TLS proxy in production)`);
 });

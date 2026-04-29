@@ -52,18 +52,18 @@ snapshot to v2.
 
 ### 1. Create a Google Cloud OAuth client
 
-Cashbook needs a tiny Google Cloud project so the OAuth flow knows who's
+Monii Watch needs a tiny Google Cloud project so the OAuth flow knows who's
 asking. This is free and takes a few minutes.
 
 1. Go to <https://console.cloud.google.com/projectcreate>
-2. Project name: `Cashbook` (or anything)
+2. Project name: `Monii Watch` (or anything)
 3. Click **Create**
 4. From the project picker (top bar), select your new project
 5. Go to **APIs &amp; Services → Library**, search for "Google Drive API",
    click it, and click **Enable**
 6. Go to **APIs &amp; Services → OAuth consent screen**:
    - **User type:** External
-   - **App name:** `Cashbook`
+   - **App name:** `Monii Watch`
    - **User support email:** your email
    - **Developer contact:** your email
    - Save and continue
@@ -75,26 +75,26 @@ asking. This is free and takes a few minutes.
 7. Go to **APIs &amp; Services → Credentials → Create credentials → OAuth
    client ID**:
    - **Application type:** Web application
-   - **Name:** Cashbook
+   - **Name:** Monii Watch
    - **Authorized JavaScript origins:** add the origin where you run
-     the app (e.g. `https://cashbook.example.com`, or
+     the app (e.g. `https://monii.example.com`, or
      `http://localhost:5173` for dev)
    - **Authorized redirect URIs:** add the **same URL** the app runs
      at — the OAuth popup redirects back to this exact URL with the
      token in the hash. Example:
-     `https://cashbook.example.com/`
+     `https://monii.example.com/`
    - Click **Create**
 8. Copy the **Client ID** that appears (looks like
    `123456-abcdef.apps.googleusercontent.com`)
 
-If you install Cashbook on multiple origins (e.g. one PWA URL + one
+If you install Monii Watch on multiple origins (e.g. one PWA URL + one
 Tauri build), add each origin AND each redirect URI to the same OAuth
 client. The app uses `window.location.origin + window.location.pathname`
 as the redirect URI, so make sure each install's URL is in the list.
 
-### 2. Connect Cashbook
+### 2. Connect Monii Watch
 
-1. In Cashbook, open **Settings → Sync**
+1. In Monii Watch, open **Settings → Sync**
 2. Make sure you have a pairing phrase set (the field at the top —
    if it's empty, generate one). **This phrase is your encryption
    password — write it down.** Lose it and the encrypted Drive snapshot
@@ -105,13 +105,13 @@ as the redirect URI, so make sure each install's URL is in the list.
 6. Sign in, grant the `drive.file` permission
 
 That's it. The app immediately uploads an encrypted snapshot to a
-folder called `Cashbook (E2E encrypted)` in your Drive root.
+folder called `Monii Watch (E2E encrypted)` in your Drive root.
 
 ### 3. Connect your other devices
 
 On each additional device:
 
-1. Install Cashbook
+1. Install Monii Watch
 2. **Set the same pairing phrase** in Settings → Sync (this is
    critical — the same phrase is what lets the new device decrypt
    what's already in Drive)
@@ -125,8 +125,8 @@ across all your devices.
 
 ## What gets stored
 
-A single encrypted file in `Drive / Cashbook (E2E encrypted) /
-cashbook-snapshot.bin`. Format v2:
+A single encrypted file in `Drive / Monii Watch (E2E encrypted) /
+monii-watch-snapshot.bin`. Format v2:
 
 ```
 [0]      version          0x02
@@ -197,7 +197,7 @@ The pairing phrase is unchanged. Your local data is unchanged.
 ## Privacy guarantees
 
 What Google can see:
-- That a Cashbook user has uploaded an opaque blob to their Drive
+- That a Monii Watch user has uploaded an opaque blob to their Drive
 - The size of the blob (proxy for "how much budget data you have")
 - The timestamps of upload activity
 

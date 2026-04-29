@@ -13,23 +13,23 @@ import { useFormatMoney, formatInCurrency } from '../../lib/format';
 // Persisted UI preferences for the sidebar — local-per-device.
 function readSidebarWidth(): number {
   try {
-    const v = parseInt(localStorage.getItem('cashbook:sidebar-width') ?? '', 10);
+    const v = parseInt(localStorage.getItem('monii:sidebar-width') ?? '', 10);
     if (Number.isFinite(v) && v >= 200 && v <= 480) return v;
   } catch {}
   return 260;
 }
 function writeSidebarWidth(w: number) {
-  try { localStorage.setItem('cashbook:sidebar-width', String(w)); } catch {}
+  try { localStorage.setItem('monii:sidebar-width', String(w)); } catch {}
 }
 function readGroupCollapsed(): { onBudget: boolean; tracking: boolean } {
   try {
-    const raw = localStorage.getItem('cashbook:sidebar-groups');
+    const raw = localStorage.getItem('monii:sidebar-groups');
     if (raw) return JSON.parse(raw);
   } catch {}
   return { onBudget: false, tracking: false };
 }
 function writeGroupCollapsed(v: { onBudget: boolean; tracking: boolean }) {
-  try { localStorage.setItem('cashbook:sidebar-groups', JSON.stringify(v)); } catch {}
+  try { localStorage.setItem('monii:sidebar-groups', JSON.stringify(v)); } catch {}
 }
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
@@ -91,7 +91,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <div className="w-7 h-7 rounded-md bg-gradient-to-br from-cyan-400 to-cyan-700 grid place-items-center text-white font-bold">$</div>
           <div>
             <div className="font-semibold text-[14px] leading-tight truncate max-w-[140px]">{settings.budgetName}</div>
-            <div className="text-[11px] text-fg-subtle leading-tight">Cashbook</div>
+            <div className="text-[11px] text-fg-subtle leading-tight">Monii Watch</div>
           </div>
         </div>
       </div>

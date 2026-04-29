@@ -61,7 +61,7 @@ export function SettingsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `cashbook-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `monii-watch-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -92,7 +92,7 @@ export function SettingsPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `cashbook-${new Date().toISOString().slice(0, 10)}.cb-backup`;
+      a.download = `monii-watch-${new Date().toISOString().slice(0, 10)}.cb-backup`;
       a.click();
       URL.revokeObjectURL(url);
       setImportMsg('Encrypted backup downloaded. Keep that passphrase safe.');
@@ -351,7 +351,7 @@ export function SettingsPage() {
           <Button onClick={() => redo()} variant="secondary"><RefreshCw size={14} className="-scale-x-100" /> Redo</Button>
           <Button onClick={() => {
             if (!confirm('This will delete ALL data on this device. To restore, import a backup. Continue?')) return;
-            indexedDB.deleteDatabase('cashbook-doc-v1');
+            indexedDB.deleteDatabase('monii-watch-doc-v1');
             location.reload();
           }} variant="danger"><AlertTriangle size={14} /> Reset everything</Button>
         </div>
@@ -428,7 +428,7 @@ export function SettingsPage() {
 
       <Section title="About">
         <div className="text-[12.5px] text-fg-muted space-y-1">
-          <div>Cashbook — envelope-method budgeting that syncs peer-to-peer.</div>
+          <div>Monii Watch — envelope-method budgeting that syncs peer-to-peer.</div>
           <div>v0.1.0 · Local-first · No accounts required.</div>
         </div>
       </Section>
@@ -675,7 +675,7 @@ function NotificationsSettings() {
 function DensitySetting() {
   const [d, setD] = useState(() => {
     try {
-      const v = localStorage.getItem('cashbook:density');
+      const v = localStorage.getItem('monii:density');
       return (v === 'compact' || v === 'spacious') ? v : 'comfortable';
     } catch { return 'comfortable'; }
   });
@@ -701,7 +701,7 @@ function DensitySetting() {
 /** Privacy mode toggle (Tier 3 #6). Local-per-device. */
 function PrivacyToggle() {
   const [on, setOn] = useState(() => {
-    try { return localStorage.getItem('cashbook:privacy-mode') === '1'; } catch { return false; }
+    try { return localStorage.getItem('monii:privacy-mode') === '1'; } catch { return false; }
   });
   function toggle() {
     void import('../lib/privacy').then((m) => { m.setPrivacy(!on); setOn(!on); });

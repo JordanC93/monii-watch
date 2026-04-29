@@ -45,7 +45,7 @@ export function SavedLayoutsModal({ open, onClose }: { open: boolean; onClose: (
     if (!l) return;
     if (l.sidebarCollapsed) writeSidebarCollapsed(l.sidebarCollapsed);
     if (l.density) {
-      try { localStorage.setItem('cashbook:density', l.density); } catch {}
+      try { localStorage.setItem('monii:density', l.density); } catch {}
       void import('../../lib/density').then((m) => m.setDensity(l.density!));
     }
     if (l.page) nav(l.page);
@@ -115,17 +115,17 @@ export function SavedLayoutsModal({ open, onClose }: { open: boolean; onClose: (
 
 function readSidebarCollapsed() {
   try {
-    const raw = localStorage.getItem('cashbook:sidebar-groups');
+    const raw = localStorage.getItem('monii:sidebar-groups');
     if (raw) return JSON.parse(raw);
   } catch {}
   return { onBudget: false, tracking: false };
 }
 function writeSidebarCollapsed(v: { onBudget: boolean; tracking: boolean }) {
-  try { localStorage.setItem('cashbook:sidebar-groups', JSON.stringify(v)); } catch {}
+  try { localStorage.setItem('monii:sidebar-groups', JSON.stringify(v)); } catch {}
 }
 function readDensity(): 'compact' | 'comfortable' | 'spacious' {
   try {
-    const v = localStorage.getItem('cashbook:density');
+    const v = localStorage.getItem('monii:density');
     if (v === 'compact' || v === 'spacious') return v;
   } catch {}
   return 'comfortable';

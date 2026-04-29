@@ -10,8 +10,8 @@
 import { useEffect, useState } from 'react';
 
 export type Density = 'compact' | 'comfortable' | 'spacious';
-const KEY = 'cashbook:density';
-const EVT = 'cashbook:density-change';
+const KEY = 'monii:density';
+const EVT = 'monii:density-change';
 
 export function getDensity(): Density {
   try {

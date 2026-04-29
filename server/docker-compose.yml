@@ -1,4 +1,4 @@
-# Cashbook sync server — drop-in compose for your Plex box / NAS / Pi.
+# Monii Watch sync server — drop-in compose for your Plex box / NAS / Pi.
 #
 #   docker compose up -d
 #
@@ -7,18 +7,18 @@
 # a TLS-terminating reverse proxy. See README.md.
 
 services:
-  cashbook-sync:
+  monii-sync:
     build: .
-    image: cashbook-sync:latest
-    container_name: cashbook-sync
+    image: monii-sync:latest
+    container_name: monii-sync
     restart: unless-stopped
     ports:
       - "1234:1234"
     environment:
       # Persist docs between restarts. Comment out for in-memory only.
-      CASHBOOK_PERSIST_DIR: /data
+      MONII_PERSIST_DIR: /data
     volumes:
-      - cashbook-sync-data:/data
+      - monii-sync-data:/data
     # Resource ceiling — y-websocket is light, but containers love defaults.
     deploy:
       resources:
@@ -26,4 +26,4 @@ services:
           memory: 256M
 
 volumes:
-  cashbook-sync-data:
+  monii-sync-data:

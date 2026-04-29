@@ -141,7 +141,7 @@ function DriveHelp() {
         <li><strong>OAuth consent screen</strong>:
           <ul className="list-disc pl-5 mt-1 space-y-0.5">
             <li>User type: External</li>
-            <li>App name: Cashbook</li>
+            <li>App name: Monii Watch</li>
             <li>Scopes: add <code>auth/drive.file</code></li>
             <li><strong>Add yourself as a Test User</strong> (without this you'll get an "App not verified" warning)</li>
           </ul>
@@ -154,7 +154,7 @@ function DriveHelp() {
           </ul>
           Copy the client ID.
         </li>
-        <li>In Cashbook → Settings → Sync → expand <strong>Google Drive (advanced)</strong> → paste client ID → Connect.</li>
+        <li>In Monii Watch → Settings → Sync → expand <strong>Google Drive (advanced)</strong> → paste client ID → Connect.</li>
         <li>On every other device: same OAuth client ID + <strong>same pairing phrase</strong> (it's the AES-GCM encryption key — without it the new device can't decrypt the existing snapshot).</li>
       </ol>
       <Tip>Each install origin needs its own Authorized Origin + Redirect URI on the same OAuth client. PWA URL, Tauri custom-scheme URL, localhost dev — add them all.</Tip>
@@ -172,7 +172,7 @@ function ServerHelp() {
 docker compose up -d`}</Pre>
           That binds <code>0.0.0.0:1234</code> with optional LevelDB persistence at <code>/data</code>.
         </li>
-        <li>In Cashbook → Settings → Sync → expand <strong>Self-hosted server (advanced)</strong> → paste <code>ws://&lt;host&gt;:1234</code> (LAN) or <code>wss://sync.example.com</code> (TLS) → Save.</li>
+        <li>In Monii Watch → Settings → Sync → expand <strong>Self-hosted server (advanced)</strong> → paste <code>ws://&lt;host&gt;:1234</code> (LAN) or <code>wss://sync.example.com</code> (TLS) → Save.</li>
         <li>For TLS: put it behind Caddy or nginx. One-line Caddy:
           <Pre>{`sync.example.com {
   reverse_proxy 127.0.0.1:1234
@@ -180,7 +180,7 @@ docker compose up -d`}</Pre>
         </li>
         <li>Update: <code>cd server &amp;&amp; git pull &amp;&amp; docker compose up -d --build</code></li>
       </ol>
-      <Tip>The server holds the doc in memory between restarts unless you set <code>CASHBOOK_PERSIST_DIR</code>. Compose enables persistence by default via the volume mount.</Tip>
+      <Tip>The server holds the doc in memory between restarts unless you set <code>MONII_PERSIST_DIR</code>. Compose enables persistence by default via the volume mount.</Tip>
     </Section>
   );
 }
@@ -193,12 +193,12 @@ function ReleaseHelp() {
       <div className="text-[11px] uppercase tracking-wider text-fg-subtle mt-3 mb-1">One-time signing setup</div>
       <ol className="list-decimal pl-5 space-y-1 text-[13px]">
         <li>Generate keys:
-          <Pre>{`npx @tauri-apps/cli signer generate -w ~/.cashbook/updater.key`}</Pre>
+          <Pre>{`npx @tauri-apps/cli signer generate -w ~/.monii-watch/updater.key`}</Pre>
         </li>
         <li>Paste the printed PUBLIC key into <code>src-tauri/tauri.conf.json</code> → <code>plugins.updater.pubkey</code> (replace the placeholder).</li>
         <li>In GitHub repo settings → Secrets and variables → Actions, add:
           <ul className="list-disc pl-5 mt-1 space-y-0.5">
-            <li><code>TAURI_SIGNING_PRIVATE_KEY</code> = contents of <code>~/.cashbook/updater.key</code></li>
+            <li><code>TAURI_SIGNING_PRIVATE_KEY</code> = contents of <code>~/.monii-watch/updater.key</code></li>
             <li><code>TAURI_SIGNING_PRIVATE_KEY_PASSWORD</code> = the password you set</li>
           </ul>
         </li>

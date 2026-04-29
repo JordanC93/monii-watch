@@ -64,13 +64,13 @@ export default function App() {
         case 'file.new_txn':
           // Open the chat panel with the cursor focused — fastest path
           // to add a transaction without leaving the active page.
-          window.dispatchEvent(new CustomEvent('cashbook:open-chat'));
+          window.dispatchEvent(new CustomEvent('monii:open-chat'));
           break;
         case 'file.new_account':
-          window.dispatchEvent(new CustomEvent('cashbook:open-modal', { detail: { type: 'addAccount' } }));
+          window.dispatchEvent(new CustomEvent('monii:open-modal', { detail: { type: 'addAccount' } }));
           break;
         case 'file.import_csv':
-          window.dispatchEvent(new CustomEvent('cashbook:open-modal', { detail: { type: 'bulkPaste' } }));
+          window.dispatchEvent(new CustomEvent('monii:open-modal', { detail: { type: 'bulkPaste' } }));
           break;
         case 'file.export_json': {
           const snap = exportSnapshot();
@@ -78,7 +78,7 @@ export default function App() {
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `cashbook-${new Date().toISOString().slice(0, 10)}.json`;
+          a.download = `monii-watch-${new Date().toISOString().slice(0, 10)}.json`;
           a.click();
           URL.revokeObjectURL(url);
           break;
@@ -95,7 +95,7 @@ export default function App() {
           break;
         }
         case 'edit.command_palette':
-          window.dispatchEvent(new CustomEvent('cashbook:open-palette'));
+          window.dispatchEvent(new CustomEvent('monii:open-palette'));
           break;
         case 'view.budget':    nav('/budget'); break;
         case 'view.accounts':  nav('/accounts'); break;
@@ -122,7 +122,7 @@ export default function App() {
           void openNewDesktopWindow(window.location.pathname);
           break;
         case 'window.new_tab':
-          window.dispatchEvent(new CustomEvent('cashbook:new-tab'));
+          window.dispatchEvent(new CustomEvent('monii:new-tab'));
           break;
         case 'window.next_monitor':
           void import('./lib/nativeDesktop').then(async (m) => {
@@ -134,20 +134,20 @@ export default function App() {
           });
           break;
         case 'help.welcome':
-          window.dispatchEvent(new CustomEvent('cashbook:open-modal', { detail: { type: 'welcome' } }));
+          window.dispatchEvent(new CustomEvent('monii:open-modal', { detail: { type: 'welcome' } }));
           break;
         case 'help.audit':
-          window.dispatchEvent(new CustomEvent('cashbook:open-modal', { detail: { type: 'chatAuditLog' } }));
+          window.dispatchEvent(new CustomEvent('monii:open-modal', { detail: { type: 'chatAuditLog' } }));
           break;
         case 'help.logs':
-          window.dispatchEvent(new CustomEvent('cashbook:open-modal', { detail: { type: 'debugLogs' } }));
+          window.dispatchEvent(new CustomEvent('monii:open-modal', { detail: { type: 'debugLogs' } }));
           break;
       }
     }).then((u) => { unlisten = u; });
     return () => { unlisten?.(); };
   }, [nav]);
 
-  // Bridge the menubar's `cashbook:open-modal` events into useUI so menu
+  // Bridge the menubar's `monii:open-modal` events into useUI so menu
   // items can open modals without holding a direct ref to the store.
   useEffect(() => {
     function onOpenModal(e: Event) {
@@ -156,13 +156,13 @@ export default function App() {
     }
     function onOpenChat() { useUI.getState().setChatOpen(true); }
     function onOpenPalette() { useUI.getState().setCommandOpen(true); }
-    window.addEventListener('cashbook:open-modal', onOpenModal);
-    window.addEventListener('cashbook:open-chat', onOpenChat);
-    window.addEventListener('cashbook:open-palette', onOpenPalette);
+    window.addEventListener('monii:open-modal', onOpenModal);
+    window.addEventListener('monii:open-chat', onOpenChat);
+    window.addEventListener('monii:open-palette', onOpenPalette);
     return () => {
-      window.removeEventListener('cashbook:open-modal', onOpenModal);
-      window.removeEventListener('cashbook:open-chat', onOpenChat);
-      window.removeEventListener('cashbook:open-palette', onOpenPalette);
+      window.removeEventListener('monii:open-modal', onOpenModal);
+      window.removeEventListener('monii:open-chat', onOpenChat);
+      window.removeEventListener('monii:open-palette', onOpenPalette);
     };
   }, []);
 

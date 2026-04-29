@@ -618,7 +618,7 @@ export type Settings = {
   /**
    * Optional **end-to-end-encrypted Google Drive sync**. When enabled,
    * a debounced upload of the Yjs state lands in the user's own Drive
-   * (in a `Cashbook` folder) as an opaque AES-GCM-encrypted blob. The
+   * (in a `Monii Watch` folder) as an opaque AES-GCM-encrypted blob. The
    * encryption key is derived from the pairing phrase via PBKDF2 — Google
    * holds the bytes but cannot read the contents.
    *

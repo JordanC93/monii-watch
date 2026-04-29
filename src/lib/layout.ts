@@ -28,7 +28,7 @@ import { isIPad } from './device';
 
 export type LayoutMode = 'compact' | 'regular';
 
-const PREF_KEY = 'cashbook:layoutPreferenceLocal';
+const PREF_KEY = 'monii:layoutPreferenceLocal';
 const REGULAR_MIN_WIDTH = 768; // matches Tailwind's `md` breakpoint
 
 /** Read a per-device override from localStorage. Falls back to 'auto'. */
@@ -43,7 +43,7 @@ export function readLocalLayoutPreference(): 'auto' | 'compact' | 'regular' {
 export function writeLocalLayoutPreference(pref: 'auto' | 'compact' | 'regular') {
   try { localStorage.setItem(PREF_KEY, pref); } catch {}
   // Trigger any listeners waiting on the storage event in this tab.
-  window.dispatchEvent(new CustomEvent('cashbook:layout-pref-change', { detail: pref }));
+  window.dispatchEvent(new CustomEvent('monii:layout-pref-change', { detail: pref }));
 }
 
 /** Pick the effective layout based on preference + viewport width. */
@@ -74,11 +74,11 @@ export function useEffectiveLayout(): LayoutMode {
     function onPrefChange(e: any) { setLocalPref(e?.detail ?? readLocalLayoutPreference()); }
     function onStorage(e: StorageEvent) { if (e.key === PREF_KEY) setLocalPref(readLocalLayoutPreference()); }
     window.addEventListener('resize', onResize);
-    window.addEventListener('cashbook:layout-pref-change' as any, onPrefChange);
+    window.addEventListener('monii:layout-pref-change' as any, onPrefChange);
     window.addEventListener('storage', onStorage);
     return () => {
       window.removeEventListener('resize', onResize);
-      window.removeEventListener('cashbook:layout-pref-change' as any, onPrefChange);
+      window.removeEventListener('monii:layout-pref-change' as any, onPrefChange);
       window.removeEventListener('storage', onStorage);
     };
   }, []);

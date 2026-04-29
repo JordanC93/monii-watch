@@ -101,11 +101,11 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
   }> = useMemo(() => [
     {
       icon: <Sparkles size={28} className="text-accent" />,
-      title: 'Welcome to Cashbook',
+      title: 'Welcome to Monii Watch',
       body: (
         <>
           <p>
-            Cashbook is a budgeting app that helps you give every dollar a job
+            Monii Watch is a budgeting app that helps you give every dollar a job
             <em> before</em> you spend it. Built for privacy: nothing leaves
             your device unless you turn on sync between your own devices.
           </p>
@@ -128,7 +128,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
         <>
           <p>
             <strong>Step 1 — Money comes in.</strong> Paychecks, refunds,
-            gifts. Cashbook calls this the <strong>Ready to Assign</strong>{' '}
+            gifts. Monii Watch calls this the <strong>Ready to Assign</strong>{' '}
             pool — the green number at the top of the budget.
           </p>
           <p className="mt-2">
@@ -139,7 +139,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
           <p className="mt-2">
             <strong>Step 3 — Spend from the envelope.</strong> When a
             transaction lands on a category, that envelope's "Available"
-            number drops. If it goes red, you've overspent — Cashbook offers
+            number drops. If it goes red, you've overspent — Monii Watch offers
             a one-tap "cover from Ready to Assign" button to fix it.
           </p>
           <p className="mt-2 text-fg-subtle text-[12.5px]">
@@ -156,7 +156,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
       body: (
         <>
           <p>
-            Optional but useful — Cashbook uses this for the tax estimator
+            Optional but useful — Monii Watch uses this for the tax estimator
             and planning hints. Stays on your device.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">
@@ -198,7 +198,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
       body: (
         <>
           <p>
-            Cashbook gave you some demo categories to play with. If your
+            Monii Watch gave you some demo categories to play with. If your
             life looks like one of these, we can add a more useful starting
             set on top — you can always edit, rename, or remove anything.
           </p>
@@ -327,7 +327,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
             (Reports) uses the APR for snowball-vs-avalanche projections.
           </p>
           <p className="mt-2 text-fg-subtle text-[12.5px]">
-            Cashbook auto-creates a payment category for every credit card so
+            Monii Watch auto-creates a payment category for every credit card so
             you have an envelope to fund payments from.
           </p>
         </>
@@ -381,7 +381,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
           </p>
           <p className="mt-2 text-fg-subtle text-[12.5px]">
             See <strong>docs/INSTALL.md</strong> in the repo for installing
-            Cashbook on iPad / iPhone / Mac / Windows / Linux + the full
+            Monii Watch on iPad / iPhone / Mac / Windows / Linux + the full
             sync pairing walkthrough.
           </p>
         </>
@@ -416,7 +416,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
       body: (
         <>
           <p>
-            Cashbook is ready. Open the budget, assign your Ready-to-Assign
+            Monii Watch is ready. Open the budget, assign your Ready-to-Assign
             money to categories, and start recording transactions.
           </p>
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12.5px]">

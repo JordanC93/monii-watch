@@ -1,4 +1,4 @@
-# Cashbook self-hosted sync server.
+# Monii Watch self-hosted sync server.
 # Tiny image: just node + the y-websocket runtime.
 FROM node:20-alpine
 

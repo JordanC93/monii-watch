@@ -322,7 +322,7 @@ voice memos on QuickAdd, and picture-in-picture forecast.
   Find similar / Delete. Wired to TransactionRow's `onContextMenu`.
 - **Drag-and-drop CSV/OFX onto Account header** (Tier 4 #6). Drop a
   `.csv` / `.ofx` / `.qfx` / `.txt` file → opens import modal pre-loaded.
-  Uses `__cashbookPendingFile` (iron rule #19), no setTimeout race.
+  Uses `__moniiPendingFile` (iron rule #19), no setTimeout race.
 - **Resizable sidebar** (Tier 4 #7). Drag the right edge to a width
   between 200 and 480 px. Persisted per-device via localStorage.
 - **Bottom status bar** (Tier 4 #11). Excel/IDE-style strip on regular
@@ -365,7 +365,7 @@ voice memos on QuickAdd, and picture-in-picture forecast.
   accessible. New `toCategoryId?` field on the `moveMoney` modal type
 - **Bulk paste race condition** fixed. The 200 ms `setTimeout` that fed
   the pasted-text File into the receipt modal could fire after the user
-  closed the modal. Now stashes the file via `__cashbookPendingFile`
+  closed the modal. Now stashes the file via `__moniiPendingFile`
   before opening — the receipt modal's mount-time effect picks it up
   with no race
 - **`.cursor-grab { opacity: 0.25 }` no longer dims drag handles
@@ -938,7 +938,7 @@ voice memos on QuickAdd, and picture-in-picture forecast.
   `package.json`, `Dockerfile`, `docker-compose.yml`, full `README.md`
   with TLS proxy examples (Caddy + nginx). Drop-in for a Plex box,
   Raspberry Pi, NAS, or cloud VM. `npm start` or `docker compose up -d`
-- Optional LevelDB persistence (`y-leveldb`) when `CASHBOOK_PERSIST_DIR`
+- Optional LevelDB persistence (`y-leveldb`) when `MONII_PERSIST_DIR`
   env var is set — survives server restarts. Off by default; clients
   always have a complete local IndexedDB copy and re-sync on reconnect
 - Sync modal redesigned with a collapsed-by-default Advanced section so
@@ -1025,7 +1025,7 @@ voice memos on QuickAdd, and picture-in-picture forecast.
 - ChatPanel paste / drop ingest hook now waits up to 4 s for the modal
   to mount (was 1.5 s) — fixes the silent-drop on first paste when
   Tesseract / pdfjs lazy chunks are still loading. If we still time
-  out, the file is stashed on `window.__cashbookPendingFile` and the
+  out, the file is stashed on `window.__moniiPendingFile` and the
   modal picks it up on mount
 
 ### Bug fixes & cleanup
@@ -1260,7 +1260,7 @@ voice memos on QuickAdd, and picture-in-picture forecast.
   - "Cover overspending" button → toast + undo
   - "Copy from last month" button → toast + undo
   - Bulk operations (set category / cleared / flag / delete) → toast + undo
-- Dev-only `window.__cashbookToast` exposes the live module instance for
+- Dev-only `window.__moniiToast` exposes the live module instance for
   the preview test harness (sidesteps Vite's dynamic-vs-static import
   cache mismatch)
 

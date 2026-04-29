@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    cashbook_lib::run()
+    monii_watch_lib::run()
 }

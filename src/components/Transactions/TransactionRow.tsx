@@ -244,7 +244,7 @@ export function TransactionRow({ txn, showAccount }: Props) {
         onDragStart={(e) => {
           // Tier 5 #19: drag-recategorize. Carries the txn id so a
           // category drop target on the budget table can reassign.
-          e.dataTransfer.setData('text/x-cashbook-txn', txn.id);
+          e.dataTransfer.setData('text/x-monii-txn', txn.id);
           e.dataTransfer.effectAllowed = 'move';
         }}
         className={cn(

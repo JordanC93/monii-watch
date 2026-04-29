@@ -1,4 +1,4 @@
-# Cashbook — Using the App
+# Monii Watch — Using the App
 
 A walkthrough of the app's core workflows. The in-app **Tutorial** (Settings →
 Help → Show tutorial again) walks first-run users through setting everything
@@ -20,14 +20,14 @@ Imagine all your money sitting in physical envelopes labeled "Rent",
 "Groceries", "Fun Money", "Vacation Fund". You can only spend what's in the
 envelope. That's the entire idea.
 
-1. **Money lands in your accounts** (paychecks, gifts, refunds). Cashbook
+1. **Money lands in your accounts** (paychecks, gifts, refunds). Monii Watch
    pools it into a single number called **Ready to Assign** at the top of
    the Budget page — green, hard to miss.
 2. **You decide each dollar's job** by clicking any **Assigned** cell on a
    category row and typing the amount. Money moves out of Ready to Assign
    and into that category's envelope. Repeat until Ready to Assign is `$0`.
 3. **You spend from the envelopes**, not the account. Every transaction
-   touches a category — Cashbook subtracts the amount from that envelope's
+   touches a category — Monii Watch subtracts the amount from that envelope's
    **Available**. Available drops; the envelope tells you how much room
    you've got left.
 4. **Leftovers roll over.** End-of-month Available carries to next month —
@@ -51,7 +51,7 @@ job each month is to get it to zero — every dollar with a job.
 
 ## First-run setup
 
-The first time you open Cashbook the **tutorial** opens automatically. It
+The first time you open Monii Watch the **tutorial** opens automatically. It
 walks you through the steps below. If you skip it, the **Get set up**
 checklist on the Budget page covers the same ground at your own pace.
 
@@ -81,7 +81,7 @@ checklist on the Budget page covers the same ground at your own pace.
 ## Income & Deductions
 
 Most budget apps just ask for "monthly income" and pretend that's what hits
-your checking account. Cashbook separates **gross** (what your job pays)
+your checking account. Monii Watch separates **gross** (what your job pays)
 from **net take-home** (what actually lands after taxes, health insurance,
 retirement, etc.). Set up:
 
@@ -203,11 +203,11 @@ The "+ Add transaction…" row at the top of any transaction list is the
 fastest way. Tab through fields. Press **Enter** to save.
 
 The category column auto-fills with the **last category** you used for that
-payee. Override anytime — Cashbook just remembers and updates.
+payee. Override anytime — Monii Watch just remembers and updates.
 
 ### Calculator-in-input
 
-Any amount field accepts simple math. Type `23.45 + 10.50` and Cashbook
+Any amount field accepts simple math. Type `23.45 + 10.50` and Monii Watch
 computes `$33.95` on Enter. Useful for combining receipt items.
 
 ### Splits
@@ -218,7 +218,7 @@ groceries, household, and toys):
 1. Click a category cell and pick **Split** (or open the split editor from
    the existing transaction).
 2. Add as many splits as you need. Their sum should equal the transaction
-   total — Cashbook auto-balances the last row if there's a remainder.
+   total — Monii Watch auto-balances the last row if there's a remainder.
 3. Each split can have its own memo.
 
 ### Transfers
@@ -227,7 +227,7 @@ To move money between your own accounts:
 
 1. In the **Category** field of a transaction, scroll to **Transfer to…** and
    pick the destination account.
-2. Cashbook creates two mirrored transactions (one in each account) and keeps
+2. Monii Watch creates two mirrored transactions (one in each account) and keeps
    them in sync. Editing the amount or date on one updates the other.
 
 ### Flags
@@ -318,7 +318,7 @@ pipeline as bank-screenshot OCR.
 
 ## Monthly review
 
-On the first of each month, Cashbook prompts you with **last month's
+On the first of each month, Monii Watch prompts you with **last month's
 review**. Auto-fills income / spent / net + delta vs the prior month,
 asks for a 1–5 rating + a free-text note. Builds a journal in your
 settings that next year's Year-in-Review surfaces. Skip with one tap;
@@ -329,10 +329,10 @@ won't nag again until next month.
 When your bank statement arrives:
 
 1. Open the account → click **Reconcile**.
-2. Type the bank's balance. Cashbook compares to your **Cleared** balance.
+2. Type the bank's balance. Monii Watch compares to your **Cleared** balance.
 3. If they match, all currently-cleared transactions are marked reconciled
    (the green filled checks).
-4. If they don't, Cashbook adds an adjustment transaction so they do, and
+4. If they don't, Monii Watch adds an adjustment transaction so they do, and
    marks everything reconciled.
 
 ---
@@ -521,7 +521,7 @@ relevant:
 ## Chat panel (fast text entry)
 
 Press `⌘J` (or `Ctrl+J`) or tap the **Chat** button in the top bar. Type
-plain English; Cashbook matches against a fixed set of intents and updates
+plain English; Monii Watch matches against a fixed set of intents and updates
 the right fields. There is **no AI** — it's regex over your account and
 category names.
 
@@ -749,7 +749,7 @@ Theme is per-budget (not per-device) and syncs.
 **"Sync is connecting…" forever.**
 Both devices need to be online at the same time at least once. Check that
 both have sync turned on with the same phrase. Public signaling servers
-occasionally rate-limit; wait a minute and retry. Cashbook also disconnects
+occasionally rate-limit; wait a minute and retry. Monii Watch also disconnects
 when you close the tab — re-open both devices to re-pair.
 
 **iOS PWA lost my data.**
@@ -763,7 +763,7 @@ outflow or vice versa), or a transfer's counterpart got deleted somehow.
 Open the All Accounts view and search for the suspicious amount.
 
 **Can I share a single budget with my partner so we both edit it?**
-Yes — install Cashbook on both devices and use the same pairing phrase.
+Yes — install Monii Watch on both devices and use the same pairing phrase.
 You'll both see the same live data.
 
 **Can I have multiple separate budgets?**

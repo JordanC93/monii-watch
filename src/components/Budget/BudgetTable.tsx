@@ -357,7 +357,7 @@ function BudgetCategoryRow({
           className="flex items-center gap-2 px-3 py-1.5 min-w-0"
           onDragOver={(e) => {
             // Tier 5 #19 — accept dragged transactions as a recategorize target.
-            if (e.dataTransfer.types.includes('text/x-cashbook-txn')) {
+            if (e.dataTransfer.types.includes('text/x-monii-txn')) {
               e.preventDefault();
               e.dataTransfer.dropEffect = 'move';
               e.currentTarget.classList.add('drop-target-active');
@@ -365,7 +365,7 @@ function BudgetCategoryRow({
           }}
           onDragLeave={(e) => e.currentTarget.classList.remove('drop-target-active')}
           onDrop={(e) => {
-            const txnId = e.dataTransfer.getData('text/x-cashbook-txn');
+            const txnId = e.dataTransfer.getData('text/x-monii-txn');
             if (!txnId) return;
             e.preventDefault();
             e.currentTarget.classList.remove('drop-target-active');
@@ -412,13 +412,13 @@ function BudgetCategoryRow({
           // Drop target: when another row's pill is dragged onto this
           // available pill, prompt for the amount and call moveAssignment.
           onDragOver={(e) => {
-            const fromId = e.dataTransfer.types.includes('text/x-cashbook-cat')
+            const fromId = e.dataTransfer.types.includes('text/x-monii-cat')
               || e.dataTransfer.types.includes('text/plain');
             if (fromId) e.preventDefault();
           }}
           onDrop={(e) => {
             e.preventDefault();
-            const from = e.dataTransfer.getData('text/x-cashbook-cat')
+            const from = e.dataTransfer.getData('text/x-monii-cat')
               || e.dataTransfer.getData('text/plain');
             if (!from || from === category.id) return;
             // Open the existing MoveMoney modal with both categories
@@ -445,10 +445,10 @@ function BudgetCategoryRow({
             title="Click to move money — or drag onto another row's pill"
             draggable
             onDragStart={(e) => {
-              // Both MIME types — `text/x-cashbook-cat` for our own
+              // Both MIME types — `text/x-monii-cat` for our own
               // identification, `text/plain` so external drop targets
               // (e.g. notes apps) get a sane fallback.
-              e.dataTransfer.setData('text/x-cashbook-cat', category.id);
+              e.dataTransfer.setData('text/x-monii-cat', category.id);
               e.dataTransfer.setData('text/plain', category.id);
               e.dataTransfer.effectAllowed = 'move';
             }}

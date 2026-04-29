@@ -18,11 +18,11 @@ export function ImportCsvModal({ open, onClose, accountId }: { open: boolean; on
   const account = accounts.find((a) => a.id === accountId);
   const [text, setText] = useState('');
 
-  // Tier 4 #6: drag-drop hand-off via `__cashbookPendingFile` (iron rule #19).
+  // Tier 4 #6: drag-drop hand-off via `__moniiPendingFile` (iron rule #19).
   useEffect(() => {
-    const pending: File | undefined = (window as any).__cashbookPendingFile;
+    const pending: File | undefined = (window as any).__moniiPendingFile;
     if (!pending) return;
-    delete (window as any).__cashbookPendingFile;
+    delete (window as any).__moniiPendingFile;
     pending.text().then((t) => setText(t)).catch(() => {});
   }, []);
   const [parsed, setParsed] = useState<{ date: string; payee: string; amount: number; memo: string }[] | null>(null);

@@ -1,4 +1,4 @@
-name: Release Cashbook
+name: Release Monii Watch
 
 # Builds desktop installers for Mac (.dmg) and Windows (.exe / .msi) when a
 # version tag is pushed. Mac builds run on macos-latest, Windows on
@@ -65,7 +65,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'Cashbook ${{ github.ref_name }}'
+          releaseName: 'Monii Watch ${{ github.ref_name }}'
           releaseBody: 'Auto-built installers. Choose the file for your OS. Existing installs upgrade automatically via Settings → Updates.'
           releaseDraft: true
           prerelease: false

@@ -11,8 +11,8 @@
 
 import { useEffect, useState } from 'react';
 
-const KEY = 'cashbook:privacy-mode';
-const EVT = 'cashbook:privacy-change';
+const KEY = 'monii:privacy-mode';
+const EVT = 'monii:privacy-change';
 
 export function getPrivacy(): boolean {
   try { return localStorage.getItem(KEY) === '1'; } catch { return false; }

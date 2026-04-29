@@ -27,7 +27,7 @@ export function SetupChecklist() {
   const hasAccount = accounts.some((a) => !a.closed);
   const hasAssignmentThisMonth = assignments.some((a) => a.month === month && a.assigned > 0);
   const triedChat = useMemo(() => {
-    try { return localStorage.getItem('cashbook:triedChat') === '1'; } catch { return false; }
+    try { return localStorage.getItem('monii:triedChat') === '1'; } catch { return false; }
   }, [/* read once on mount; the button below sets it */]);
 
   const items = [
@@ -35,7 +35,7 @@ export function SetupChecklist() {
       id: 'income',
       done: incomeSet,
       icon: <Sparkles size={14} />,
-      title: 'Tell Cashbook your income',
+      title: 'Tell Monii Watch your income',
       hint: 'Used by the tax estimator and to surface insights.',
       action: () => openModal({ type: 'welcome' }),
       actionLabel: 'Open tour',
@@ -65,7 +65,7 @@ export function SetupChecklist() {
       title: 'Try fast-add via chat',
       hint: 'Tap ⌘J (or the floating + button on mobile) and type "spent $12 at Chipotle".',
       action: () => {
-        try { localStorage.setItem('cashbook:triedChat', '1'); } catch {}
+        try { localStorage.setItem('monii:triedChat', '1'); } catch {}
         setChatOpen(true);
       },
       actionLabel: 'Open chat',
@@ -100,7 +100,7 @@ export function SetupChecklist() {
         </button>
       </div>
       <div className="text-[12px] text-fg-subtle mb-3">
-        Cashbook works the moment you have an account and some categories. The list below covers what most users want set up first.
+        Monii Watch works the moment you have an account and some categories. The list below covers what most users want set up first.
       </div>
       <ul className="space-y-1.5">
         {items.map((item) => (

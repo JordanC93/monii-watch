@@ -72,7 +72,7 @@ export function ReadyToAssign() {
         <div className="text-[12px] uppercase tracking-wider text-fg-subtle flex items-center gap-1">
           <span>Ready to Assign</span>
           <HelpHint title="Ready to Assign" side="bottom">
-            Money you've received but haven't told Cashbook what to do with yet.
+            Money you've received but haven't told Monii Watch what to do with yet.
             Click any "Assigned" cell on the budget table to drop dollars into a
             category. The goal each month is to get this number to zero — every
             dollar with a job.

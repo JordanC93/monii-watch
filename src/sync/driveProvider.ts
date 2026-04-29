@@ -24,8 +24,8 @@
  *   2. The Yjs document is encoded with `Y.encodeStateAsUpdate(doc)`
  *      and **encrypted** with `encryptBytes()` (AES-GCM, key derived
  *      from the pairing phrase via PBKDF2 — see `crypto.ts`). The
- *      result is uploaded as `cashbook-snapshot.bin` in a Drive folder
- *      called `Cashbook (E2E encrypted)`.
+ *      result is uploaded as `monii-watch-snapshot.bin` in a Drive folder
+ *      called `Monii Watch (E2E encrypted)`.
  *
  *      Google holds the bytes; Google can't read the contents.
  *
@@ -45,8 +45,8 @@ import { encryptBytes, decryptBytes } from './crypto';
 import * as Y from 'yjs';
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
-const SNAPSHOT_FILENAME = 'cashbook-snapshot.bin';
-const FOLDER_NAME = 'Cashbook (E2E encrypted)';
+const SNAPSHOT_FILENAME = 'monii-watch-snapshot.bin';
+const FOLDER_NAME = 'Monii Watch (E2E encrypted)';
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 const POLL_INTERVAL_MS = 60_000;
@@ -70,7 +70,7 @@ const listeners = new Set<Listener>();
 /** Tag set on Yjs `transact()` calls that originate from a remote pull —
  *  prevents the push observer from immediately re-uploading what we
  *  just downloaded. */
-const ORIGIN_REMOTE_PULL = Symbol('cashbook-drive-remote-pull');
+const ORIGIN_REMOTE_PULL = Symbol('monii-drive-remote-pull');
 
 export function onDriveStatus(cb: Listener): () => void {
   listeners.add(cb);
@@ -94,7 +94,7 @@ export function getDriveStatus(): DriveStatus { return status; }
  *
  * `redirect_uri` MUST be registered as an "Authorized redirect URI" on
  * the user's Google Cloud OAuth client. We use the page's own origin
- * (e.g. `https://cashbook.example.com`) as the redirect; the user
+ * (e.g. `https://monii.example.com`) as the redirect; the user
  * registers exactly one URI per origin they install on.
  */
 export async function authorize(clientId: string): Promise<{ token: string; expiresAt: number }> {
@@ -116,13 +116,13 @@ export async function authorize(clientId: string): Promise<{ token: string; expi
   url.searchParams.set('state', state);
 
   // Open in a popup so we don't lose app state on redirect.
-  const popup = window.open(url.toString(), 'cashbook-google-oauth', 'width=520,height=640');
+  const popup = window.open(url.toString(), 'monii-google-oauth', 'width=520,height=640');
   if (!popup) throw new Error('Popup blocked. Allow popups for this site and try again.');
 
   return new Promise<{ token: string; expiresAt: number }>((resolve, reject) => {
     const onMessage = (ev: MessageEvent) => {
       if (ev.origin !== window.location.origin) return;
-      if (!ev.data || ev.data.type !== 'cashbook-oauth-result') return;
+      if (!ev.data || ev.data.type !== 'monii-oauth-result') return;
       window.removeEventListener('message', onMessage);
       try { popup.close(); } catch {}
       if (ev.data.error) {
@@ -169,7 +169,7 @@ export function handleOAuthCallbackIfPresent(): boolean {
   const error = hash.get('error');
   try {
     window.opener.postMessage(
-      { type: 'cashbook-oauth-result', token, expiresIn, state, error },
+      { type: 'monii-oauth-result', token, expiresIn, state, error },
       window.location.origin,
     );
   } catch {
@@ -256,7 +256,7 @@ async function uploadSnapshot(
 ): Promise<string> {
   // Multipart upload: metadata + media in one request. Per Google's
   // multipart upload spec — boundary delimits the two parts.
-  const boundary = 'cashbook-' + Math.random().toString(36).slice(2);
+  const boundary = 'monii-' + Math.random().toString(36).slice(2);
   const meta: Record<string, any> = { name: SNAPSHOT_FILENAME };
   if (!fileId) meta.parents = [folderId];
 

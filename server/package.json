@@ -1,9 +1,9 @@
 {
-  "name": "cashbook-sync-server",
+  "name": "monii-watch-sync-server",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Self-hosted y-websocket sync hub for Cashbook. Optional — the app also syncs peer-to-peer over WebRTC without this.",
+  "description": "Self-hosted y-websocket sync hub for Monii Watch. Optional — the app also syncs peer-to-peer over WebRTC without this.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

@@ -1,7 +1,7 @@
 /**
  * Minimal i18n scaffold.
  *
- * Cashbook ships English-only for v1. This module exists so future
+ * Monii Watch ships English-only for v1. This module exists so future
  * locales can be added without a refactor: every user-facing string in
  * new code should pass through `t()` (or `useT()` in hooks) instead of
  * being hard-coded as a JSX literal. Even if the value is just a
@@ -19,8 +19,8 @@
 
 import { useEffect, useState } from 'react';
 
-const KEY = 'cashbook:locale';
-const EVT = 'cashbook:locale-change';
+const KEY = 'monii:locale';
+const EVT = 'monii:locale-change';
 
 let _locale = readLocale();
 let _messages: Record<string, string> = {};

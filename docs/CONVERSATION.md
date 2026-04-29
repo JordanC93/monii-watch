@@ -1,6 +1,6 @@
 # Conversational Schema
 
-The Cashbook chat panel is a deterministic, rule-based interface over the
+The Monii Watch chat panel is a deterministic, rule-based interface over the
 existing `db/repo.ts` CRUD. There is **no LLM**, no external API call, and no
 network traffic — every match is a regex, every action is a repo function.
 This is a deliberate choice: it keeps the privacy-first guarantee intact and
@@ -184,7 +184,7 @@ File (image / PDF)
 
 ChatPanel listens for `paste` and `drop` events and pulls the first file out
 of `clipboardData` / `dataTransfer`. The file is handed to the modal via a
-side-channel hook (`window.__cashbookIngestFile`) the modal registers when
+side-channel hook (`window.__moniiIngestFile`) the modal registers when
 it mounts. This avoids passing files through Zustand and works the same for
 upload-button picks and pasted clipboard data.
 

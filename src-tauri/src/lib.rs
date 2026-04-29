@@ -1,4 +1,4 @@
-// Cashbook Tauri shell entry point.
+// Monii Watch Tauri shell entry point.
 //
 // Tier 5 desktop additions wired here:
 //   - native menubar (Tier 5 #3) via the Tauri Menu API
@@ -79,7 +79,7 @@ pub fn run() {
 //
 // Builds the standard mac/win menubar. Each item emits a `menu-event`
 // the JS side listens to via `getCurrentWindow().onMenuClicked()` —
-// dispatched into the Cashbook command palette / repo accordingly.
+// dispatched into the Monii Watch command palette / repo accordingly.
 //
 // Naming convention for IDs: `domain.action` (lowercase, dot-separated).
 // Adding a new entry means: declare here + add a handler in
@@ -102,7 +102,7 @@ fn build_app_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
             .accelerator("CmdOrCtrl+P").build(app)?)
         .separator()
         .item(&PredefinedMenuItem::close_window(app, Some("Close Window"))?)
-        .item(&PredefinedMenuItem::quit(app, Some("Quit Cashbook"))?)
+        .item(&PredefinedMenuItem::quit(app, Some("Quit Monii Watch"))?)
         .build()?;
 
     // EDIT
@@ -166,7 +166,7 @@ fn build_app_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         .item(&MenuItemBuilder::with_id("help.logs", "Debug Logs").build(app)?)
         .separator()
         .item(&MenuItemBuilder::with_id("help.check_updates", "Check for Updates…").build(app)?)
-        .item(&MenuItemBuilder::with_id("help.about", "About Cashbook").build(app)?)
+        .item(&MenuItemBuilder::with_id("help.about", "About Monii Watch").build(app)?)
         .build()?;
 
     let menu = MenuBuilder::new(app)
@@ -250,7 +250,7 @@ fn cmd_open_new_window(
 ) -> Result<(), String> {
     let url = WebviewUrl::App(path.into());
     WebviewWindowBuilder::new(&app, &label, url)
-        .title("Cashbook")
+        .title("Monii Watch")
         .inner_size(1280.0, 820.0)
         .build()
         .map(|_| ())

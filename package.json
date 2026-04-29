@@ -1,5 +1,5 @@
 {
-  "name": "budget-app",
+  "name": "monii-watch",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -14,7 +14,7 @@
     "ios:init": "tauri ios init",
     "ios:dev": "tauri ios dev",
     "ios:build": "tauri ios build",
-    "ios:open": "open src-tauri/gen/apple/cashbook.xcodeproj || echo 'Run npm run ios:init first.'",
+    "ios:open": "open src-tauri/gen/apple/monii-watch.xcodeproj || echo 'Run npm run ios:init first.'",
     "android:init": "tauri android init",
     "android:dev": "tauri android dev",
     "android:build": "tauri android build"

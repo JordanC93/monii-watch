@@ -51,8 +51,8 @@ export async function setDockBadge(label: string): Promise<void> {
   // Always update the page title — works as a fallback when the native
   // command stub is in effect, and is harmless if the dock badge is
   // also set.
-  if (label) document.title = `(${label}) Cashbook`;
-  else document.title = 'Cashbook';
+  if (label) document.title = `(${label}) Monii Watch`;
+  else document.title = 'Monii Watch';
 }
 
 /**
