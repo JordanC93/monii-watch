@@ -2,8 +2,17 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
+
+// Read the version from package.json so the in-app status bar + Settings →
+// About update automatically with each release. Avoids stale hardcoded
+// "v0.1.0" labels drifting from reality.
+const pkgVersion = JSON.parse(readFileSync('./package.json', 'utf-8')).version;
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkgVersion),
+  },
   plugins: [
     react(),
     VitePWA({

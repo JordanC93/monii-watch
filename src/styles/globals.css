@@ -866,6 +866,22 @@ input[type='number'] { -moz-appearance: textfield; }
    * eat clicks here (clicking the title bar shouldn't pass through to a
    * button underneath — that matches every other Mac app). */
   pointer-events: auto;
+  /* Belt-and-suspenders: WebKit's `-webkit-app-region: drag` is the older
+   * but more universally honoured signal for "this region drags the
+   * window." Pairing it with Tauri's `data-tauri-drag-region` attribute
+   * means dragging works whether the runtime falls back to native WebKit
+   * behavior or routes through Tauri's IPC. Slack, Notion, VSCode all use
+   * this CSS-based approach. */
+  -webkit-app-region: drag;
+}
+
+/* Buttons and inputs INSIDE the drag region need to NOT drag — otherwise
+ * the system intercepts the click. Tauri honors `data-tauri-drag-region="false"`
+ * but we apply the CSS counterpart too for the WebKit fallback path. */
+[data-host-os="macos"][data-host-tauri="1"] .mac-titlebar-drag button,
+[data-host-os="macos"][data-host-tauri="1"] .mac-titlebar-drag input,
+[data-host-os="macos"][data-host-tauri="1"] .mac-titlebar-drag a {
+  -webkit-app-region: no-drag;
 }
 
 /* Push the sidebar's logo block down so the traffic lights have room.

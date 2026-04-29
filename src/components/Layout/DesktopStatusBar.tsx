@@ -45,7 +45,7 @@ export function DesktopStatusBar() {
         <span>{txns.length} transaction{txns.length === 1 ? '' : 's'}</span>
       )}
       <span className="ml-auto">{syncLabel}</span>
-      <span className="opacity-60">v0.1.0</span>
+      <span className="opacity-60">v{__APP_VERSION__}</span>
     </div>
   );
 }

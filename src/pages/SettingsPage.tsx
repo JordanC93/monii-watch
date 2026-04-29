@@ -429,7 +429,7 @@ export function SettingsPage() {
       <Section title="About">
         <div className="text-[12.5px] text-fg-muted space-y-1">
           <div>Monii Watch — envelope-method budgeting that syncs peer-to-peer.</div>
-          <div>v0.1.0 · Local-first · No accounts required.</div>
+          <div>v{__APP_VERSION__} · Local-first · No accounts required.</div>
         </div>
       </Section>
     </div>
