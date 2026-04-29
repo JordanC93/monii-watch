@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Monii Watch",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "identifier": "com.moniiwatch.app",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -58,7 +58,7 @@
       "endpoints": [
         "https://github.com/JordanC93/monii-watch/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYxQTM4RjBEMjY5ODZDQkEKUldTNmJKZ21EWStqOFVnUXJHTFFEdHl4a3B5V0Vqd0s4NHZrRk9jdmNadGd4T2E3RDkzYUlnV1QK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY2NjY0MTgxMTkxMEQzNDkKUldSSjB4QVpnVUZtOXR1SWZydTN5ZVl6dTMvZnZVb01nTS9aaTFEendaWEpXSW44Wk1rcjIrQ2cK"
     }
   }
 }
