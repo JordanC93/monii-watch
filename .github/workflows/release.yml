@@ -116,30 +116,53 @@ jobs:
           OWNER_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          # Pull the release's assets list via the GitHub API.
-          ASSETS_JSON="$(gh api repos/${OWNER_REPO}/releases/tags/${TAG} --jq '.assets')"
-          echo "Found assets:"
+
+          # `gh api repos/.../releases/tags/<tag>` returns 404 for DRAFT
+          # releases — the by-tag REST endpoint hides drafts even when
+          # authenticated as the repo owner. Workaround: `gh release
+          # view` uses the GraphQL API path that DOES surface drafts.
+          # `--json assets` returns name + id + url (the public download
+          # URL, stable across draft/published states).
+          ASSETS_JSON="$(gh release view "$TAG" --repo "$OWNER_REPO" --json assets --jq '.assets')"
+          echo "--- Found assets ---"
           echo "$ASSETS_JSON" | jq -r '.[].name'
 
-          # Find the .sig + bundle pairs per platform. Tauri's updater
-          # consumes one entry per (platform, arch) combo.
-          download_url() {
+          # Public URL (for embedding in latest.json — stable, becomes
+          # accessible once the release is published)
+          asset_url() {
             local pattern="$1"
-            echo "$ASSETS_JSON" | jq -r ".[] | select(.name | test(\"$pattern\")) | .browser_download_url" | head -1
+            echo "$ASSETS_JSON" | jq -r ".[] | select(.name | test(\"$pattern\")) | .url" | head -1
           }
-          read_sig() {
+          # Asset ID (for downloading content via authenticated API,
+          # which works on drafts unlike the public URL)
+          asset_id() {
             local pattern="$1"
-            local url; url="$(echo "$ASSETS_JSON" | jq -r ".[] | select(.name | test(\"$pattern\")) | .browser_download_url" | head -1)"
-            if [ -z "$url" ]; then return; fi
-            curl -fsSL "$url"
+            echo "$ASSETS_JSON" | jq -r ".[] | select(.name | test(\"$pattern\")) | .id" | head -1
+          }
+          # Download a .sig file's textual content via the authenticated
+          # API. The Accept header is what makes GitHub return the raw
+          # bytes instead of a JSON metadata object.
+          read_sig_content() {
+            local pattern="$1"
+            local id; id="$(asset_id "$pattern")"
+            if [ -z "$id" ] || [ "$id" = "null" ]; then return; fi
+            gh api "repos/$OWNER_REPO/releases/assets/$id" -H "Accept: application/octet-stream" 2>/dev/null || true
           }
 
-          MAC_BUNDLE="$(download_url '\\.app\\.tar\\.gz$')"
-          MAC_SIG="$(read_sig '\\.app\\.tar\\.gz\\.sig$' || true)"
-          WIN_BUNDLE="$(download_url 'x64-setup\\.exe$')"
-          WIN_SIG="$(read_sig 'x64-setup\\.nsis\\.zip\\.sig$|x64-setup\\.exe\\.sig$' || true)"
-          LIN_BUNDLE="$(download_url '\\.AppImage$')"
-          LIN_SIG="$(read_sig '\\.AppImage\\.sig$' || true)"
+          MAC_BUNDLE="$(asset_url '\\.app\\.tar\\.gz$' || true)"
+          MAC_SIG="$(read_sig_content '\\.app\\.tar\\.gz\\.sig$')"
+          WIN_BUNDLE="$(asset_url 'x64-setup\\.exe$' || true)"
+          WIN_SIG="$(read_sig_content 'x64-setup\\.nsis\\.zip\\.sig$|x64-setup\\.exe\\.sig$')"
+          LIN_BUNDLE="$(asset_url '\\.AppImage$' || true)"
+          LIN_SIG="$(read_sig_content '\\.AppImage\\.sig$')"
+
+          echo "--- Resolved bundle URLs ---"
+          echo "mac:   ${MAC_BUNDLE:-<none>}"
+          echo "mac sig bytes: ${#MAC_SIG}"
+          echo "win:   ${WIN_BUNDLE:-<none>}"
+          echo "win sig bytes: ${#WIN_SIG}"
+          echo "linux: ${LIN_BUNDLE:-<none>}"
+          echo "linux sig bytes: ${#LIN_SIG}"
 
           VERSION="${TAG#v}"
           PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -177,8 +200,19 @@ jobs:
 
           echo "--- Generated latest.json ---"
           cat latest.json
+          echo
 
-          # If a latest.json is already attached, delete it before re-uploading.
+          # Sanity: refuse to upload an empty platforms manifest. Better to
+          # fail loudly than ship a broken updater payload.
+          PLATFORM_COUNT="$(jq '.platforms | length' latest.json)"
+          if [ "$PLATFORM_COUNT" -eq 0 ]; then
+            echo "ERROR: No platforms made it into latest.json (no bundle/sig pairs found)."
+            echo "       Check that the matrix builds completed AND that signing keys are configured."
+            exit 1
+          fi
+
+          # If a latest.json is already attached, delete it first.
+          # `gh release delete-asset` works on drafts.
           gh release delete-asset "$TAG" latest.json --yes 2>/dev/null || true
           gh release upload "$TAG" latest.json --clobber
-          echo "Uploaded latest.json to $TAG"
+          echo "Uploaded latest.json to $TAG ($PLATFORM_COUNT platform(s))"
