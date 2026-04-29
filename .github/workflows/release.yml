@@ -54,9 +54,11 @@ jobs:
       - name: Build PWA
         run: npm run build
 
-      # Diagnostic: confirms the signing secrets are reaching the runner.
-      # Prints byte counts only — never the actual key material.
-      - name: Verify signing keys present
+      # Diagnostic: confirms the signing secrets are reaching the runner
+      # AND that the key material is in the expected format (base64-
+      # encoded minisign private key). Prints byte counts and a header
+      # match — never the actual secret content.
+      - name: Verify signing keys present + format check
         env:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           PASS: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -72,6 +74,39 @@ jobs:
           fi
           echo "Signing key length: ${#KEY} bytes"
           echo "Signing pass length: ${#PASS} bytes"
+
+          # The Tauri CLI accepts the private key as either:
+          #   (a) base64-encoded contents (one long line, what tauri signer
+          #       generate -w produces by default), OR
+          #   (b) raw minisign key file content (multi-line, starts with
+          #       'untrusted comment:').
+          # Detect which format we have so we can give a clear hint if it's
+          # malformed.
+          # 'dW50cnVzdGVkIGNvbW1lbnQ6IHJzaWduIGVuY3J5cHRlZCBzZWNyZXQga2V5'
+          # is the base64 encoding of 'untrusted comment: rsign encrypted secret key'
+          B64_HEADER='dW50cnVzdGVkIGNvbW1lbnQ6IHJzaWduIGVuY3J5cHRlZCBzZWNyZXQga2V5'
+          B64_HEADER_UNENC='dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHNlY3JldCBrZXk'
+          if [[ "$KEY" == "$B64_HEADER"* ]]; then
+            echo "Format: base64-encoded ENCRYPTED private key (expected — has password)"
+          elif [[ "$KEY" == "$B64_HEADER_UNENC"* ]]; then
+            echo "::warning::Format: base64-encoded UNENCRYPTED private key (no password) — Tauri's auto-signing may skip this"
+          elif [[ "$KEY" == "untrusted comment:"* ]]; then
+            echo "::warning::Format: RAW minisign key content (multi-line). Tauri usually accepts this, but base64-encoded is safer in CI."
+          else
+            echo "::error::Key doesn't match any known minisign format. First 16 chars of value: ${KEY:0:16}"
+            echo "         (the header is non-secret — it's literally the same for every key in the world)"
+            echo "         You probably pasted the WRONG value. Should start with 'dW50cn...' (base64) or 'untrusted comment:' (raw)."
+          fi
+          # Check for accidental whitespace / quotes that copy-paste sometimes adds
+          if [[ "${KEY:0:1}" == " " ]] || [[ "${KEY:0:1}" == $'\t' ]]; then
+            echo "::error::Key has leading whitespace — re-paste the secret without leading spaces/tabs"
+          fi
+          if [[ "${KEY: -1}" == " " ]] || [[ "${KEY: -1}" == $'\t' ]]; then
+            echo "::error::Key has trailing whitespace — re-paste the secret without trailing spaces/tabs"
+          fi
+          if [[ "${KEY:0:1}" == '"' ]] || [[ "${KEY:0:1}" == "'" ]]; then
+            echo "::error::Key starts with a quote character — paste the value WITHOUT surrounding quotes"
+          fi
 
       - name: Tauri build
         # Pinned to a specific tauri-action release. v0 (floating tag)
@@ -97,6 +132,39 @@ jobs:
           updaterJsonKeepUniversalBinary: true
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
+
+      # If tauri-action's auto-signing was skipped (silently — Tauri 2
+      # logs nothing when the key env var doesn't parse the way it
+      # expects), explicitly call `tauri signer sign` on each updater
+      # bundle. The CLI uses the same env vars but its failure modes
+      # are loud — wrong key prints a real error message we can read.
+      - name: Sign updater bundles (explicit fallback)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set +e   # don't fail the whole job if one bundle fails to sign
+          BUNDLES="$(find src-tauri/target -path '*/release/bundle/*' \
+            \( -name '*.app.tar.gz' -o -name '*.nsis.zip' -o -name '*.AppImage.tar.gz' \) 2>/dev/null)"
+          if [ -z "$BUNDLES" ]; then
+            echo "No updater bundles found (none to sign)"
+            exit 0
+          fi
+          echo "--- Signing updater bundles ---"
+          while IFS= read -r bundle; do
+            if [ -f "$bundle.sig" ]; then
+              echo "Already signed: $bundle.sig"
+              continue
+            fi
+            echo "Signing: $bundle"
+            npx --yes tauri signer sign "$bundle" -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+            if [ -f "$bundle.sig" ]; then
+              echo "  ✓ Signature written: $bundle.sig ($(wc -c < "$bundle.sig") bytes)"
+            else
+              echo "  ::error::Signing did not produce $bundle.sig"
+            fi
+          done <<< "$BUNDLES"
 
       # Diagnostic + safety net: list every artifact tauri produced and
       # explicitly upload .sig files (which tauri-action sometimes fails
