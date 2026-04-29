@@ -4,7 +4,13 @@ name: Release Monii Watch
 # version tag is pushed. Mac builds run on macos-latest, Windows on
 # windows-latest. Linux .AppImage included as a bonus.
 #
-# Trigger by tagging:  git tag v0.1.0 && git push origin v0.1.0
+# Trigger by tagging:  git tag v0.5.0 && git push origin v0.5.0
+#
+# After the matrix builds finish, the `publish-updater-json` job runs
+# once on a single Mac runner to write `latest.json` (the auto-updater
+# manifest) into the same release. Doing this AFTER the matrix avoids
+# the race condition where three platform builds all try to write
+# latest.json in parallel and one of them silently wins (or none does).
 
 on:
   push:
@@ -55,12 +61,15 @@ jobs:
         run: npm run build
 
       - name: Tauri build
-        uses: tauri-apps/tauri-action@v0
+        # Pinned to a specific tauri-action release. v0 (floating tag)
+        # has had latest.json regressions in the past.
+        uses: tauri-apps/tauri-action@v0.5.20
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Auto-updater signing keys. Optional — when these secrets aren't
-          # set, builds still publish but won't be signed and the desktop
-          # auto-updater will refuse them on install. See docs/RELEASES.md.
+          # Auto-updater signing keys. Required for the updater bundles
+          # to be signed. Without these the .sig files won't be produced
+          # and latest.json (created in the next job) will fail to find
+          # signatures.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
@@ -69,8 +78,107 @@ jobs:
           releaseBody: 'Auto-built installers. Choose the file for your OS. Existing installs upgrade automatically via Settings → Updates.'
           releaseDraft: true
           prerelease: false
-          # `--bundles` ensures the updater bundle artifact is built alongside
-          # the regular installer, and tauri-action will upload its signature
-          # files (.sig) and produce the latest.json manifest.
+          # `includeUpdaterJson: true` works MOST of the time but races
+          # in the matrix. The dedicated `publish-updater-json` job below
+          # writes a deterministic latest.json after all platforms finish.
           includeUpdaterJson: true
+          # Keep the universal binary metadata in latest.json — without
+          # this, the macOS Intel + ARM single .app gets dropped from
+          # the manifest and Mac users would be told "no update."
+          updaterJsonKeepUniversalBinary: true
+          # Prefer NSIS (.exe) over MSI for Windows updater bundles —
+          # NSIS is what Tauri's updater shells out to on install.
+          updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
+
+  # Single follow-up job that walks the just-published release's assets
+  # and writes a clean latest.json. Catches the case where the matrix
+  # runs all completed but none wrote a complete manifest. Idempotent:
+  # if a working latest.json is already there, this overwrites with the
+  # same content.
+  publish-updater-json:
+    needs: build
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generate + upload latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          OWNER_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Pull the release's assets list via the GitHub API.
+          ASSETS_JSON="$(gh api repos/${OWNER_REPO}/releases/tags/${TAG} --jq '.assets')"
+          echo "Found assets:"
+          echo "$ASSETS_JSON" | jq -r '.[].name'
+
+          # Find the .sig + bundle pairs per platform. Tauri's updater
+          # consumes one entry per (platform, arch) combo.
+          download_url() {
+            local pattern="$1"
+            echo "$ASSETS_JSON" | jq -r ".[] | select(.name | test(\"$pattern\")) | .browser_download_url" | head -1
+          }
+          read_sig() {
+            local pattern="$1"
+            local url; url="$(echo "$ASSETS_JSON" | jq -r ".[] | select(.name | test(\"$pattern\")) | .browser_download_url" | head -1)"
+            if [ -z "$url" ]; then return; fi
+            curl -fsSL "$url"
+          }
+
+          MAC_BUNDLE="$(download_url '\\.app\\.tar\\.gz$')"
+          MAC_SIG="$(read_sig '\\.app\\.tar\\.gz\\.sig$' || true)"
+          WIN_BUNDLE="$(download_url 'x64-setup\\.exe$')"
+          WIN_SIG="$(read_sig 'x64-setup\\.nsis\\.zip\\.sig$|x64-setup\\.exe\\.sig$' || true)"
+          LIN_BUNDLE="$(download_url '\\.AppImage$')"
+          LIN_SIG="$(read_sig '\\.AppImage\\.sig$' || true)"
+
+          VERSION="${TAG#v}"
+          PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          # Build latest.json. Only includes platforms that have BOTH
+          # a bundle and a signature.
+          jq -n \
+            --arg version "$VERSION" \
+            --arg pub_date "$PUB_DATE" \
+            --arg notes "See the release page for details." \
+            --arg mac_url "$MAC_BUNDLE" \
+            --arg mac_sig "$MAC_SIG" \
+            --arg win_url "$WIN_BUNDLE" \
+            --arg win_sig "$WIN_SIG" \
+            --arg lin_url "$LIN_BUNDLE" \
+            --arg lin_sig "$LIN_SIG" \
+            '{
+              version: $version,
+              notes: $notes,
+              pub_date: $pub_date,
+              platforms: (
+                ({} as $p)
+                | (if ($mac_url | length) > 0 and ($mac_sig | length) > 0
+                   then ($p + {"darwin-aarch64": {"signature": $mac_sig, "url": $mac_url},
+                              "darwin-x86_64":  {"signature": $mac_sig, "url": $mac_url}})
+                   else $p end) as $p
+                | (if ($win_url | length) > 0 and ($win_sig | length) > 0
+                   then ($p + {"windows-x86_64": {"signature": $win_sig, "url": $win_url}})
+                   else $p end) as $p
+                | (if ($lin_url | length) > 0 and ($lin_sig | length) > 0
+                   then ($p + {"linux-x86_64": {"signature": $lin_sig, "url": $lin_url}})
+                   else $p end)
+              )
+            }' > latest.json
+
+          echo "--- Generated latest.json ---"
+          cat latest.json
+
+          # If a latest.json is already attached, delete it before re-uploading.
+          gh release delete-asset "$TAG" latest.json --yes 2>/dev/null || true
+          gh release upload "$TAG" latest.json --clobber
+          echo "Uploaded latest.json to $TAG"
