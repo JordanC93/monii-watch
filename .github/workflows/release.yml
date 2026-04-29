@@ -5,12 +5,6 @@ name: Release Monii Watch
 # windows-latest. Linux .AppImage included as a bonus.
 #
 # Trigger by tagging:  git tag v0.5.0 && git push origin v0.5.0
-#
-# After the matrix builds finish, the `publish-updater-json` job runs
-# once on a single Mac runner to write `latest.json` (the auto-updater
-# manifest) into the same release. Doing this AFTER the matrix avoids
-# the race condition where three platform builds all try to write
-# latest.json in parallel and one of them silently wins (or none does).
 
 on:
   push:
@@ -60,6 +54,25 @@ jobs:
       - name: Build PWA
         run: npm run build
 
+      # Diagnostic: confirms the signing secrets are reaching the runner.
+      # Prints byte counts only — never the actual key material.
+      - name: Verify signing keys present
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          PASS: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY secret is empty / not set"
+            exit 1
+          fi
+          if [ -z "$PASS" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY_PASSWORD secret is empty / not set"
+            exit 1
+          fi
+          echo "Signing key length: ${#KEY} bytes"
+          echo "Signing pass length: ${#PASS} bytes"
+
       - name: Tauri build
         # Pinned to a specific tauri-action release. v0 (floating tag)
         # has had latest.json regressions in the past.
@@ -67,9 +80,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Auto-updater signing keys. Required for the updater bundles
-          # to be signed. Without these the .sig files won't be produced
-          # and latest.json (created in the next job) will fail to find
-          # signatures.
+          # to be signed. Without these, .sig files won't be produced
+          # and latest.json (created in the next job) fails to find them.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
@@ -78,24 +90,51 @@ jobs:
           releaseBody: 'Auto-built installers. Choose the file for your OS. Existing installs upgrade automatically via Settings → Updates.'
           releaseDraft: true
           prerelease: false
-          # `includeUpdaterJson: true` works MOST of the time but races
-          # in the matrix. The dedicated `publish-updater-json` job below
-          # writes a deterministic latest.json after all platforms finish.
+          # `includeUpdaterJson: true` is best-effort — the dedicated
+          # `publish-updater-json` job below writes a deterministic
+          # latest.json after all platforms finish.
           includeUpdaterJson: true
-          # Keep the universal binary metadata in latest.json — without
-          # this, the macOS Intel + ARM single .app gets dropped from
-          # the manifest and Mac users would be told "no update."
           updaterJsonKeepUniversalBinary: true
-          # Prefer NSIS (.exe) over MSI for Windows updater bundles —
-          # NSIS is what Tauri's updater shells out to on install.
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
 
-  # Single follow-up job that walks the just-published release's assets
-  # and writes a clean latest.json. Catches the case where the matrix
-  # runs all completed but none wrote a complete manifest. Idempotent:
-  # if a working latest.json is already there, this overwrites with the
-  # same content.
+      # Diagnostic + safety net: list every artifact tauri produced and
+      # explicitly upload .sig files (which tauri-action sometimes fails
+      # to attach to the release). The .sig files live alongside the
+      # bundles in src-tauri/target/<triple>/release/bundle/.
+      - name: List + upload signature files
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "--- All bundle artifacts on disk ---"
+          find src-tauri/target -path '*/release/bundle/*' -type f \
+            \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" \
+               -o -name "*.exe" -o -name "*.msi" -o -name "*.nsis.zip" -o -name "*.nsis.zip.sig" \
+               -o -name "*.AppImage" -o -name "*.AppImage.tar.gz" -o -name "*.AppImage.tar.gz.sig" \
+               -o -name "*.deb" -o -name "*.rpm" \) 2>/dev/null | sort
+
+          echo "--- Signature files ---"
+          SIGS="$(find src-tauri/target -path '*/release/bundle/*' -name "*.sig" 2>/dev/null)"
+          if [ -z "$SIGS" ]; then
+            echo "::error::NO .sig files were produced! Signing did not run."
+            echo "  Check tauri-action's stdout above for signing errors."
+            echo "  Common causes:"
+            echo "    - TAURI_SIGNING_PRIVATE_KEY in secrets is wrong/empty"
+            echo "    - TAURI_SIGNING_PRIVATE_KEY_PASSWORD is wrong"
+            echo "    - The pubkey in tauri.conf.json doesn't match the private key"
+            exit 1
+          fi
+
+          echo "$SIGS"
+          echo "--- Uploading .sig files to release ---"
+          while IFS= read -r sig; do
+            echo "Uploading: $sig"
+            gh release upload "$TAG" "$sig" --clobber
+          done <<< "$SIGS"
+
   publish-updater-json:
     needs: build
     runs-on: macos-latest
@@ -117,31 +156,30 @@ jobs:
         run: |
           set -euo pipefail
 
-          # `gh api repos/.../releases/tags/<tag>` returns 404 for DRAFT
-          # releases — the by-tag REST endpoint hides drafts even when
-          # authenticated as the repo owner. Workaround: `gh release
-          # view` uses the GraphQL API path that DOES surface drafts.
-          # `--json assets` returns name + id + url (the public download
-          # URL, stable across draft/published states).
+          # Drafts are hidden from `gh api repos/.../releases/tags/<tag>`,
+          # so we use `gh release view` which respects draft state.
           ASSETS_JSON="$(gh release view "$TAG" --repo "$OWNER_REPO" --json assets --jq '.assets')"
           echo "--- Found assets ---"
           echo "$ASSETS_JSON" | jq -r '.[].name'
 
-          # Public URL (for embedding in latest.json — stable, becomes
-          # accessible once the release is published)
-          asset_url() {
+          # Build canonical tag-based URLs for latest.json. The `url`
+          # field from `gh release view` returns a temporary "untagged-"
+          # URL while the release is a draft — those 404 once the
+          # release is published. Canonical URLs are stable across
+          # draft → published transitions.
+          asset_canonical_url() {
             local pattern="$1"
-            echo "$ASSETS_JSON" | jq -r ".[] | select(.name | test(\"$pattern\")) | .url" | head -1
+            local name; name="$(echo "$ASSETS_JSON" | jq -r ".[] | select(.name | test(\"$pattern\")) | .name" | head -1)"
+            if [ -z "$name" ] || [ "$name" = "null" ]; then return; fi
+            # URL-encode spaces (the only character GitHub URL-escapes
+            # in asset filenames). + → %20.
+            local encoded; encoded="$(printf '%s' "$name" | sed 's/ /%20/g')"
+            printf 'https://github.com/%s/releases/download/%s/%s' "$OWNER_REPO" "$TAG" "$encoded"
           }
-          # Asset ID (for downloading content via authenticated API,
-          # which works on drafts unlike the public URL)
           asset_id() {
             local pattern="$1"
             echo "$ASSETS_JSON" | jq -r ".[] | select(.name | test(\"$pattern\")) | .id" | head -1
           }
-          # Download a .sig file's textual content via the authenticated
-          # API. The Accept header is what makes GitHub return the raw
-          # bytes instead of a JSON metadata object.
           read_sig_content() {
             local pattern="$1"
             local id; id="$(asset_id "$pattern")"
@@ -149,70 +187,63 @@ jobs:
             gh api "repos/$OWNER_REPO/releases/assets/$id" -H "Accept: application/octet-stream" 2>/dev/null || true
           }
 
-          MAC_BUNDLE="$(asset_url '\\.app\\.tar\\.gz$' || true)"
+          MAC_BUNDLE="$(asset_canonical_url '\\.app\\.tar\\.gz$' || true)"
           MAC_SIG="$(read_sig_content '\\.app\\.tar\\.gz\\.sig$')"
-          WIN_BUNDLE="$(asset_url 'x64-setup\\.exe$' || true)"
+          WIN_BUNDLE="$(asset_canonical_url 'x64-setup\\.nsis\\.zip$|x64-setup\\.exe$' || true)"
           WIN_SIG="$(read_sig_content 'x64-setup\\.nsis\\.zip\\.sig$|x64-setup\\.exe\\.sig$')"
-          LIN_BUNDLE="$(asset_url '\\.AppImage$' || true)"
-          LIN_SIG="$(read_sig_content '\\.AppImage\\.sig$')"
+          LIN_BUNDLE="$(asset_canonical_url '\\.AppImage\\.tar\\.gz$|\\.AppImage$' || true)"
+          LIN_SIG="$(read_sig_content '\\.AppImage\\.tar\\.gz\\.sig$|\\.AppImage\\.sig$')"
 
-          echo "--- Resolved bundle URLs ---"
-          echo "mac:   ${MAC_BUNDLE:-<none>}"
+          echo "--- Resolved bundles + signatures ---"
+          echo "mac bundle:    ${MAC_BUNDLE:-<none>}"
           echo "mac sig bytes: ${#MAC_SIG}"
-          echo "win:   ${WIN_BUNDLE:-<none>}"
+          echo "win bundle:    ${WIN_BUNDLE:-<none>}"
           echo "win sig bytes: ${#WIN_SIG}"
-          echo "linux: ${LIN_BUNDLE:-<none>}"
-          echo "linux sig bytes: ${#LIN_SIG}"
+          echo "lin bundle:    ${LIN_BUNDLE:-<none>}"
+          echo "lin sig bytes: ${#LIN_SIG}"
 
           VERSION="${TAG#v}"
           PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-          # Build latest.json. Only includes platforms that have BOTH
-          # a bundle and a signature.
+          # Build the platforms object in shell, then compose the final
+          # JSON in one jq pass — avoids the variable-binding-with-parens
+          # syntax that bit us before.
+          PLATFORMS='{}'
+          if [ -n "$MAC_BUNDLE" ] && [ -n "$MAC_SIG" ]; then
+            PLATFORMS="$(echo "$PLATFORMS" | jq \
+              --arg url "$MAC_BUNDLE" --arg sig "$MAC_SIG" \
+              '. + {"darwin-aarch64": {"signature": $sig, "url": $url}, "darwin-x86_64": {"signature": $sig, "url": $url}}')"
+          fi
+          if [ -n "$WIN_BUNDLE" ] && [ -n "$WIN_SIG" ]; then
+            PLATFORMS="$(echo "$PLATFORMS" | jq \
+              --arg url "$WIN_BUNDLE" --arg sig "$WIN_SIG" \
+              '. + {"windows-x86_64": {"signature": $sig, "url": $url}}')"
+          fi
+          if [ -n "$LIN_BUNDLE" ] && [ -n "$LIN_SIG" ]; then
+            PLATFORMS="$(echo "$PLATFORMS" | jq \
+              --arg url "$LIN_BUNDLE" --arg sig "$LIN_SIG" \
+              '. + {"linux-x86_64": {"signature": $sig, "url": $url}}')"
+          fi
+
           jq -n \
             --arg version "$VERSION" \
             --arg pub_date "$PUB_DATE" \
             --arg notes "See the release page for details." \
-            --arg mac_url "$MAC_BUNDLE" \
-            --arg mac_sig "$MAC_SIG" \
-            --arg win_url "$WIN_BUNDLE" \
-            --arg win_sig "$WIN_SIG" \
-            --arg lin_url "$LIN_BUNDLE" \
-            --arg lin_sig "$LIN_SIG" \
-            '{
-              version: $version,
-              notes: $notes,
-              pub_date: $pub_date,
-              platforms: (
-                ({} as $p)
-                | (if ($mac_url | length) > 0 and ($mac_sig | length) > 0
-                   then ($p + {"darwin-aarch64": {"signature": $mac_sig, "url": $mac_url},
-                              "darwin-x86_64":  {"signature": $mac_sig, "url": $mac_url}})
-                   else $p end) as $p
-                | (if ($win_url | length) > 0 and ($win_sig | length) > 0
-                   then ($p + {"windows-x86_64": {"signature": $win_sig, "url": $win_url}})
-                   else $p end) as $p
-                | (if ($lin_url | length) > 0 and ($lin_sig | length) > 0
-                   then ($p + {"linux-x86_64": {"signature": $lin_sig, "url": $lin_url}})
-                   else $p end)
-              )
-            }' > latest.json
+            --argjson platforms "$PLATFORMS" \
+            '{version: $version, notes: $notes, pub_date: $pub_date, platforms: $platforms}' > latest.json
 
           echo "--- Generated latest.json ---"
           cat latest.json
           echo
 
-          # Sanity: refuse to upload an empty platforms manifest. Better to
-          # fail loudly than ship a broken updater payload.
           PLATFORM_COUNT="$(jq '.platforms | length' latest.json)"
           if [ "$PLATFORM_COUNT" -eq 0 ]; then
-            echo "ERROR: No platforms made it into latest.json (no bundle/sig pairs found)."
-            echo "       Check that the matrix builds completed AND that signing keys are configured."
+            echo "::error::No platforms made it into latest.json (no bundle/sig pairs found)."
+            echo "  This usually means signing failed or signatures didn't get uploaded."
+            echo "  Check the 'List + upload signature files' step output in each matrix job."
             exit 1
           fi
 
-          # If a latest.json is already attached, delete it first.
-          # `gh release delete-asset` works on drafts.
           gh release delete-asset "$TAG" latest.json --yes 2>/dev/null || true
           gh release upload "$TAG" latest.json --clobber
           echo "Uploaded latest.json to $TAG ($PLATFORM_COUNT platform(s))"
