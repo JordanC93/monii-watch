@@ -426,6 +426,20 @@ export function SettingsPage() {
         <DesktopUpdates />
       </Section>
 
+      <Section
+        title="Uninstall"
+        subtitle="Drag-to-trash on macOS or Add/Remove Programs on Windows leaves your data behind. Use this for a complete wipe."
+      >
+        <div className="flex flex-wrap gap-2 items-center">
+          <Button variant="secondary" onClick={() => openModal({ type: 'uninstall' })}>
+            <Trash2 size={14} /> Uninstall Monii Watch…
+          </Button>
+          <span className="text-[11.5px] text-fg-subtle">
+            Walks you through wiping data + the OS-level cleanup steps.
+          </span>
+        </div>
+      </Section>
+
       <Section title="About">
         <div className="text-[12.5px] text-fg-muted space-y-1">
           <div>Monii Watch — envelope-method budgeting that syncs peer-to-peer.</div>

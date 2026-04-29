@@ -31,6 +31,7 @@ import { ChatAuditLogModal } from './ChatAuditLogModal';
 import { SidebarCustomizeModal } from './SidebarCustomizeModal';
 import { ReportsCustomizeModal } from './ReportsCustomizeModal';
 import { SavedLayoutsModal } from './SavedLayoutsModal';
+import { UninstallModal } from './UninstallModal';
 
 export function ModalRoot() {
   const modal = useUI((s) => s.modal);
@@ -71,6 +72,7 @@ export function ModalRoot() {
     case 'sidebarCustomize': return <SidebarCustomizeModal open onClose={close} />;
     case 'reportsCustomize': return <ReportsCustomizeModal open onClose={close} />;
     case 'savedLayouts':  return <SavedLayoutsModal open onClose={close} />;
+    case 'uninstall':     return <UninstallModal open onClose={close} />;
     default: return null;
   }
 }

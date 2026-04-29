@@ -73,7 +73,8 @@ export type ModalState =
   | { type: 'chatAuditLog' }
   | { type: 'sidebarCustomize' }
   | { type: 'reportsCustomize' }
-  | { type: 'savedLayouts' };
+  | { type: 'savedLayouts' }
+  | { type: 'uninstall' };
 
 export const useUI = create<State>((set, get) => ({
   commandOpen: false,
