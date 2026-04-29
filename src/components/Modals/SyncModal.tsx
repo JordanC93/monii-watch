@@ -150,59 +150,71 @@ export function SyncModal({ open, onClose }: { open: boolean; onClose: () => voi
         {/* Advanced: Google Drive (E2E encrypted) */}
         <DriveSection />
 
-        {/* Advanced: self-hosted server URL */}
-        <div className="border border-border rounded-lg overflow-hidden">
-          <button
-            onClick={() => setShowAdvanced((v) => !v)}
-            className="w-full flex items-center justify-between gap-2 px-3 py-2 text-[12.5px] font-medium hover:bg-surface-2/40"
-          >
-            <div className="flex items-center gap-2">
-              <Server size={13} className="text-accent" />
-              <span>Self-hosted server (advanced — optional)</span>
-              {detail.wsConfigured && (
-                <span className={`text-[10.5px] px-1.5 py-0.5 rounded ${wsActive ? 'bg-positive/15 text-positive' : 'bg-warning/15 text-warning'}`}>
-                  {wsActive ? 'Active' : 'Configured'}
-                </span>
-              )}
-            </div>
-            <span className="text-fg-subtle">{showAdvanced ? '−' : '+'}</span>
-          </button>
+        {/*
+          Self-hosted server URL — gated behind maintainerMode. This
+          option is for users who run their own y-websocket hub (Plex
+          box / NAS / Raspberry Pi). For everyone else it's clutter:
+          friends-and-family installs use WebRTC P2P, less-technical
+          users use Google Drive. Hiding it keeps the Sync surface
+          focused for the audience that ships gets.
 
-          {showAdvanced && (
-            <div className="px-3 py-3 border-t border-border space-y-2 bg-surface-2/20">
-              <div className="text-[11.5px] text-fg-muted leading-snug">
-                Run a y-websocket server on your own box (Plex / Raspberry Pi / cloud VM) and point this app at it. Your devices then sync through the server **and** peer-to-peer — so updates land even if the other device is offline.
-                <br />
-                <span className="text-fg-subtle">Setup instructions: <code className="px-1 py-0.5 rounded bg-surface-3 text-fg">server/README.md</code> in the project repo.</span>
+          To use it: Settings → Advanced (maintainer) → enable
+          maintainer mode. Then this section appears.
+        */}
+        {settings.maintainerMode && (
+          <div className="border border-border rounded-lg overflow-hidden">
+            <button
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="w-full flex items-center justify-between gap-2 px-3 py-2 text-[12.5px] font-medium hover:bg-surface-2/40"
+            >
+              <div className="flex items-center gap-2">
+                <Server size={13} className="text-accent" />
+                <span>Self-hosted server (maintainer — optional)</span>
+                {detail.wsConfigured && (
+                  <span className={`text-[10.5px] px-1.5 py-0.5 rounded ${wsActive ? 'bg-positive/15 text-positive' : 'bg-warning/15 text-warning'}`}>
+                    {wsActive ? 'Active' : 'Configured'}
+                  </span>
+                )}
               </div>
-              <div className="flex gap-2">
-                <Input
-                  value={serverUrl}
-                  onChange={(e) => setServerUrl(e.target.value)}
-                  onBlur={applyServer}
-                  className="flex-1 font-mono text-[12px]"
-                  placeholder="wss://sync.myhouse.com  (or http://192.168.1.10:1234)"
-                />
-                <Button variant={savedFlash ? 'primary' : 'secondary'} onClick={applyServer}>
-                  {savedFlash ? <><Check size={13} /> Saved</> : 'Save'}
-                </Button>
-              </div>
-              <div className="flex items-center gap-3 text-[11px] text-fg-subtle">
-                <div className="flex items-center gap-1">
-                  <Wifi size={11} className={detail.webrtcActive ? 'text-positive' : 'text-fg-subtle'} />
-                  WebRTC: {detail.webrtcActive ? `${peers} peer${peers === 1 ? '' : 's'}` : 'off'}
+              <span className="text-fg-subtle">{showAdvanced ? '−' : '+'}</span>
+            </button>
+
+            {showAdvanced && (
+              <div className="px-3 py-3 border-t border-border space-y-2 bg-surface-2/20">
+                <div className="text-[11.5px] text-fg-muted leading-snug">
+                  Run a y-websocket server on your own box (Plex / Raspberry Pi / cloud VM) and point this app at it. Your devices then sync through the server <strong>and</strong> peer-to-peer — so updates land even if the other device is offline.
+                  <br />
+                  <span className="text-fg-subtle">Setup instructions: <code className="px-1 py-0.5 rounded bg-surface-3 text-fg">server/README.md</code> in the project repo.</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Server size={11} className={wsActive ? 'text-positive' : 'text-fg-subtle'} />
-                  Server: {wsActive ? 'connected' : detail.wsConfigured ? 'reconnecting…' : 'not configured'}
+                <div className="flex gap-2">
+                  <Input
+                    value={serverUrl}
+                    onChange={(e) => setServerUrl(e.target.value)}
+                    onBlur={applyServer}
+                    className="flex-1 font-mono text-[12px]"
+                    placeholder="wss://sync.myhouse.com  (or http://192.168.1.10:1234)"
+                  />
+                  <Button variant={savedFlash ? 'primary' : 'secondary'} onClick={applyServer}>
+                    {savedFlash ? <><Check size={13} /> Saved</> : 'Save'}
+                  </Button>
+                </div>
+                <div className="flex items-center gap-3 text-[11px] text-fg-subtle">
+                  <div className="flex items-center gap-1">
+                    <Wifi size={11} className={detail.webrtcActive ? 'text-positive' : 'text-fg-subtle'} />
+                    WebRTC: {detail.webrtcActive ? `${peers} peer${peers === 1 ? '' : 's'}` : 'off'}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Server size={11} className={wsActive ? 'text-positive' : 'text-fg-subtle'} />
+                    Server: {wsActive ? 'connected' : detail.wsConfigured ? 'reconnecting…' : 'not configured'}
+                  </div>
+                </div>
+                <div className="text-[10.5px] text-fg-subtle leading-snug">
+                  Leave blank for friends-and-family P2P only — no server required.
                 </div>
               </div>
-              <div className="text-[10.5px] text-fg-subtle leading-snug">
-                Leave blank for friends-and-family P2P only — no server required.
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </Modal>
   );
@@ -376,7 +388,7 @@ function DriveSection() {
           )}
 
           <div className="text-[10.5px] text-fg-subtle leading-snug">
-            Stays off by default. Independent of WebRTC and the self-hosted server — you can use any combination.
+            Stays off by default. Independent of WebRTC — you can use either, both, or neither.
           </div>
         </div>
       )}
