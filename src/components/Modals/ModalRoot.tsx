@@ -1,0 +1,76 @@
+import { useUI } from '../../store/ui';
+import { AddAccountModal } from './AddAccountModal';
+import { AddGroupModal } from './AddGroupModal';
+import { AddCategoryModal } from './AddCategoryModal';
+import { EditCategoryModal } from './EditCategoryModal';
+import { EditGroupModal } from './EditGroupModal';
+import { EditAccountModal } from './EditAccountModal';
+import { ReconcileModal } from './ReconcileModal';
+import { MoveMoneyModal } from './MoveMoneyModal';
+import { SyncModal } from './SyncModal';
+import { SplitEditorModal } from './SplitEditorModal';
+import { ImportCsvModal } from './ImportCsvModal';
+import { WelcomeModal } from './WelcomeModal';
+import { ScheduledModal } from './ScheduledModal';
+import { ReceiptUploadModal } from './ReceiptUploadModal';
+import { DebugLogsModal } from './DebugLogsModal';
+import { AddGoalModal } from './AddGoalModal';
+import { YearInReviewModal } from './YearInReviewModal';
+import { BudgetTemplatesModal } from './BudgetTemplatesModal';
+import { MonthlyReviewModal } from './MonthlyReviewModal';
+import { BulkPasteModal } from './BulkPasteModal';
+import { ExpectedRefundModal } from './ExpectedRefundModal';
+import { IouEntryModal } from './IouEntryModal';
+import { GoalFundingModal } from './GoalFundingModal';
+import { VacationSummaryModal } from './VacationSummaryModal';
+import { ShareLinkModal } from './ShareLinkModal';
+import { GoalCelebrationModal } from './GoalCelebrationModal';
+import { QuarterlyReviewModal } from './QuarterlyReviewModal';
+import { OnboardingWizardModal } from './OnboardingWizardModal';
+import { ChatAuditLogModal } from './ChatAuditLogModal';
+import { SidebarCustomizeModal } from './SidebarCustomizeModal';
+import { ReportsCustomizeModal } from './ReportsCustomizeModal';
+import { SavedLayoutsModal } from './SavedLayoutsModal';
+
+export function ModalRoot() {
+  const modal = useUI((s) => s.modal);
+  const close = useUI((s) => s.closeModal);
+  if (!modal) return null;
+
+  switch (modal.type) {
+    case 'addAccount':    return <AddAccountModal open onClose={close} />;
+    case 'addGroup':      return <AddGroupModal open onClose={close} />;
+    case 'addCategory':   return <AddCategoryModal open onClose={close} groupId={modal.groupId} />;
+    case 'editCategory':  return <EditCategoryModal open onClose={close} categoryId={modal.categoryId} />;
+    case 'editGroup':     return <EditGroupModal open onClose={close} groupId={modal.groupId} />;
+    case 'editAccount':   return <EditAccountModal open onClose={close} accountId={modal.accountId} />;
+    case 'reconcile':     return <ReconcileModal open onClose={close} accountId={modal.accountId} />;
+    case 'moveMoney':     return <MoveMoneyModal open onClose={close} fromCategoryId={modal.fromCategoryId} month={modal.month} toCategoryId={modal.toCategoryId} />;
+    case 'splitEditor':   return <SplitEditorModal open onClose={close} transactionId={modal.transactionId} />;
+    case 'importCsv':     return <ImportCsvModal open onClose={close} accountId={modal.accountId} />;
+    case 'sync':          return <SyncModal open onClose={close} />;
+    case 'welcome':       return <WelcomeModal open onClose={close} />;
+    case 'scheduledNew':  return <ScheduledModal open onClose={close} />;
+    case 'scheduledEdit': return <ScheduledModal open onClose={close} scheduledId={modal.scheduledId} />;
+    case 'receiptUpload': return <ReceiptUploadModal open onClose={close} />;
+    case 'debugLogs':     return <DebugLogsModal open onClose={close} />;
+    case 'addGoal':       return <AddGoalModal open onClose={close} />;
+    case 'yearInReview':  return <YearInReviewModal open onClose={close} year={new Date().getFullYear() - 1} />;
+    case 'budgetTemplates': return <BudgetTemplatesModal open onClose={close} />;
+    case 'monthlyReview': return <MonthlyReviewModal open onClose={close} month={modal.month} />;
+    case 'bulkPaste':     return <BulkPasteModal open onClose={close} accountId={modal.accountId} />;
+    case 'expectedRefund': return <ExpectedRefundModal open onClose={close} transactionId={modal.transactionId} />;
+    case 'iouEntry':      return <IouEntryModal open onClose={close} entryId={modal.entryId} />;
+    case 'goalFunding':   return <GoalFundingModal open onClose={close} />;
+    case 'vacationSummary': return <VacationSummaryModal open onClose={close} />;
+    case 'shareLink':     return <ShareLinkModal open onClose={close} />;
+    case 'goalCelebration': return <GoalCelebrationModal open onClose={close} categoryId={modal.categoryId} />;
+    case 'quarterlyReview': return <QuarterlyReviewModal open onClose={close} quarter={modal.quarter} />;
+    case 'onboardingWizard': return <OnboardingWizardModal open onClose={close} />;
+    case 'chatAuditLog':  return <ChatAuditLogModal open onClose={close} />;
+    case 'sidebarCustomize': return <SidebarCustomizeModal open onClose={close} />;
+    case 'reportsCustomize': return <ReportsCustomizeModal open onClose={close} />;
+    case 'savedLayouts':  return <SavedLayoutsModal open onClose={close} />;
+    default: return null;
+  }
+}

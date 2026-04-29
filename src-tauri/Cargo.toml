@@ -1,0 +1,38 @@
+[package]
+name = "cashbook"
+version = "0.1.0"
+description = "Envelope-method budgeting that syncs peer-to-peer."
+authors = ["Cashbook"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "cashbook_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Auto-updater + process restart + native notifications: desktop only.
+# iOS apps update through the App Store / TestFlight, so the in-app
+# updater is meaningless there and Apple would reject a build that ships
+# its own update mechanism. Notifications on iOS go through the system
+# `UNUserNotificationCenter` flow instead.
+[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+tauri-plugin-notification = "2"
+# Window position / size persistence (Tier 4 #10 + Tier 5 #20).
+# Stores per-window state in a small JSON file on quit and restores it
+# on next launch. Multi-monitor aware out of the box.
+tauri-plugin-window-state = "2"

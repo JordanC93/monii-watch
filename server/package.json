@@ -1,0 +1,20 @@
+{
+  "name": "cashbook-sync-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-hosted y-websocket sync hub for Cashbook. Optional — the app also syncs peer-to-peer over WebRTC without this.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.0",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

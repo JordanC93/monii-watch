@@ -1,0 +1,81 @@
+<!--
+  iOS-specific Info.plist additions for Cashbook.
+
+  After running `npm run ios:init` (which calls `tauri ios init`), Tauri
+  generates `src-tauri/gen/apple/<bundle-id>_iOS/Info.plist`. Open that
+  file in Xcode (or any text editor) and merge the keys below into the
+  top-level <dict>.
+
+  These permissions are what the app needs to surface its existing PWA
+  capabilities natively:
+
+    - Camera        → photographing receipts (Tesseract OCR pipeline)
+    - Photo Library → picking an existing receipt photo / goal photo
+    - Local Network → WebRTC LAN peer discovery (sync with desktop on
+                      the same Wi-Fi without bouncing through public
+                      signaling servers when both devices are on LAN)
+    - Bonjour       → multicast discovery for the same WebRTC LAN path
+
+  Each NS*UsageDescription is shown in the iOS permission prompt the
+  first time the feature is used. iOS rejects apps that ship a usage
+  permission with no description string, so don't drop these.
+-->
+
+<!-- Camera (receipt OCR). -->
+<key>NSCameraUsageDescription</key>
+<string>Cashbook reads receipt photos on-device with Tesseract OCR to pre-fill transactions. Photos never leave your device.</string>
+
+<!-- Photo library (pick existing receipts, goal avatar uploads). -->
+<key>NSPhotoLibraryUsageDescription</key>
+<string>Cashbook reads receipt and goal-avatar photos on-device. Selected photos never leave your device.</string>
+
+<!-- Saving exported JSON backups to Photos / Files. -->
+<key>NSPhotoLibraryAddUsageDescription</key>
+<string>Cashbook saves your exported JSON backup file when you tap Export.</string>
+
+<!-- WebRTC LAN sync without round-tripping the public signaling server. -->
+<key>NSLocalNetworkUsageDescription</key>
+<string>Cashbook discovers your other devices on the same Wi-Fi to sync directly. No data leaves your network.</string>
+
+<key>NSBonjourServices</key>
+<array>
+  <string>_yjs._tcp</string>
+</array>
+
+<!-- File picker support for CSV / JSON / PDF imports. UIDocumentPicker
+     needs no entitlement, but we declare these UTIs so the picker
+     filters to relevant types. -->
+<key>UISupportedInterfaceOrientations</key>
+<array>
+  <string>UIInterfaceOrientationPortrait</string>
+  <string>UIInterfaceOrientationLandscapeLeft</string>
+  <string>UIInterfaceOrientationLandscapeRight</string>
+</array>
+
+<key>UISupportedInterfaceOrientations~ipad</key>
+<array>
+  <string>UIInterfaceOrientationPortrait</string>
+  <string>UIInterfaceOrientationPortraitUpsideDown</string>
+  <string>UIInterfaceOrientationLandscapeLeft</string>
+  <string>UIInterfaceOrientationLandscapeRight</string>
+</array>
+
+<!-- Status bar style is decided by the WKWebView's theme-color meta;
+     declare we'll set it manually so iOS doesn't override. -->
+<key>UIViewControllerBasedStatusBarAppearance</key>
+<true/>
+
+<!-- iCloud / iTunes file sharing — lets the user export JSON backups
+     out of the app sandbox into Files.app. -->
+<key>UIFileSharingEnabled</key>
+<true/>
+<key>LSSupportsOpeningDocumentsInPlace</key>
+<true/>
+
+<!-- App Transport Security: allow ws:// for LAN sync to a self-hosted
+     server (cleartext on a trusted network). wss:// always works. -->
+<key>NSAppTransportSecurity</key>
+<dict>
+  <key>NSAllowsLocalNetworking</key>
+  <true/>
+</dict>

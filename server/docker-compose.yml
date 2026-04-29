@@ -1,0 +1,29 @@
+# Cashbook sync server — drop-in compose for your Plex box / NAS / Pi.
+#
+#   docker compose up -d
+#
+# By default this exposes a plaintext `ws://<host>:1234` endpoint.
+# For `wss://` (recommended for anything outside your LAN) put it behind
+# a TLS-terminating reverse proxy. See README.md.
+
+services:
+  cashbook-sync:
+    build: .
+    image: cashbook-sync:latest
+    container_name: cashbook-sync
+    restart: unless-stopped
+    ports:
+      - "1234:1234"
+    environment:
+      # Persist docs between restarts. Comment out for in-memory only.
+      CASHBOOK_PERSIST_DIR: /data
+    volumes:
+      - cashbook-sync-data:/data
+    # Resource ceiling — y-websocket is light, but containers love defaults.
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  cashbook-sync-data:

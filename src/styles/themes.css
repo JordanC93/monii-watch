@@ -1,0 +1,160 @@
+/* Theme tokens. Each theme defines a palette as RGB triplets so they can be
+   composed with alpha channels via Tailwind utilities (e.g. bg-accent/20). */
+
+:root,
+html[data-theme='light'] {
+  /*
+   * Warm cool-gray tones rather than the previous pure-white and slate-50
+   * mix — the page felt clinical / brighter than typical macOS Finder or
+   * iOS Settings. The new values track Apple's "secondary system grouped
+   * background" palette: a soft gray base, off-white panels with a subtle
+   * gray cast, and slightly more contrast between surface levels.
+   */
+  --bg:          233 236 241;   /* warm cool-gray, like macOS sidebar bg */
+  --surface:     247 248 251;   /* off-white panel; not pure white */
+  --surface-2:   238 240 245;   /* slightly grayer for hover / inputs */
+  --surface-3:   228 231 238;   /* one step deeper for active selection */
+  --elevated:    251 252 254;   /* modals — barely lighter than surface */
+
+  --border:      214 218 226;
+  --border-strong: 188 193 204;
+
+  --fg:           18  24  38;    /* slate-900 with a hint less blue */
+  --fg-muted:    74  86 106;
+  --fg-subtle:  138 150 168;
+
+  --accent:       14 116 144;    /* cyan-700 */
+  --accent-fg:   255 255 255;
+
+  --positive:     21 128  61;    /* green-700 */
+  --negative:    185  28  28;    /* red-700   */
+  --warning:     180  83   9;    /* amber-700 */
+
+  --flag-red:    220  38  38;
+  --flag-orange: 234  88  12;
+  --flag-yellow: 202 138   4;
+  --flag-green:   22 163  74;
+  --flag-blue:    37  99 235;
+  --flag-purple: 147  51 234;
+}
+
+html[data-theme='dark'] {
+  --bg:            15  18  24;   /* near slate-950 */
+  --surface:       22  26  34;
+  --surface-2:    28  33  43;
+  --surface-3:    36  42  54;
+  --elevated:      30  35  46;
+
+  --border:        42  48  60;
+  --border-strong: 58  66  80;
+
+  --fg:          241 245 249;
+  --fg-muted:   161 170 184;
+  --fg-subtle:  113 124 140;
+
+  --accent:       34 211 238;    /* cyan-400 */
+  --accent-fg:    8  15  20;
+
+  --positive:     74 222 128;
+  --negative:    248 113 113;
+  --warning:     251 191  36;
+
+  --flag-red:    248 113 113;
+  --flag-orange: 251 146  60;
+  --flag-yellow: 250 204  21;
+  --flag-green:  74 222 128;
+  --flag-blue:   96 165 250;
+  --flag-purple: 192 132 252;
+}
+
+html[data-theme='oled'] {
+  --bg:             0   0   0;
+  --surface:        7   7   8;
+  --surface-2:    13  13  16;
+  --surface-3:    20  20  24;
+  --elevated:      18  18  22;
+
+  --border:        28  28  34;
+  --border-strong: 50  50  58;
+
+  --fg:          245 245 248;
+  --fg-muted:   170 170 180;
+  --fg-subtle:  120 120 130;
+
+  --accent:       34 211 238;
+  --accent-fg:    0   0   0;
+
+  --positive:     74 222 128;
+  --negative:    248 113 113;
+  --warning:     251 191  36;
+
+  --flag-red:    248 113 113;
+  --flag-orange: 251 146  60;
+  --flag-yellow: 250 204  21;
+  --flag-green:  74 222 128;
+  --flag-blue:   96 165 250;
+  --flag-purple: 192 132 252;
+}
+
+/* ============================================================
+ * LIQUID GLASS — macOS Sequoia / iOS 26 inspired
+ * ============================================================
+ *
+ * Color palette draws from Apple's system colors in dark mode (the
+ * accent uses systemBlue's dark variant; flag colors are the
+ * desktop-style accent set). Surfaces are intentionally split:
+ *
+ *   `--surface` → white-tinted material at low alpha (the "glass" itself,
+ *                 painted by `.glass-panel`)
+ *   `--surface-2/3/elevated` → dark tinted purples that hold their own
+ *                 against the colorful aurora backdrop. Form inputs,
+ *                 buttons, hover states use these via Tailwind utilities
+ *                 like `bg-surface-2`. White-on-glass would punch through
+ *                 as a flat rectangle; dark tints behave like real chips
+ *                 sitting on top of the glass.
+ */
+html[data-theme='glass'] {
+  /* Slightly cooler base than before — closer to macOS Sequoia's
+     midnight wallpaper that the wallpaper-tinted toolbar materials sit
+     against. */
+  --bg:             6   8  20;
+  --surface:      255 255 255;
+  --surface-2:    34  30  56;
+  --surface-3:    50  45  78;
+  --elevated:     20  18  38;
+
+  /* Soft cool-gray border with a hint of indigo. Matches Apple's UIKit
+     `.separator` color in dark mode, which is intentionally low-contrast
+     so it reads as "etched" rather than "drawn". */
+  --border:       110 108 145;
+  --border-strong: 155 152 195;
+
+  /* SF Pro on macOS uses near-pure white at 100%, which is too bright on
+     a colorful translucent backdrop. Pull it slightly toward off-white
+     to match the actual rendered foreground in macOS Sonoma+. */
+  --fg:          252 252 255;
+  --fg-muted:   222 226 240;
+  --fg-subtle:  178 184 208;
+
+  /* systemBlue in macOS Sequoia dark — the canonical Apple accent. */
+  --accent:       64 156 255;
+  --accent-fg:   255 255 255;
+
+  /* Apple's systemGreen / systemRed / systemYellow for dark-mode-on-glass.
+     Slightly more saturated than the desaturated dark theme equivalents
+     because they're sitting on top of a colorful backdrop and need to pop. */
+  --positive:     50 215 110;
+  --negative:    255  82  88;
+  --warning:     255 195  60;
+
+  --flag-red:    255  92 100;
+  --flag-orange: 255 165  77;
+  --flag-yellow: 255 211  77;
+  --flag-green:   80 220 130;
+  --flag-blue:   100 175 255;
+  --flag-purple: 200 165 255;
+
+  /* Border alpha is lowered for the glass theme — solid borders fight the
+     translucent material. */
+  --border-alpha: 0.18;
+}

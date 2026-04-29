@@ -1,0 +1,161 @@
+/**
+ * Right-side detail pane for transactions (Tier 4 #1 / Tier 5 #2 seed).
+ *
+ * On regular layouts, when a row is "opened" via a single click, this
+ * pane slides in from the right showing: full transaction data,
+ * related transactions (same payee, same category), and bulk-edit
+ * affordances. Mail.app / Notion vibe — list stays in context.
+ *
+ * On compact layouts, fall back to the existing inline-edit modal.
+ */
+
+import { useMemo, useState } from 'react';
+import { useBudget } from '../../store/budget';
+import { useFormatMoney } from '../../lib/format';
+import { ACCOUNT_TYPE_META } from '../../domain/types';
+import { formatDate } from '../../domain/date';
+import { setCleared, setFlag, deleteTransaction } from '../../db/repo';
+import { useUI } from '../../store/ui';
+import { Money } from '../ui/Money';
+import { X, Trash2, ArrowLeftRight, Receipt as ReceiptIcon, Hourglass, Tag } from 'lucide-react';
+import { ReceiptViewer } from './ReceiptViewer';
+
+type Props = { transactionId: string; onClose: () => void };
+
+export function TxnDetailPane({ transactionId, onClose }: Props) {
+  const txn = useBudget((s) => s.transactions.find((t) => t.id === transactionId));
+  const accounts = useBudget((s) => s.accounts);
+  const categories = useBudget((s) => s.categories);
+  const payees = useBudget((s) => s.payees);
+  const allTxns = useBudget((s) => s.transactions);
+  const fmt = useFormatMoney();
+  const openModal = useUI((s) => s.openModal);
+  const [showReceipt, setShowReceipt] = useState(false);
+
+  const related = useMemo(() => {
+    if (!txn) return [] as typeof allTxns;
+    return allTxns.filter((t) =>
+      t.id !== txn.id && (t.payeeId === txn.payeeId || t.categoryId === txn.categoryId),
+    ).slice(0, 12);
+  }, [allTxns, txn]);
+
+  if (!txn) return null;
+  const account = accounts.find((a) => a.id === txn.accountId);
+  const payee = payees.find((p) => p.id === txn.payeeId);
+  const category = categories.find((c) => c.id === txn.categoryId);
+  const isOnBudget = account ? ACCOUNT_TYPE_META[account.type].onBudget : true;
+
+  return (
+    <aside
+      data-zen-hide
+      className="hidden lg:flex flex-col w-[360px] flex-shrink-0 border-l border-border bg-surface text-[13px] overflow-y-auto"
+    >
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div className="text-[12px] font-semibold text-fg-muted">Transaction</div>
+        <button onClick={onClose} className="text-fg-subtle hover:text-fg p-1 rounded" aria-label="Close detail">
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className="px-4 py-3 space-y-3">
+        <div>
+          <div className="text-[11px] text-fg-subtle uppercase tracking-wider">Amount</div>
+          <Money cents={txn.amount} className="text-[22px] font-semibold tabular" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Date" value={formatDate(txn.date)} />
+          <Field label="Account" value={account?.name ?? '—'} subtle={!isOnBudget ? 'tracking' : undefined} />
+          <Field label="Payee" value={payee?.name ?? '—'} />
+          <Field
+            label="Category"
+            value={txn.transferAccountId ? `Transfer · ${accounts.find((a) => a.id === txn.transferAccountId)?.name ?? '—'}` : (category?.name ?? 'Uncategorized')}
+            icon={txn.transferAccountId ? <ArrowLeftRight size={11} /> : <Tag size={11} />}
+          />
+          <Field label="Cleared" value={cap(txn.cleared)} />
+          <Field label="Flag" value={txn.flag ? cap(txn.flag) : '—'} />
+        </div>
+
+        {txn.memo && (
+          <div className="bg-surface-2/40 rounded-lg p-2 text-[12px] text-fg-muted">
+            <div className="text-[10.5px] uppercase tracking-wider text-fg-subtle mb-0.5">Memo</div>
+            {txn.memo}
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            className="text-[11.5px] px-2 py-1 rounded bg-surface-2 hover:bg-surface-3"
+            onClick={() => setCleared(txn.id, txn.cleared === 'cleared' ? 'uncleared' : 'cleared')}
+          >Toggle cleared</button>
+          <button
+            className="text-[11.5px] px-2 py-1 rounded bg-surface-2 hover:bg-surface-3"
+            onClick={() => setFlag(txn.id, txn.flag ? null : 'red')}
+          >{txn.flag ? 'Clear flag' : 'Flag'}</button>
+          <button
+            className="text-[11.5px] px-2 py-1 rounded bg-surface-2 hover:bg-surface-3 flex items-center gap-1"
+            onClick={() => openModal({ type: 'expectedRefund', transactionId: txn.id })}
+          ><Hourglass size={11} /> Refund?</button>
+          {txn.receiptImageDataUrl && (
+            <button
+              className="text-[11.5px] px-2 py-1 rounded bg-surface-2 hover:bg-surface-3 flex items-center gap-1"
+              onClick={() => setShowReceipt(true)}
+              aria-label="View receipt"
+            ><ReceiptIcon size={11} aria-hidden="true" /> Receipt</button>
+          )}
+          <button
+            className="text-[11.5px] px-2 py-1 rounded bg-negative/15 text-negative hover:bg-negative/25 ml-auto flex items-center gap-1"
+            onClick={() => { if (confirm('Delete this transaction?')) { deleteTransaction(txn.id); onClose(); } }}
+          ><Trash2 size={11} /> Delete</button>
+        </div>
+      </div>
+
+      {showReceipt && txn.receiptImageDataUrl && (
+        <ReceiptViewer
+          txnId={txn.id}
+          imageDataUrl={txn.receiptImageDataUrl}
+          onClose={() => setShowReceipt(false)}
+        />
+      )}
+
+      <div className="border-t border-border px-4 py-3">
+        <div className="text-[11px] uppercase tracking-wider text-fg-subtle mb-2">
+          Related ({related.length})
+        </div>
+        {related.length === 0 ? (
+          <div className="text-[11.5px] text-fg-subtle">No related transactions.</div>
+        ) : (
+          <div className="space-y-1">
+            {related.map((t) => {
+              const p = payees.find((pp) => pp.id === t.payeeId);
+              return (
+                <div key={t.id} className="flex items-center gap-2 text-[12px] py-1 border-b border-border/40 last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate">{p?.name ?? 'No payee'}</div>
+                    <div className="text-[10.5px] text-fg-subtle tabular">{formatDate(t.date)}</div>
+                  </div>
+                  <Money cents={t.amount} className="tabular" />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function Field({ label, value, subtle, icon }: { label: string; value: string; subtle?: string; icon?: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[10.5px] uppercase tracking-wider text-fg-subtle">{label}</div>
+      <div className="text-[12.5px] truncate flex items-center gap-1">
+        {icon}
+        {value}
+        {subtle && <span className="text-fg-subtle text-[10.5px]">({subtle})</span>}
+      </div>
+    </div>
+  );
+}
+
+function cap(s: string): string { return s.charAt(0).toUpperCase() + s.slice(1); }

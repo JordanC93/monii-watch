@@ -1,0 +1,839 @@
+@import './themes.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------- Base ---------- */
+
+:root {
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+html {
+  background: rgb(var(--bg));
+  color: rgb(var(--fg));
+  /* On Apple platforms `-apple-system` and `BlinkMacSystemFont` resolve to
+   * SF Pro Text / SF Pro Display automatically, picking the right optical size
+   * from `font-size`. Putting them first means the OS font wins everywhere we
+   * can — that's what makes the app feel native on macOS / iOS. */
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+    'Segoe UI Variable', 'Segoe UI', 'Inter', system-ui, ui-sans-serif, sans-serif;
+  font-size: 14px;
+  /* SF Pro defaults to medium-tight tracking on UI text. Pull it in by 0.005em
+   * everywhere — invisible on its own, but eliminates the slightly-loose feel
+   * the default Tailwind / browser sans gives. */
+  letter-spacing: -0.005em;
+  /* iOS safe-area exposed as CSS vars for components that need them.
+   * Covers: notch, Dynamic Island (top in portrait, side in landscape),
+   * home indicator (bottom). Set on `html` rather than `:root` so the
+   * <meta viewport-fit=cover> contract applies. */
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: env(safe-area-inset-left);
+  --safe-right: env(safe-area-inset-right);
+}
+
+/* Body-level guards for the iOS PWA / Add-to-Home-Screen experience.
+ * `overflow-x: hidden` keeps a stray wide element (e.g. a long account
+ * name in the sidebar) from creating horizontal scroll, which on
+ * iPhone 14 Pro+ can drag content under the Dynamic Island. */
+body {
+  overflow-x: hidden;
+}
+
+/* Reusable utility: pad an element with the iOS landscape side insets
+ * (Dynamic Island / curved corners). Use on full-bleed elements that
+ * shouldn't render under the Island when the device is rotated. */
+.safe-x {
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+}
+.safe-t { padding-top:    env(safe-area-inset-top, 0); }
+.safe-b { padding-bottom: env(safe-area-inset-bottom, 0); }
+
+html[data-theme='light'] { color-scheme: light; }
+html[data-theme='dark'],
+html[data-theme='oled'],
+html[data-theme='glass'] { color-scheme: dark; }
+
+body {
+  margin: 0;
+  background: rgb(var(--bg));
+  color: rgb(var(--fg));
+  overscroll-behavior: none;
+}
+
+button { font-family: inherit; }
+
+/* ============================================================
+ * LIQUID GLASS THEME — macOS Sequoia / iOS 26 inspired
+ * ============================================================
+ *
+ * The whole theme is structured as **layered materials** the way Apple
+ * does it in NSVisualEffectView / UIVisualEffectView:
+ *
+ *   Layer 0 (html background)        — solid midnight base
+ *   Layer 1 (html ::before)          — animated mesh gradient (8 soft blobs in
+ *                                      Apple-system colors, drifting slowly)
+ *   Layer 2 (html ::after)           — SVG fractal-noise grain at 4-6% opacity.
+ *                                      THIS is what makes Apple gradients look
+ *                                      "real" instead of plastic; without it
+ *                                      the eye reads the smooth gradient as flat
+ *   Layer 3 (.glass-panel)           — translucent material with adaptive
+ *                                      blur+saturation+brightness, layered
+ *                                      shadows, top-edge specular highlight,
+ *                                      bottom refractive darkening, and a
+ *                                      gradient border ring
+ *
+ * Material thickness via [data-material="…"]:
+ *   "thick"      — modals, cards, anything floating (default)
+ *   "regular"    — sidebars, toolbars, secondary surfaces
+ *   "thin"       — popovers, tooltips, tooltips, inline cards
+ *   "ultraThin"  — overlay scrims, contextual labels
+ *   These match Apple's UIBlurEffect.Style values 1:1.
+ */
+
+/* --- Backdrop layer 0: solid midnight --- */
+html[data-theme='glass'] {
+  background: #050614;
+  /* Hint to the compositor: the html element has fixed effects layered on
+     top, treat them as their own layer so backdrop-filter children get a
+     stable parent to read pixels from. */
+  isolation: isolate;
+}
+html[data-theme='glass'] body { background: transparent; }
+
+/* --- Backdrop layer 1: continuous color wash that mimics how an actual
+ *     Apple Sonoma / Sequoia abstract wallpaper bleeds. The trick is NOT
+ *     to use small radial "blobs" (they read as spotlights / lava lamps no
+ *     matter how many you stack). Instead:
+ *
+ *     • Two MASSIVE radial gradients that each cover ~140% of viewport
+ *       at very low alpha — they overlap so heavily you can't tell where
+ *       one ends and the other begins
+ *     • A conic-gradient at low alpha that adds a slow rotating hue
+ *       transition across the whole field — this is what gives Sequoia
+ *       wallpapers their "flowing" character
+ *     • A linear color shift top-to-bottom for cool→warm depth
+ *     • Heavy vignette pulling the corners into darkness
+ *
+ *     Together these read as a single unified wash, not a collection of
+ *     light sources. Animation drifts the conic angle + a couple of
+ *     anchor points slowly so the wash feels alive. ---*/
+html[data-theme='glass']::before {
+  content: "";
+  position: fixed;
+  inset: -10%;  /* over-extend so animated drift doesn't reveal edges */
+  z-index: -2;
+  background:
+    /* Top translucent overlay — flat dark wash that sits OVER the
+       colorful background. This calms the saturation so the wash reads
+       as a backdrop, not a distraction. The whole reason macOS-style
+       wallpapers feel polished: the OS chrome dims them. */
+    linear-gradient(rgba(6, 8, 22, 0.55), rgba(6, 8, 22, 0.55)),
+    /* Vignette — closes corners into darkness, single biggest contributor
+       to "depth" without resorting to visible blobs. */
+    radial-gradient(140% 100% at 50% 50%,
+      transparent 35%,
+      rgba(0, 0, 0, 0.30) 70%,
+      rgba(0, 0, 0, 0.65) 100%),
+    /* Slow conic-gradient hue wash. Anchored at center, rotates the
+       hue around the page so the whole field feels like one flowing
+       material rather than many sources. Low alpha.
+       Reads palette colors from --glass-c1..c4 — set by
+       `applyGlassPalette()` from src/lib/glassPalettes.ts so the user
+       can pick a preset or custom 4-color set in Settings. */
+    conic-gradient(from var(--glass-hue-angle, 215deg) at 50% 55%,
+      rgb(var(--glass-c1, 58 72 200) / 0.55) 0deg,
+      rgb(var(--glass-c2, 110 70 200) / 0.45) 90deg,
+      rgb(var(--glass-c3, 180 70 160) / 0.40) 180deg,
+      rgb(var(--glass-c4, 40 130 200) / 0.50) 270deg,
+      rgb(var(--glass-c1, 58 72 200) / 0.55) 360deg),
+    /* Two enormous, heavily-overlapping radial washes — large enough that
+       neither reads as a discrete blob. The slight position offset gives
+       the conic the feeling of being "lit from above-left". */
+    radial-gradient(140% 110% at var(--glass-pos-1, 30%) var(--glass-pos-1y, 20%),
+      rgb(var(--glass-c2, 80 60 180) / 0.45),
+      transparent 70%),
+    radial-gradient(140% 110% at var(--glass-pos-2, 70%) var(--glass-pos-2y, 80%),
+      rgb(var(--glass-c4, 20 110 180) / 0.40),
+      transparent 70%),
+    /* Solid base — deep midnight with the slightest blue. */
+    linear-gradient(180deg, #060818 0%, #02030a 100%);
+  animation: glass-aurora-drift 120s linear infinite;
+  pointer-events: none;
+  /* Slight saturation boost makes the conic wash feel richer without
+     pushing alphas higher (which would create banding). */
+  filter: saturate(1.15);
+}
+
+/* --- Backdrop layer 2: SVG fractal noise grain. Tiny inline data URI;
+ *     a 200×200 turbulence pattern repeated. 4% alpha — just enough to
+ *     break up gradient banding the same way macOS wallpapers do.
+ *
+ *     The `mix-blend-mode: overlay` makes the grain tint with the
+ *     underlying mesh gradient instead of sitting on top as flat gray.
+ *     `image-rendering: pixelated` keeps the grain crisp at any zoom. ---*/
+html[data-theme='glass']::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  background-repeat: repeat;
+}
+
+/* Drift animation — 120 seconds linear, full conic rotation. The two
+ * anchor positions move on offset paths so the underlying wash slowly
+ * shifts character. Linear (not ease-in-out) keeps the rotation
+ * imperceptibly steady rather than rocking back and forth. */
+@keyframes glass-aurora-drift {
+  0% {
+    --glass-hue-angle: 195deg;
+    --glass-pos-1: 28%; --glass-pos-1y: 18%;
+    --glass-pos-2: 72%; --glass-pos-2y: 82%;
+  }
+  25% {
+    --glass-hue-angle: 285deg;
+    --glass-pos-1: 38%; --glass-pos-1y: 28%;
+    --glass-pos-2: 62%; --glass-pos-2y: 72%;
+  }
+  50% {
+    --glass-hue-angle: 375deg;
+    --glass-pos-1: 32%; --glass-pos-1y: 22%;
+    --glass-pos-2: 68%; --glass-pos-2y: 78%;
+  }
+  75% {
+    --glass-hue-angle: 465deg;
+    --glass-pos-1: 22%; --glass-pos-1y: 14%;
+    --glass-pos-2: 78%; --glass-pos-2y: 86%;
+  }
+  100% {
+    --glass-hue-angle: 555deg; /* 195 + 360, full rotation */
+    --glass-pos-1: 28%; --glass-pos-1y: 18%;
+    --glass-pos-2: 72%; --glass-pos-2y: 82%;
+  }
+}
+
+/* CSS-var animation requires registered properties to interpolate
+ * smoothly. Without these, keyframes apply discretely. */
+@property --glass-hue-angle { syntax: '<angle>'; inherits: true; initial-value: 215deg; }
+@property --glass-pos-1  { syntax: '<percentage>'; inherits: true; initial-value: 30%; }
+@property --glass-pos-1y { syntax: '<percentage>'; inherits: true; initial-value: 20%; }
+@property --glass-pos-2  { syntax: '<percentage>'; inherits: true; initial-value: 70%; }
+@property --glass-pos-2y { syntax: '<percentage>'; inherits: true; initial-value: 80%; }
+
+/* Reduced motion: freeze the drift, keep the gradient + grain. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme='glass']::before { animation: none; }
+}
+
+/* Mobile perf: high-radius backdrop-blur is GPU-expensive. Slightly
+ * lighter blur + simpler grain on small screens keeps scrolling smooth
+ * on iPhone-class devices. */
+@media (max-width: 768px) {
+  html[data-theme='glass']::after { opacity: 0.35; }
+}
+
+.glass-backdrop { display: none; }
+
+/* ---------- Surfaces ---------- */
+
+.surface {
+  background-color: rgb(var(--surface));
+  border: 1px solid rgb(var(--border));
+  border-radius: 0.75rem;
+}
+
+.glass-panel {
+  background-color: rgb(var(--surface) / var(--surface-alpha, 1));
+  border: 1px solid rgb(var(--border));
+  border-radius: 0.875rem;
+}
+
+/*
+ * The specular ::before is `position: absolute; inset: 0`, so its parent
+ * needs *some* positioning context. We default `.glass-panel` to relative,
+ * but at zero specificity via `:where()` — that way Tailwind utilities like
+ * `fixed`, `sticky`, or `absolute` on the same element WIN. Without this,
+ * `.glass-panel` would override `fixed` (same specificity, source-order
+ * later) and pull elements like the mobile BottomNav into the flex flow,
+ * eating space from the main content.
+ */
+:where(.glass-panel) { position: relative; }
+
+/* ============================================================
+ *  GLASS PANEL MATERIAL RECIPE
+ * ============================================================
+ *
+ * The default material is "thick" — used by modals, cards, and any panel
+ * not explicitly tagged otherwise. Three numbers do most of the work:
+ *
+ *   blur       — defines how much background detail leaks through.
+ *                Apple uses ~30px on macOS Sequoia menus / popovers.
+ *   saturate   — boosts the colors of what's behind so they stay vivid
+ *                (default-blurred content gets desaturated).
+ *   brightness — slight pull-down so the material reads as "darkened"
+ *                rather than "lit up".
+ *
+ * The `background-image` adds a top-bright bottom-dark linear gradient
+ * over the translucent base — that's what gives the material its
+ * "edge of a piece of glass catches light at the top" feeling.
+ *
+ * Shadows are stacked the macOS way: a 1px ambient close shadow + a
+ * mid-distance soft drop + a deep ambient. Cast multiple low-opacity
+ * shadows instead of one big dark one — the result reads as floating
+ * over the wallpaper, not stamped onto it.
+ */
+html[data-theme='glass'] .glass-panel {
+  --surface-alpha: 0.06;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(32px) saturate(180%) brightness(0.96) contrast(1.04);
+  -webkit-backdrop-filter: blur(32px) saturate(180%) brightness(0.96) contrast(1.04);
+  background-image:
+    /* Subtle tint that picks up wallpaper hue */
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.10) 0%,
+      rgba(255, 255, 255, 0.04) 38%,
+      rgba(255, 255, 255, 0.00) 100%
+    ),
+    /* Top-half bright wash for the "light from above" feeling */
+    radial-gradient(120% 50% at 50% 0%,
+      rgba(255, 255, 255, 0.07) 0%,
+      transparent 70%
+    );
+  /* Apple-style multi-layer shadow:
+   *   close 1px (sits the panel onto the surface)
+   *   mid-distance soft (the actual drop)
+   *   ambient deep blur (room glow)
+   *   inset top hairline (specular edge highlight)
+   *   inset bottom hairline (refractive darkening) */
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.18),
+    0 4px 12px -2px rgba(0, 0, 0, 0.22),
+    0 16px 40px -8px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22);
+  /* GPU compositing hint — important for cheap blur perf */
+  transform: translateZ(0);
+}
+
+/* --- Material variants — match Apple's UIBlurEffect.Style ---
+ *
+ * Defaults applied by absence is "thick". Tag with [data-material] on
+ * the same element you put .glass-panel on to opt into the others.
+ *
+ *   thin        — popovers, hints (less blur, more transparent)
+ *   regular     — sidebars, toolbars (medium)
+ *   thick       — cards, modals (default)
+ *   ultraThin   — overlay scrims (barely there)
+ */
+html[data-theme='glass'] .glass-panel[data-material="thin"] {
+  --surface-alpha: 0.04;
+  backdrop-filter: blur(20px) saturate(160%) brightness(0.98);
+  -webkit-backdrop-filter: blur(20px) saturate(160%) brightness(0.98);
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.15),
+    0 2px 8px -2px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+html[data-theme='glass'] .glass-panel[data-material="regular"] {
+  --surface-alpha: 0.05;
+  backdrop-filter: blur(26px) saturate(170%) brightness(0.96);
+  -webkit-backdrop-filter: blur(26px) saturate(170%) brightness(0.96);
+}
+html[data-theme='glass'] .glass-panel[data-material="ultraThin"] {
+  --surface-alpha: 0.02;
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+/* Specular rim — gradient ring around the panel edges that simulates
+ * light bending through the curved meniscus. Apple-style: brightest at
+ * the top-left, dimmest at the bottom-right; the asymmetry gives the
+ * panel a sense of being lit from the upper-left (Apple's standard).
+ *
+ * Edge-pinned panels (sidebar, topbar, bottomnav) opt out via
+ * `[data-no-meniscus]` — the rim looks wrong against the screen edge. */
+html[data-theme='glass'] .glass-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.32) 0%,
+    rgba(255, 255, 255, 0.08) 24%,
+    rgba(255, 255, 255, 0.02) 55%,
+    rgba(255, 255, 255, 0.06) 78%,
+    rgba(255, 255, 255, 0.18) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+}
+
+html[data-theme='glass'] .glass-panel[data-no-meniscus]::before { display: none; }
+
+/* Refractive lensing on the bottom edge — a tiny linear gradient that
+ * darkens the very last 8px of the panel. Reads as the bottom edge of a
+ * real piece of glass picking up shadow. Built on ::after so the existing
+ * ::before specular rim isn't disturbed. */
+html[data-theme='glass'] .glass-panel::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 24%;
+  border-radius: inherit;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.10) 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+  /* Mask to the bottom corners so the gradient doesn't leak above the
+     rounded corner radius. */
+  -webkit-mask: linear-gradient(180deg, transparent 0%, #000 60%, #000 100%);
+          mask: linear-gradient(180deg, transparent 0%, #000 60%, #000 100%);
+}
+html[data-theme='glass'] .glass-panel[data-no-meniscus]::after { display: none; }
+
+/* Body content above the rim + lensing pseudo-elements */
+html[data-theme='glass'] .glass-panel > * { position: relative; z-index: 2; }
+
+/* Mobile blur ceiling — at higher than ~24px, mobile WebKit visibly
+ * stutters during scroll. Drop one notch for compact viewports. */
+@media (max-width: 768px) {
+  html[data-theme='glass'] .glass-panel {
+    backdrop-filter: blur(22px) saturate(170%) brightness(0.96);
+    -webkit-backdrop-filter: blur(22px) saturate(170%) brightness(0.96);
+  }
+  html[data-theme='glass'] .glass-panel[data-material="thin"] {
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+  }
+}
+
+/* ---------- Glass theme typography ----------
+ *
+ * macOS-style refinements: SF Pro on Apple platforms (already first in the
+ * font stack), tighter optical tracking on titles, lighter weight on body
+ * text, and a much lighter text-shadow. Apple uses real vibrancy instead of
+ * heavy shadows — we approximate with a single-pixel low-alpha shadow that
+ * disappears against dark surfaces but preserves legibility against the
+ * brighter aurora zones.
+ */
+html[data-theme='glass'] {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+  /* SF Pro stylistic alternates:
+   *   cv11 — straight 6 / 9 (matches Apple UI text in Control Center)
+   *   ss01 — alternate 1 (less calligraphic)
+   *   ss03 — alternate 4 (open form, more legible at small sizes) */
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+}
+
+/* Headings: tighter tracking + display weight (590 = SF Pro "Semibold").
+ * Tailwind classes like `font-semibold` resolve to 600; the explicit value
+ * here matches Apple's actual UI weight more closely. */
+html[data-theme='glass'] h1, html[data-theme='glass'] h2, html[data-theme='glass'] h3 {
+  letter-spacing: -0.018em;
+  font-weight: 590;
+}
+
+/* Tabular numbers, inputs, kbd, and code stay crisp — no shadow or
+ * letter-spacing tweaks (their layout depends on stable widths). */
+html[data-theme='glass'] .tabular,
+html[data-theme='glass'] input,
+html[data-theme='glass'] textarea,
+html[data-theme='glass'] select,
+html[data-theme='glass'] kbd,
+html[data-theme='glass'] code {
+  text-shadow: none;
+  letter-spacing: normal;
+}
+
+/* Lucide icons in the glass theme: thinner stroke (1.5 px) and round caps
+ * to match SF Symbols' Regular weight. Default lucide stroke is 2 — slightly
+ * heavy next to the refined SF Pro text. Add a subtle drop-shadow filter
+ * so icons feel "lit" against the translucent material. */
+html[data-theme='glass'] svg.lucide {
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 0.5px rgba(0, 0, 0, 0.20));
+}
+
+/* Active nav and selected items should pop slightly more, the way SF Symbols
+ * use Filled / Heavy variants for selection. We can't swap the icon set, but
+ * a touch more weight on the stroke + a subtle glow approximates the
+ * "filled icon" effect Apple uses for the selected tab. */
+html[data-theme='glass'] [aria-current="page"] svg.lucide,
+html[data-theme='glass'] .text-accent svg.lucide,
+html[data-theme='glass'] svg.lucide.text-accent {
+  stroke-width: 2.1;
+  filter: drop-shadow(0 0 4px rgb(var(--accent) / 0.5));
+}
+
+/* Same Filled-icon trick across all themes (not just glass) for the
+ * active BottomNav tab + sidebar NavItem. Works on Light / Dark / OLED
+ * too — keeps the active state distinct without a theme-specific rule. */
+[aria-current="page"] svg.lucide {
+  stroke-width: 2.1;
+}
+
+/* Budget table edit mode — drag handles fade in only when the user has
+ * flipped Edit on. Scoped via `[data-edit-mode]` on the BudgetTable's
+ * outer element + `.budget-drag-handle` on each handle so that cursor-grab
+ * elements ELSEWHERE on the page (ScheduledModal etc.) are unaffected.
+ *
+ * IMPORTANT: do NOT use a bare `.cursor-grab` selector here — it's a
+ * Tailwind utility used in many places, and a global rule would dim
+ * every drag handle on the page. */
+.budget-drag-handle {
+  transition: opacity 150ms ease;
+  opacity: 0.25;
+}
+[data-edit-mode] .budget-drag-handle {
+  opacity: 1;
+}
+
+/* Glass-theme buttons get a subtle vertical pillow (top-light, bottom-dark
+ * gradient) so they feel raised, like Apple HIG buttons. Targets accent /
+ * primary buttons specifically — secondary buttons stay flat. */
+html[data-theme='glass'] button[class*="bg-accent"]:not([disabled]) {
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.04) 50%,
+    rgba(0, 0, 0, 0.10) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+    0 1px 1px rgba(0, 0, 0, 0.20);
+}
+
+/* Inputs in the glass theme — slight inset to feel "carved into" the
+ * dark surface tile. Mirrors Apple's text-field style on dark mode
+ * (subtle inner shadow at the top, faint edge highlight at the bottom). */
+html[data-theme='glass'] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html[data-theme='glass'] textarea,
+html[data-theme='glass'] select {
+  background: rgba(0, 0, 0, 0.18);
+  box-shadow:
+    inset 0 1px 1px rgba(0, 0, 0, 0.30),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Fallback for browsers without backdrop-filter (older Firefox releases). */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-theme='glass'] .glass-panel {
+    background-color: rgba(20, 24, 36, 0.85);
+  }
+}
+
+/* ---------- Scrollbars ---------- */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--border-strong)) transparent;
+}
+
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgb(var(--border-strong)); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: rgb(var(--fg-subtle)); background-clip: padding-box; }
+
+/* Glass theme scrollbars — slimmer, light-on-dark, fade in on hover.
+ * Mirrors macOS Sequoia's overlay scroller that hides until you scroll. */
+html[data-theme='glass'] * {
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+html[data-theme='glass'] *::-webkit-scrollbar { width: 8px; height: 8px; }
+html[data-theme='glass'] *::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background 200ms ease;
+}
+html[data-theme='glass'] *::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+  background-clip: padding-box;
+}
+
+/* ---------- Inputs ---------- */
+
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+input::placeholder { color: rgb(var(--fg-subtle)); }
+
+input:focus-visible, textarea:focus-visible, select:focus-visible,
+button:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 1px;
+}
+
+/* number-input spinners off */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type='number'] { -moz-appearance: textfield; }
+
+/* ---------- Selection ---------- */
+
+::selection { background: rgb(var(--accent) / 0.35); }
+
+/* ---------- Money color helpers ---------- */
+
+.money-positive { color: rgb(var(--positive)); }
+.money-negative { color: rgb(var(--negative)); }
+.money-zero { color: rgb(var(--fg-subtle)); }
+
+/* ---------- Utility ---------- */
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* tighten flex children that should shrink */
+.min-w-0 { min-width: 0; }
+
+.kbd-style {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  padding: 0.05rem 0.3rem;
+  border: 1px solid rgb(var(--border));
+  border-radius: 4px;
+  color: rgb(var(--fg-muted));
+  background: rgb(var(--surface-2) / 0.5);
+}
+
+/* hide on small screens */
+@media (max-width: 640px) {
+  .hide-on-mobile { display: none !important; }
+}
+
+/* ---------- Zen mode (Tier 4 #17) ---------- */
+/* When .zen-mode is on <html>, hide non-essential chrome so the active
+ * page gets the full window. Restore on toggle. */
+.zen-mode aside,
+.zen-mode .topbar,
+.zen-mode .bottom-nav,
+.zen-mode [data-zen-hide] { display: none !important; }
+.zen-mode main { padding-top: 0 !important; }
+
+/* ---------- Density toggle (Tier 4 #12) ---------- */
+/* Drives row heights on the budget + transactions tables. Default is
+ * Comfortable; user picks Compact / Spacious from Settings → Appearance.
+ * Read via [data-density] on <html>. */
+[data-density='compact'] .budget-row { padding-top: 0.15rem !important; padding-bottom: 0.15rem !important; }
+[data-density='spacious'] .budget-row { padding-top: 0.55rem !important; padding-bottom: 0.55rem !important; }
+[data-density='compact'] .txn-row { padding-top: 0.1rem !important; padding-bottom: 0.1rem !important; }
+[data-density='spacious'] .txn-row { padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; }
+
+/* ---------- Print stylesheet (Tier 4 #13) ---------- */
+@media print {
+  /* Hide everything that isn't the page main content. */
+  aside, .topbar, .bottom-nav, [data-no-print], button, .glass-panel::before {
+    display: none !important;
+  }
+  body { background: white !important; color: black !important; }
+  .glass-panel {
+    backdrop-filter: none !important;
+    background: white !important;
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+  .money-positive, .money-negative, .money-zero { color: black !important; }
+  /* Print-only: render category rows as a clean B&W table. */
+  .budget-row { border-bottom: 1px solid #ddd !important; padding: 0.4rem 0 !important; }
+}
+
+/* ---------- Drag-drop hover state (Tier 4 #6) ---------- */
+.drop-target-active {
+  outline: 2px dashed rgb(var(--accent));
+  outline-offset: -3px;
+  background: rgb(var(--accent) / 0.05);
+}
+
+/* ---------- Confetti (goal completion) ---------- */
+.confetti-piece {
+  position: absolute;
+  border-radius: 2px;
+  animation-name: confetti-fall;
+  animation-timing-function: cubic-bezier(0.4, 0.6, 0.2, 1);
+  animation-fill-mode: forwards;
+}
+@keyframes confetti-fall {
+  0%   { transform: translateY(0) rotate(0); opacity: 1; }
+  85%  { opacity: 1; }
+  100% { transform: translateY(110vh) rotate(var(--rot, 360deg)); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .confetti-piece { display: none; }
+}
+
+/* ---------- Focus mode (Tier 5 #13) ---------- */
+/* Dim everything but the active table. Different from zen-mode (which
+ * hides chrome) — this keeps chrome but pushes focus visually onto the
+ * primary content. */
+.focus-mode aside,
+.focus-mode .topbar,
+.focus-mode .bottom-nav,
+.focus-mode [data-zen-hide] { opacity: 0.35; transition: opacity 250ms ease; }
+.focus-mode aside:hover,
+.focus-mode .topbar:hover,
+.focus-mode [data-zen-hide]:hover { opacity: 1; }
+
+/* ---------- macOS-style sheets (Tier 5 #3) ---------- */
+/* When the body has `data-platform="mac-desktop"`, modals on regular
+ * layouts slide down from the title bar instead of popping centered.
+ * Reinforces the parent-window relationship Mac users expect.
+ *
+ * Implementation: at desktop widths only, override the modal's animation
+ * and pin it to the top of the viewport. The backdrop stays full-page so
+ * the rest of the app dims like a sheet. */
+@media (min-width: 768px) {
+  body[data-platform="mac-desktop"] .modal-sheet-container {
+    align-items: flex-start !important;
+  }
+  body[data-platform="mac-desktop"] .modal-sheet-container > .modal-sheet-card {
+    margin-top: 32px; /* clear the (overlay) title bar */
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    animation: macSheetDrop 280ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+    box-shadow:
+      0 14px 40px rgba(0, 0, 0, 0.35),
+      0 1px 0 rgba(255, 255, 255, 0.08) inset;
+  }
+}
+@keyframes macSheetDrop {
+  from {
+    transform: translateY(-30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ---------- Sidebar collapse (CmdOrCtrl+\, View → Toggle Sidebar) ---------- */
+/* Hidden when the user collapses; the resize-handle still works to bring
+ * it back manually. Keyboard shortcut sets `.sidebar-collapsed` on <html>. */
+.sidebar-collapsed aside[data-material="regular"] { display: none !important; }
+
+/* ---------- Route transitions (QoL) ---------- */
+/* Subtle fade + lift on every page mount. Triggered by a unique key on
+ * <main> driven by location.pathname. Honours reduced-motion. */
+.page-enter {
+  animation: pageEnter 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-enter { animation: none; }
+}
+
+/* ---------- Focus ring polish ---------- */
+/* The default outline is fine for accessibility but jumps around in
+ * the layout. Replace with a softer ring + 1px offset where it's
+ * possible. Buttons + interactive elements get the same treatment. */
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---------- Keyboard hints overlay ---------- */
+/* Triggered by `?` from anywhere except an input. Overlays a card with
+ * the full shortcut list. */
+.kbd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: pageEnter 180ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.kbd-overlay-card {
+  background: rgb(var(--elevated));
+  border: 1px solid rgb(var(--border));
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 720px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+}
+
+/* ---------- Empty-state styling ---------- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1.5rem;
+  color: rgb(var(--fg-subtle));
+  text-align: center;
+}
+.empty-state-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgb(var(--surface-2) / 0.5);
+  display: grid;
+  place-items: center;
+  margin-bottom: 0.5rem;
+}
+
+/* ---------- Hover lift on interactive cards ---------- */
+.glass-panel.hover-lift {
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.glass-panel.hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+@media (prefers-reduced-motion: reduce) {
+  .glass-panel.hover-lift:hover { transform: none; }
+}

@@ -1,0 +1,19 @@
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.local
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+*.log
+.cache
+
+# Tauri build artifacts
+src-tauri/target
+src-tauri/gen
+
+# TypeScript incremental build cache
+*.tsbuildinfo

@@ -1,0 +1,958 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ImagePlus, Loader2, Check, AlertTriangle, FileText, CreditCard, Receipt as ReceiptIcon, Trash2, Table2, Users, Banknote, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
+import { useBudget } from '../../store/budget';
+import { createTransaction, setSettingsField, bulkCreateTransactions, attachReceiptImage, type TxnInput } from '../../db/repo';
+import { resizeReceiptToDataUrl } from '../../lib/imageResize';
+import { resolveReceipt, type Receipt } from '../../conversation/receipt';
+import { recognizeReceipt, type OcrProgress } from '../../conversation/ocr';
+import { extractPdfText, type PdfProgress } from '../../conversation/pdf';
+import { classifyDocument, matchCreditAccount, type CreditCardPayment } from '../../conversation/classify';
+import { DEDUCTION_KIND_LABELS } from '../../conversation/paystub';
+import { keywordsForHint } from '../../conversation/vendors';
+import type { ParsedStatementRow } from '../../conversation/statement';
+import type { PaycheckDeduction } from '../../domain/types';
+import { findCategoryByText } from '../../conversation/parse';
+import { todayIso } from '../../domain/date';
+import { parseAmountToCents } from '../../domain/calc';
+import { useFormatMoney } from '../../lib/format';
+import { cn } from '../../lib/cn';
+import { toast } from '../../lib/toast';
+
+type Progress = OcrProgress | PdfProgress | null;
+
+type DocKind = 'receipt' | 'cc-payment' | 'paystub' | 'statement' | 'unknown';
+
+/**
+ * One editable row in the bank-statement review table. Mirrors the
+ * `ParsedStatementRow` shape with editable text fields (so partial /
+ * invalid entries don't fight the parser) plus an `include` toggle.
+ */
+type StatementRowDraft = {
+  /** Stable client-only id for React keying. */
+  rowId: string;
+  include: boolean;
+  date: string;
+  vendor: string;
+  /** Signed amount as text — negative = outflow, positive = inflow. */
+  amountText: string;
+  categoryId: string;
+  /** When true the row is created as an income inflow (no category). */
+  isIncome: boolean;
+  /** Original raw description preserved for memo + hover context. */
+  rawDescription: string;
+  /** Bank's type column (e.g. "ACH debit"). */
+  type: string | null;
+  isPeerPayment: boolean;
+};
+
+type Draft =
+  | {
+      kind: 'receipt';
+      vendor: string;
+      amountText: string;
+      date: string;
+      accountId: string;
+      categoryId: string;
+    }
+  | {
+      kind: 'cc-payment';
+      issuer: string;
+      cardName: string;
+      cardLast4: string;
+      amountText: string;
+      date: string;
+      fromAccountId: string; // budget account being debited
+      toAccountId: string;   // credit account receiving the payment
+    }
+  | {
+      kind: 'paystub';
+      grossText: string;
+      netText: string;
+      deductions: PaycheckDeduction[];
+      /** When true, save replaces the user's existing deductions list. When false, append. */
+      replace: boolean;
+    }
+  | {
+      kind: 'statement';
+      /** Account ALL rows are imported into. Bank statements are per-account. */
+      accountId: string;
+      rows: StatementRowDraft[];
+    };
+
+/**
+ * Unified document upload modal: images (Tesseract OCR), PDFs (pdfjs text
+ * extraction), and clipboard paste all converge on the same classifier.
+ *
+ *   - Receipt-shaped doc → existing receipt-confirmation form (creates an
+ *     outflow transaction).
+ *   - Credit-card-payment-shaped doc → transfer-confirmation form (creates
+ *     a transfer from a budget account to the matching credit account).
+ *   - Unknown → falls back to receipt form so the user can correct fields
+ *     and save it as a regular outflow.
+ */
+export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const accounts = useBudget((s) => s.accounts);
+  const categories = useBudget((s) => s.categories);
+  const fmt = useFormatMoney();
+
+  const [progress, setProgress] = useState<Progress>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [rawText, setRawText] = useState<string>('');
+  const [docKind, setDocKind] = useState<DocKind>('receipt');
+  /** Holds the original image file so we can attach a resized copy to the
+   *  transaction after the user confirms. PDFs and statements don't get
+   *  attached (PDFs would balloon the doc; statements are bulk imports). */
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  /** Whether to attach the resized image to the resulting transaction.
+   *  User-toggleable in the receipt form so the privacy / disk cost is
+   *  visible. Defaults to ON for receipts since that's the main use. */
+  const [attachReceipt, setAttachReceipt] = useState(true);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function reset() {
+    setProgress(null);
+    setError(null);
+    setPreviewUrl((u) => { if (u) URL.revokeObjectURL(u); return null; });
+    setDraft(null);
+    setRawText('');
+    setDocKind('receipt');
+    setImageFile(null);
+    setAttachReceipt(true);
+    if (fileRef.current) fileRef.current.value = '';
+  }
+
+  function close() {
+    reset();
+    onClose();
+  }
+
+  // Dismiss on Esc-after-success
+  useEffect(() => { if (!open) reset(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [open]);
+
+  async function ingest(file: File) {
+    setError(null);
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp|heic|gif|bmp)$/i.test(file.name);
+    // .ofx / .qfx files OR raw pasted text (`pasted.txt` from BulkPasteModal)
+    // both go through the text-passthrough path — no OCR / PDF needed.
+    const isOfx = /\.(ofx|qfx)$/i.test(file.name) || /text\/(ofx|x-ofx)/.test(file.type);
+    const isPlainText = file.type.startsWith('text/') || /\.txt$/i.test(file.name);
+    const isText = isOfx || isPlainText;
+    if (!isPdf && !isImage && !isText) {
+      setError(`Unsupported file type: ${file.type || file.name}`);
+      return;
+    }
+    if (isImage) {
+      setPreviewUrl((u) => { if (u) URL.revokeObjectURL(u); return URL.createObjectURL(file); });
+      setImageFile(file);
+    } else {
+      setImageFile(null);
+    }
+    try {
+      let text = '';
+      if (isText) {
+        // Both OFX/QFX and plain pasted text take this branch — read
+        // file as text + hand off to the classifier (which routes OFX
+        // through its dedicated parser, plain text through the
+        // statement-OCR parser).
+        text = await file.text();
+        console.info(`[text] read ${text.length} chars from ${file.name}`);
+        setProgress({ stage: 'done' });
+      } else if (isPdf) {
+        const r = await extractPdfText(file, setProgress);
+        text = r.text;
+        console.info(`[pdf] extracted ${text.length} chars across ${r.pages} pages`);
+      } else {
+        const r = await recognizeReceipt(file, setProgress);
+        text = r.text;
+        console.info(`[ocr] extracted ${text.length} chars from image`);
+      }
+      setRawText(text);
+      classifyAndPrep(text);
+    } catch (err: any) {
+      console.error('[upload] failed', err);
+      setError(err?.message ?? String(err));
+    } finally {
+      setProgress({ stage: 'done' });
+    }
+  }
+
+  function classifyAndPrep(text: string) {
+    const result = classifyDocument(text);
+    if (result.kind === 'paystub') {
+      setDocKind('paystub');
+      setDraft({
+        kind: 'paystub',
+        grossText: result.paystub.gross > 0 ? (result.paystub.gross / 100).toString() : '',
+        netText:   result.paystub.net   > 0 ? (result.paystub.net   / 100).toString() : '',
+        deductions: result.paystub.deductions,
+        replace: true,
+      });
+      console.info(`[classify] paystub — gross=${result.paystub.gross} net=${result.paystub.net} deductions=${result.paystub.deductions.length}`);
+      return;
+    }
+    if (result.kind === 'statement') {
+      setDocKind('statement');
+      const defaultAcct = accounts.find((a) => !a.closed)?.id ?? '';
+      const rows = result.statement.rows.map((r) => statementRowToDraft(r, categories));
+      setDraft({ kind: 'statement', accountId: defaultAcct, rows });
+      console.info(`[classify] statement — ${rows.length} rows extracted`);
+      return;
+    }
+    if (result.kind === 'cc-payment') {
+      setDocKind('cc-payment');
+      const matchedToId = matchCreditAccount(result.payment, accounts) ?? '';
+      const fromCandidates = accounts.filter((a) => !a.closed && (a.type === 'checking' || a.type === 'savings'));
+      const fromDefault = fromCandidates[0]?.id ?? '';
+      setDraft({
+        kind: 'cc-payment',
+        issuer: result.payment.issuer,
+        cardName: result.payment.cardName ?? '',
+        cardLast4: result.payment.cardLast4 ?? '',
+        amountText: result.payment.amount > 0 ? (result.payment.amount / 100).toString() : '',
+        date: result.payment.effectiveDate ?? todayIso(),
+        fromAccountId: fromDefault,
+        toAccountId: matchedToId,
+      });
+      console.info(`[classify] credit-card payment — issuer=${result.payment.issuer} last4=${result.payment.cardLast4} amount=${result.payment.amount} matched=${!!matchedToId}`);
+    } else {
+      setDocKind(result.kind);
+      const r = result.kind === 'receipt' ? result.receipt : result.receipt;
+      const defaultAcct = accounts.find((a) => !a.closed)?.id ?? '';
+      setDraft({
+        kind: 'receipt',
+        vendor: r.vendor,
+        amountText: r.amount > 0 ? (r.amount / 100).toString() : '',
+        date: r.date ?? todayIso(),
+        accountId: defaultAcct,
+        categoryId: '',
+      });
+      console.info(`[classify] ${result.kind} — vendor="${r.vendor}" amount=${r.amount} date=${r.date ?? '?'}`);
+    }
+  }
+
+  function save() {
+    if (!draft) return;
+    if (draft.kind === 'statement') {
+      if (!draft.accountId) { setError('Pick an account to import the rows into.'); return; }
+      const inputs: TxnInput[] = [];
+      for (const r of draft.rows) {
+        if (!r.include) continue;
+        const cents = parseAmountToCents(r.amountText);
+        if (cents === null || cents === 0) continue;
+        if (!r.date || !/^\d{4}-\d{2}-\d{2}$/.test(r.date)) continue;
+        inputs.push({
+          accountId: draft.accountId,
+          date: r.date,
+          payee: r.vendor.trim() || null,
+          // Income inflows route to Ready-to-Assign (categoryId=null).
+          // Outflows respect the user's category choice (may be null = uncategorized).
+          categoryId: r.isIncome ? null : (r.categoryId || null),
+          amount: cents,
+          memo: r.rawDescription ? `From statement · ${r.type ?? ''}`.trim() : 'From statement',
+        });
+      }
+      if (inputs.length === 0) { setError('No rows selected — pick at least one to import.'); return; }
+      const { created } = bulkCreateTransactions(inputs);
+      console.info(`[upload] imported ${created} statement rows into account ${draft.accountId}`);
+      toast.success(`Imported ${created} transaction${created === 1 ? '' : 's'}`);
+      close();
+      return;
+    }
+    if (draft.kind === 'paystub') {
+      const existing = useBudget.getState().settings.deductions;
+      const cleaned = draft.deductions.filter((d) => d.amountPerCheck > 0 && d.label.trim());
+      const next = draft.replace ? cleaned : [...existing, ...cleaned];
+      setSettingsField('deductions', next);
+      console.info(`[upload] saved paystub — ${cleaned.length} deductions, mode=${draft.replace ? 'replace' : 'append'}`);
+      toast.success(`Saved ${cleaned.length} deduction${cleaned.length === 1 ? '' : 's'} from paystub`);
+      close();
+      return;
+    }
+    if (draft.kind === 'cc-payment') {
+      const cents = parseAmountToCents(draft.amountText);
+      if (cents === null || cents <= 0) { setError('Amount must be a positive number.'); return; }
+      if (!draft.fromAccountId || !draft.toAccountId) { setError('Pick both a source and a credit account.'); return; }
+      // Transfer outflow from budget account to credit account.
+      createTransaction({
+        accountId: draft.fromAccountId,
+        date: draft.date,
+        payee: null,
+        categoryId: null,
+        transferAccountId: draft.toAccountId,
+        amount: -Math.abs(cents),
+        memo: `${draft.issuer || 'Card'} payment${draft.cardLast4 ? ` (...${draft.cardLast4})` : ''}`,
+      });
+      console.info(`[upload] created cc payment transfer — from=${draft.fromAccountId} to=${draft.toAccountId} amount=${cents}`);
+      close();
+      return;
+    }
+    // receipt / unknown → outflow
+    const cents = parseAmountToCents(draft.amountText);
+    if (cents === null || cents <= 0) { setError('Amount must be a positive number.'); return; }
+    const receipt: Receipt = { vendor: draft.vendor.trim() || 'Unknown', amount: cents, date: draft.date };
+    const resolved = resolveReceipt(receipt, accounts, categories, todayIso());
+    const accountId = draft.accountId || resolved.account?.id || accounts[0]?.id;
+    if (!accountId) { setError('Add an account first.'); return; }
+    const txn = createTransaction({
+      accountId,
+      date: draft.date,
+      payee: receipt.vendor,
+      categoryId: draft.categoryId || null,
+      amount: -Math.abs(cents),
+      memo: 'From receipt',
+    });
+    console.info(`[upload] created expense — account=${accountId} amount=${cents} vendor="${receipt.vendor}"`);
+    // Attach the resized receipt image asynchronously so close() doesn't
+    // wait. Errors are non-fatal (transaction is already created); we
+    // just log them.
+    if (attachReceipt && imageFile) {
+      void resizeReceiptToDataUrl(imageFile)
+        .then((dataUrl) => {
+          if (dataUrl) {
+            attachReceiptImage(txn.id, dataUrl);
+            console.info(`[upload] attached receipt image to txn=${txn.id} (${Math.round(dataUrl.length / 1024)}KB)`);
+          }
+        })
+        .catch((err) => console.warn('[upload] receipt image resize failed', err));
+    }
+    close();
+  }
+
+  const busy = progress && progress.stage !== 'done';
+
+  // Imperative entry point used by ChatPanel paste handler.
+  // The modal exposes a global ref via a side-channel attribute on window.
+  useEffect(() => {
+    if (!open) return;
+    (window as any).__cashbookIngestFile = (file: File) => ingest(file);
+    // If the chat panel timed out waiting for us (slow lazy-chunk load),
+    // it stashes the file here. Pick it up automatically.
+    const pending = (window as any).__cashbookPendingFile as File | undefined;
+    if (pending) {
+      delete (window as any).__cashbookPendingFile;
+      ingest(pending);
+    }
+    return () => { delete (window as any).__cashbookIngestFile; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const kindIcon = docKind === 'cc-payment'
+    ? <CreditCard size={14} className="text-accent" />
+    : docKind === 'paystub'
+    ? <FileText size={14} className="text-accent" />
+    : docKind === 'receipt'
+    ? <ReceiptIcon size={14} className="text-accent" />
+    : docKind === 'statement'
+    ? <Table2 size={14} className="text-accent" />
+    : <FileText size={14} className="text-fg-subtle" />;
+
+  const kindLabel = docKind === 'cc-payment' ? 'Credit card payment'
+    : docKind === 'paystub' ? 'Paystub'
+    : docKind === 'receipt' ? 'Receipt'
+    : docKind === 'statement' ? 'Bank statement / transaction list'
+    : 'Unknown document';
+
+  const includedRowCount = draft?.kind === 'statement' ? draft.rows.filter((r) => r.include).length : 0;
+
+  return (
+    <Modal
+      open={open}
+      onClose={close}
+      title="Upload Document"
+      size="lg"
+      footer={
+        <div className="flex justify-between gap-2">
+          <Button variant="ghost" onClick={close}>Cancel</Button>
+          <Button variant="primary" onClick={save} disabled={!draft || !!busy}>
+            <Check size={13} /> {draft?.kind === 'cc-payment' ? 'Create transfer'
+              : draft?.kind === 'paystub' ? 'Save deductions'
+              : draft?.kind === 'statement' ? `Import ${includedRowCount} row${includedRowCount === 1 ? '' : 's'}`
+              : 'Create transaction'}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-3">
+        {!draft && !busy && (
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="w-full border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-accent hover:bg-surface-2/40 transition"
+          >
+            <ImagePlus size={28} className="mx-auto text-accent mb-2" />
+            <div className="text-[13.5px] font-semibold mb-1">Pick a file (image or PDF)</div>
+            <div className="text-[11.5px] text-fg-subtle">
+              On-device extraction — your file never leaves the browser. You can also <strong>paste</strong> an image or PDF straight into the chat panel.
+            </div>
+            <div className="text-[11px] text-fg-subtle mt-2">JPG · PNG · WebP · HEIC · PDF</div>
+          </button>
+        )}
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*,application/pdf,.pdf,.ofx,.qfx"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) ingest(f);
+          }}
+        />
+
+        {busy && (
+          <div className="border border-border rounded-lg p-4 flex items-center gap-3">
+            <Loader2 size={18} className="text-accent animate-spin flex-shrink-0" />
+            <div className="text-[13px]">
+              <div className="font-medium">{progressLabel(progress)}</div>
+              {progress?.stage === 'recognizing' && (
+                <div className="text-[11.5px] text-fg-subtle tabular">{Math.round(progress.progress * 100)}%</div>
+              )}
+              {progress?.stage === 'reading-page' && (
+                <div className="text-[11.5px] text-fg-subtle tabular">page {progress.page} of {progress.total}</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="flex items-start gap-2 p-3 rounded border border-negative/40 bg-negative/10 text-[12.5px]">
+            <AlertTriangle size={14} className="text-negative flex-shrink-0 mt-0.5" />
+            <div>
+              <div className="font-medium text-negative">Failed to read document</div>
+              <div className="text-fg-muted">{error}</div>
+            </div>
+          </div>
+        )}
+
+        {draft && (
+          <>
+            <div className="flex items-center gap-2 text-[11.5px] text-fg-muted">
+              {kindIcon}
+              <span>Detected as <strong className="text-fg">{kindLabel}</strong></span>
+            </div>
+
+            {draft.kind === 'cc-payment' ? (
+              <CcPaymentForm
+                draft={draft}
+                accounts={accounts}
+                fmt={fmt}
+                onChange={setDraft}
+              />
+            ) : draft.kind === 'paystub' ? (
+              <PaystubForm draft={draft} fmt={fmt} onChange={setDraft} />
+            ) : draft.kind === 'statement' ? (
+              <StatementForm
+                draft={draft}
+                accounts={accounts}
+                categories={categories}
+                fmt={fmt}
+                onChange={setDraft}
+              />
+            ) : (
+              <ReceiptForm
+                draft={draft}
+                previewUrl={previewUrl}
+                accounts={accounts}
+                categories={categories}
+                fmt={fmt}
+                onChange={setDraft}
+                hasImage={!!imageFile}
+                attachReceipt={attachReceipt}
+                onToggleAttach={setAttachReceipt}
+              />
+            )}
+
+            {rawText && (
+              <details className="text-[11.5px]">
+                <summary className="cursor-pointer text-fg-subtle hover:text-fg">View raw extracted text</summary>
+                <pre className="mt-2 p-2 rounded bg-surface-3 text-fg-muted text-[11px] whitespace-pre-wrap max-h-32 overflow-y-auto">{rawText}</pre>
+              </details>
+            )}
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function progressLabel(p: Progress): string {
+  if (!p) return 'Working…';
+  switch (p.stage) {
+    case 'loading-engine': return 'Loading engine (one-time)…';
+    case 'recognizing':    return 'Reading image…';
+    case 'reading-page':   return 'Reading PDF…';
+    case 'done':           return 'Done';
+  }
+}
+
+function ReceiptForm({ draft, previewUrl, accounts, categories, fmt, onChange, hasImage, attachReceipt, onToggleAttach }: any) {
+  return (
+    <div className="grid grid-cols-[120px_1fr] gap-3 items-start">
+      {previewUrl && (
+        <img src={previewUrl} alt="Preview" className="w-full rounded border border-border object-cover max-h-[180px]" />
+      )}
+      <div className="space-y-2 col-span-1">
+        {hasImage && (
+          <label className="flex items-center gap-2 text-[11.5px] text-fg-muted cursor-pointer p-1.5 -m-1.5 rounded hover:bg-surface-2/40">
+            <input
+              type="checkbox"
+              checked={attachReceipt}
+              onChange={(e) => onToggleAttach(e.target.checked)}
+              className="accent-accent"
+            />
+            <span>
+              Save receipt image with the transaction
+              <span className="text-fg-subtle"> — searchable later, ~50–80 KB resized</span>
+            </span>
+          </label>
+        )}
+        <div>
+          <label className="text-[11.5px] text-fg-subtle">Vendor</label>
+          <Input value={draft.vendor} onChange={(e: any) => onChange({ ...draft, vendor: e.target.value })} className="w-full mt-0.5" />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[11.5px] text-fg-subtle">Amount</label>
+            <Input
+              value={draft.amountText}
+              onChange={(e: any) => onChange({ ...draft, amountText: e.target.value })}
+              placeholder="0.00"
+              inputMode="decimal"
+              className={cn('w-full mt-0.5 text-right tabular', !parseAmountToCents(draft.amountText) && 'border-warning')}
+            />
+            {parseAmountToCents(draft.amountText) ? (
+              <div className="text-[10.5px] text-fg-subtle mt-0.5">{fmt(parseAmountToCents(draft.amountText)!)}</div>
+            ) : (
+              <div className="text-[10.5px] text-warning mt-0.5">Confirm before saving</div>
+            )}
+          </div>
+          <div>
+            <label className="text-[11.5px] text-fg-subtle">Date</label>
+            <Input type="date" value={draft.date} onChange={(e: any) => onChange({ ...draft, date: e.target.value })} className="w-full mt-0.5" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[11.5px] text-fg-subtle">Account</label>
+            <Select value={draft.accountId} onChange={(e: any) => onChange({ ...draft, accountId: e.target.value })} className="mt-0.5">
+              {accounts.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </Select>
+          </div>
+          <div>
+            <label className="text-[11.5px] text-fg-subtle">Category</label>
+            <Select value={draft.categoryId} onChange={(e: any) => onChange({ ...draft, categoryId: e.target.value })} className="mt-0.5">
+              <option value="">— Uncategorized —</option>
+              {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CcPaymentForm({ draft, accounts, fmt, onChange }: { draft: any; accounts: any[]; fmt: (cents: number) => string; onChange: (d: any) => void }) {
+  const fromCandidates = accounts.filter((a) => !a.closed && (a.type === 'checking' || a.type === 'savings'));
+  const creditCandidates = accounts.filter((a) => !a.closed && a.type === 'credit');
+  return (
+    <div className="space-y-2">
+      <div className="text-[11.5px] text-fg-subtle">
+        Detected payment to <strong className="text-fg">{draft.issuer || 'a credit card'}</strong>
+        {draft.cardName && <> · {draft.cardName}</>}
+        {draft.cardLast4 && <> ending in <code className="px-1 rounded bg-surface-3 text-fg">{draft.cardLast4}</code></>}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[11.5px] text-fg-subtle">From (budget account)</label>
+          <Select value={draft.fromAccountId} onChange={(e: any) => onChange({ ...draft, fromAccountId: e.target.value })} className="mt-0.5">
+            <option value="">— Pick source —</option>
+            {fromCandidates.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </Select>
+        </div>
+        <div>
+          <label className="text-[11.5px] text-fg-subtle">To (credit card)</label>
+          <Select value={draft.toAccountId} onChange={(e: any) => onChange({ ...draft, toAccountId: e.target.value })} className="mt-0.5">
+            <option value="">— Pick credit account —</option>
+            {creditCandidates.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </Select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[11.5px] text-fg-subtle">Amount</label>
+          <Input
+            value={draft.amountText}
+            onChange={(e: any) => onChange({ ...draft, amountText: e.target.value })}
+            placeholder="0.00"
+            inputMode="decimal"
+            className={cn('w-full mt-0.5 text-right tabular', !parseAmountToCents(draft.amountText) && 'border-warning')}
+          />
+          {parseAmountToCents(draft.amountText) ? (
+            <div className="text-[10.5px] text-fg-subtle mt-0.5">{fmt(parseAmountToCents(draft.amountText)!)}</div>
+          ) : null}
+        </div>
+        <div>
+          <label className="text-[11.5px] text-fg-subtle">Effective date</label>
+          <Input type="date" value={draft.date} onChange={(e: any) => onChange({ ...draft, date: e.target.value })} className="w-full mt-0.5" />
+        </div>
+      </div>
+      <div className="text-[10.5px] text-fg-subtle">
+        Saved as a transfer — your budget account is debited and the credit card balance moves toward zero. The category isn't touched (the spending was recorded when the card was originally swiped).
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Paystub review form: lists the parsed deduction lines, lets the user
+ * fix label / kind / amount / delete each one, and gives them a choice
+ * between replacing the existing deductions list and appending.
+ */
+function PaystubForm({
+  draft, fmt, onChange,
+}: {
+  draft: { kind: 'paystub'; grossText: string; netText: string; deductions: PaycheckDeduction[]; replace: boolean };
+  fmt: (cents: number) => string;
+  onChange: (d: any) => void;
+}) {
+  function update(id: string, patch: Partial<PaycheckDeduction>) {
+    onChange({ ...draft, deductions: draft.deductions.map((d) => d.id === id ? { ...d, ...patch } : d) });
+  }
+  function remove(id: string) {
+    onChange({ ...draft, deductions: draft.deductions.filter((d) => d.id !== id) });
+  }
+  const totalDeduct = draft.deductions.reduce((s, d) => s + d.amountPerCheck, 0);
+  const grossCents = parseAmountToCents(draft.grossText) ?? 0;
+  const netCents = parseAmountToCents(draft.netText) ?? Math.max(0, grossCents - totalDeduct);
+  const computedNet = grossCents - totalDeduct;
+  const variance = grossCents > 0 && netCents > 0 ? Math.abs(computedNet - netCents) : 0;
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[11.5px] text-fg-subtle">Gross / paycheck</label>
+          <Input
+            value={draft.grossText}
+            onChange={(e) => onChange({ ...draft, grossText: e.target.value })}
+            placeholder="0.00"
+            inputMode="decimal"
+            className="w-full mt-0.5 text-right tabular"
+          />
+        </div>
+        <div>
+          <label className="text-[11.5px] text-fg-subtle">Net / paycheck</label>
+          <Input
+            value={draft.netText}
+            onChange={(e) => onChange({ ...draft, netText: e.target.value })}
+            placeholder="0.00"
+            inputMode="decimal"
+            className="w-full mt-0.5 text-right tabular"
+          />
+        </div>
+      </div>
+      {variance > 200 && (
+        <div className="text-[11px] text-warning bg-warning/10 px-2 py-1.5 rounded">
+          Heads up — gross − deductions = {fmt(computedNet)}, but parsed net was {fmt(netCents)} ({fmt(variance)} off). Adjust as needed.
+        </div>
+      )}
+
+      <div>
+        <div className="text-[11.5px] uppercase tracking-wider text-fg-subtle mb-1">
+          Deductions ({draft.deductions.length} · totals {fmt(totalDeduct)}/check)
+        </div>
+        {draft.deductions.length === 0 ? (
+          <div className="text-[12px] text-fg-subtle text-center py-3">
+            No deduction lines extracted. Add manually in Settings → Income & Deductions, or try a clearer image.
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {draft.deductions.map((d) => (
+              <div key={d.id} className="grid grid-cols-[1fr_120px_36px] sm:grid-cols-[1fr_140px_120px_36px] gap-1.5 items-center">
+                <Input
+                  value={d.label}
+                  onChange={(e) => update(d.id, { label: e.target.value })}
+                  className="text-[12.5px]"
+                />
+                <Select
+                  value={d.kind}
+                  onChange={(e) => update(d.id, { kind: e.target.value as PaycheckDeduction['kind'] })}
+                  className="text-[12px] hidden sm:block"
+                >
+                  {(Object.keys(DEDUCTION_KIND_LABELS) as PaycheckDeduction['kind'][]).map((k) => (
+                    <option key={k} value={k}>{DEDUCTION_KIND_LABELS[k]}</option>
+                  ))}
+                </Select>
+                <Input
+                  value={d.amountPerCheck ? (d.amountPerCheck / 100).toString() : ''}
+                  onChange={(e) => {
+                    const cents = parseAmountToCents(e.target.value);
+                    update(d.id, { amountPerCheck: cents !== null && cents > 0 ? cents : 0 });
+                  }}
+                  placeholder="0.00"
+                  inputMode="decimal"
+                  className="text-right tabular text-[12.5px]"
+                />
+                <button
+                  onClick={() => remove(d.id)}
+                  className="text-fg-subtle hover:text-negative p-1.5 rounded"
+                  aria-label="Remove"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <label className="flex items-center gap-2 text-[12px] text-fg-muted">
+        <input
+          type="checkbox"
+          checked={draft.replace}
+          onChange={(e) => onChange({ ...draft, replace: e.target.checked })}
+          className="accent-accent"
+        />
+        Replace my existing deductions <span className="text-fg-subtle">(uncheck to append)</span>
+      </label>
+    </div>
+  );
+}
+
+// -- Statement importer --------------------------------------------------
+
+/**
+ * Build a row draft from a parser result. Pre-resolves the category from the
+ * brand-map hint so common merchants (Starbucks, Uber, Con Ed) land in the
+ * right envelope by default — user still gets to override before saving.
+ */
+function statementRowToDraft(r: ParsedStatementRow, categories: any[]): StatementRowDraft {
+  let categoryId = '';
+  if (!r.isIncome && r.categoryHint) {
+    for (const kw of keywordsForHint(r.categoryHint)) {
+      const m = findCategoryByText(kw, categories);
+      if (m) { categoryId = m.id; break; }
+    }
+  }
+  return {
+    rowId: `${r.date}-${r.vendor}-${r.amount}-${Math.random().toString(36).slice(2, 6)}`,
+    include: true,
+    date: r.date,
+    vendor: r.vendor,
+    amountText: (r.amount / 100).toString(),
+    categoryId,
+    isIncome: r.isIncome,
+    rawDescription: r.rawDescription,
+    type: r.type,
+    isPeerPayment: r.isPeerPayment,
+  };
+}
+
+function StatementForm({
+  draft, accounts, categories, fmt, onChange,
+}: {
+  draft: { kind: 'statement'; accountId: string; rows: StatementRowDraft[] };
+  accounts: any[];
+  categories: any[];
+  fmt: (cents: number) => string;
+  onChange: (d: any) => void;
+}) {
+  function patchRow(rowId: string, patch: Partial<StatementRowDraft>) {
+    onChange({ ...draft, rows: draft.rows.map((r) => r.rowId === rowId ? { ...r, ...patch } : r) });
+  }
+  function setAllIncluded(include: boolean) {
+    onChange({ ...draft, rows: draft.rows.map((r) => ({ ...r, include })) });
+  }
+  function removeRow(rowId: string) {
+    onChange({ ...draft, rows: draft.rows.filter((r) => r.rowId !== rowId) });
+  }
+
+  const totals = useMemo(() => {
+    let outflow = 0;
+    let inflow = 0;
+    let count = 0;
+    for (const r of draft.rows) {
+      if (!r.include) continue;
+      const cents = parseAmountToCents(r.amountText);
+      if (cents === null) continue;
+      if (cents < 0) outflow += -cents;
+      else inflow += cents;
+      count += 1;
+    }
+    return { outflow, inflow, count, net: inflow - outflow };
+  }, [draft.rows]);
+
+  const allChecked = draft.rows.length > 0 && draft.rows.every((r) => r.include);
+
+  return (
+    <div className="space-y-3">
+      {/* Account chooser + totals header */}
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
+        <div>
+          <label className="text-[11.5px] text-fg-subtle">Import all rows into account</label>
+          <Select value={draft.accountId} onChange={(e) => onChange({ ...draft, accountId: e.target.value })} className="mt-0.5 w-full">
+            <option value="">— Pick account —</option>
+            {accounts.filter((a) => !a.closed).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </Select>
+        </div>
+        <div className="text-right text-[11.5px] tabular">
+          <div><span className="text-fg-subtle">Net:</span> <span className={cn('font-semibold', totals.net < 0 ? 'text-negative' : 'text-positive')}>{fmt(totals.net)}</span></div>
+          <div className="text-fg-subtle">
+            {totals.count} row{totals.count === 1 ? '' : 's'} · <span className="text-positive">+{fmt(totals.inflow)}</span> · <span className="text-negative">−{fmt(totals.outflow)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Bulk toggle */}
+      <div className="flex items-center justify-between text-[11.5px]">
+        <label className="flex items-center gap-1.5 text-fg-muted cursor-pointer">
+          <input
+            type="checkbox"
+            checked={allChecked}
+            onChange={(e) => setAllIncluded(e.target.checked)}
+            className="accent-accent"
+          />
+          {allChecked ? 'Uncheck all' : 'Check all'}
+        </label>
+        <div className="text-fg-subtle">
+          Sub-extracted vendor names ({draft.rows.length}) — review and edit before importing.
+        </div>
+      </div>
+
+      {/* Row table */}
+      <div className="border border-border rounded-md overflow-hidden">
+        <div className="hidden sm:grid grid-cols-[28px_92px_1fr_140px_110px_28px] gap-1.5 px-2 py-1.5 bg-surface-2/60 text-[10.5px] uppercase tracking-wider text-fg-subtle">
+          <div></div>
+          <div>Date</div>
+          <div>Vendor</div>
+          <div>Category</div>
+          <div className="text-right">Amount</div>
+          <div></div>
+        </div>
+        <div className="max-h-[340px] overflow-y-auto divide-y divide-border">
+          {draft.rows.length === 0 ? (
+            <div className="px-3 py-6 text-center text-[12px] text-fg-subtle">
+              No rows extracted. Try a clearer screenshot, or upload as a single receipt instead.
+            </div>
+          ) : (
+            draft.rows.map((r) => <StatementRow
+              key={r.rowId}
+              row={r}
+              categories={categories}
+              fmt={fmt}
+              onPatch={(p) => patchRow(r.rowId, p)}
+              onRemove={() => removeRow(r.rowId)}
+            />)
+          )}
+        </div>
+      </div>
+
+      <div className="text-[10.5px] text-fg-subtle">
+        Each row creates one transaction in the chosen account. Rows tagged
+        <Banknote size={10} className="inline mx-1" /> are cash withdrawals,
+        <Users size={10} className="inline mx-1" /> are peer payments (Zelle/Venmo) — categorize as gift / family / loan as needed.
+        Income rows go to <strong>Ready to Assign</strong> automatically.
+      </div>
+    </div>
+  );
+}
+
+function StatementRow({
+  row, categories, fmt, onPatch, onRemove,
+}: {
+  row: StatementRowDraft;
+  categories: any[];
+  fmt: (cents: number) => string;
+  onPatch: (patch: Partial<StatementRowDraft>) => void;
+  onRemove: () => void;
+}) {
+  const cents = parseAmountToCents(row.amountText) ?? 0;
+  const isInflow = cents > 0;
+
+  return (
+    <div className="grid grid-cols-[28px_1fr_28px] sm:grid-cols-[28px_92px_1fr_140px_110px_28px] gap-1.5 px-2 py-1.5 items-center hover:bg-surface-2/30">
+      {/* Include checkbox */}
+      <input
+        type="checkbox"
+        checked={row.include}
+        onChange={(e) => onPatch({ include: e.target.checked })}
+        className="accent-accent"
+      />
+
+      {/* Date — hidden on mobile, shown inline above vendor instead */}
+      <Input
+        type="date"
+        value={row.date}
+        onChange={(e) => onPatch({ date: e.target.value })}
+        className="text-[11.5px] hidden sm:block"
+      />
+
+      {/* Vendor + meta */}
+      <div className="min-w-0">
+        <div className="flex items-center gap-1">
+          {row.isIncome && <ArrowDownLeft size={11} className="text-positive flex-shrink-0" aria-label="Income" />}
+          {!row.isIncome && row.isPeerPayment && <Users size={11} className="text-warning flex-shrink-0" aria-label="Peer payment" />}
+          {!row.isIncome && /atm|cash withdrawal/i.test(row.rawDescription) && <Banknote size={11} className="text-fg-subtle flex-shrink-0" aria-label="Cash" />}
+          {!row.isIncome && !row.isPeerPayment && cents < 0 && <ArrowUpRight size={11} className="text-negative flex-shrink-0" aria-label="Outflow" />}
+          <Input
+            value={row.vendor}
+            onChange={(e) => onPatch({ vendor: e.target.value })}
+            className="text-[12.5px] flex-1 min-w-0"
+            placeholder="Vendor"
+          />
+        </div>
+        <div className="text-[10px] text-fg-subtle truncate sm:hidden mt-0.5">
+          {row.date} {row.type ? `· ${row.type}` : ''}
+        </div>
+        <div className="text-[10px] text-fg-subtle truncate hidden sm:block mt-0.5" title={row.rawDescription}>
+          {row.type ? `${row.type} · ` : ''}{row.rawDescription}
+        </div>
+      </div>
+
+      {/* Category — hidden on mobile, the user can fix mismatches in the txn list later */}
+      <div className="hidden sm:block">
+        {row.isIncome ? (
+          <div className="text-[11px] text-positive italic">→ Ready to Assign</div>
+        ) : (
+          <Select
+            value={row.categoryId}
+            onChange={(e) => onPatch({ categoryId: e.target.value })}
+            className="text-[11.5px]"
+          >
+            <option value="">— Uncategorized —</option>
+            {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+        )}
+      </div>
+
+      {/* Amount */}
+      <Input
+        value={row.amountText}
+        onChange={(e) => onPatch({ amountText: e.target.value })}
+        inputMode="decimal"
+        className={cn(
+          'text-right tabular text-[12px] hidden sm:block',
+          isInflow ? 'text-positive' : 'text-negative',
+        )}
+      />
+      <div className="sm:hidden text-right tabular text-[11.5px]">
+        <div className={cn(isInflow ? 'text-positive' : 'text-negative', 'font-medium')}>{fmt(cents)}</div>
+      </div>
+
+      {/* Remove */}
+      <button
+        onClick={onRemove}
+        className="text-fg-subtle hover:text-negative p-1 rounded"
+        aria-label="Remove row"
+      >
+        <Trash2 size={12} />
+      </button>
+    </div>
+  );
+}
