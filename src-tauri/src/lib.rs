@@ -316,7 +316,10 @@ fn cmd_move_to_monitor(window: tauri::Window, index: usize) -> Result<(), String
 
 #[cfg(not(any(target_os = "ios", target_os = "android")))]
 #[tauri::command]
-fn cmd_print_page(window: tauri::Window) -> Result<(), String> {
+fn cmd_print_page(window: tauri::WebviewWindow) -> Result<(), String> {
+    // Tauri 2 split `Window` (native chrome) from `WebviewWindow` (chrome
+    // + a webview). `eval()` lives only on the latter — passing a
+    // `Window` here fails to compile with E0599.
     window
         .eval("window.print()")
         .map_err(|e| e.to_string())
