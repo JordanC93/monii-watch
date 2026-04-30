@@ -840,6 +840,45 @@ const pauseScheduled: Intent<{ scheduledText: string; resume: boolean }> = {
   },
 };
 
+// -- Intent: setItemPrice (Tier 9 #2) ----------------------------------
+
+const setItemPrice: Intent<{ categoryText: string; cents: number }> = {
+  name: 'set-item-price',
+  examples: [
+    'set laptop price to $1299',
+    'update macbook price to 1299',
+    'macbook is now $1299',
+  ],
+  priority: 95,
+  match(input) {
+    // "set/update X price to $Y" or "X is now $Y"
+    const m1 = input.match(/(?:set|update)\s+(?:the\s+)?([a-z][a-z0-9 /&'-]{1,40}?)\s+(?:item\s+)?price\s+(?:to\s+)?\$?\s?(\d[\d,.]*)/i);
+    const m2 = input.match(/^([a-z][a-z0-9 /&'-]{1,40}?)\s+(?:is\s+now|now\s+costs|dropped\s+to)\s+\$?\s?(\d[\d,.]*)/i);
+    const m = m1 || m2;
+    if (!m) return null;
+    const raw = m[2].replace(/[,_]/g, '');
+    const v = parseFloat(raw);
+    if (!Number.isFinite(v) || v <= 0) return null;
+    return { categoryText: m[1].trim(), cents: Math.round(v * 100) };
+  },
+  run({ categoryText, cents }, ctx): IntentResult {
+    const { categories } = snapshot();
+    const cat = findCategoryByText(categoryText, categories);
+    if (!cat) {
+      return { reply: `I couldn't find a category matching "${categoryText}".`, needsClarification: true };
+    }
+    // Use repo helpers — direct import to avoid circular issues.
+    void import('../db/repo').then((r) => r.updateCategory(cat.id, {
+      currentItemPrice: cents,
+      priceCheckedAt: Date.now(),
+    }));
+    return {
+      reply: `Updated ${cat.name} item price to ${ctx.formatMoney(cents)}. If you have enough saved, the deal banner will fire on the Budget page.`,
+      effect: { kind: 'set-setting', field: `${cat.name}.currentItemPrice`, value: cents },
+    };
+  },
+};
+
 // -- Intent: spendInRange (Tier 6 #7) -----------------------------------
 
 const spendInCategoryRange: Intent<{ categoryText: string; scope: 'last' | 'this-year' | 'last-year' }> = {
@@ -1093,6 +1132,8 @@ export const ALL_INTENTS: Intent[] = [
   spendInCategoryRange,
   transactionsAbove,
   biggestPayee,
+  // Tier 9 #2
+  setItemPrice,
   // Tier 6 #2/#3 — safe-to-spend + financial health
   safeToSpend,
   healthScore,

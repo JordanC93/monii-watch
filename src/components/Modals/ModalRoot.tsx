@@ -33,6 +33,8 @@ import { ReportsCustomizeModal } from './ReportsCustomizeModal';
 import { SavedLayoutsModal } from './SavedLayoutsModal';
 import { UninstallModal } from './UninstallModal';
 import { BillSplitModal } from './BillSplitModal';
+import { WorkspacesModal } from './WorkspacesModal';
+import { GoalPriceUpdateModal } from './GoalPriceUpdateModal';
 
 export function ModalRoot() {
   const modal = useUI((s) => s.modal);
@@ -75,6 +77,8 @@ export function ModalRoot() {
     case 'savedLayouts':  return <SavedLayoutsModal open onClose={close} />;
     case 'uninstall':     return <UninstallModal open onClose={close} />;
     case 'billSplit':     return <BillSplitModal open onClose={close} />;
+    case 'workspaces':    return <WorkspacesModal open onClose={close} />;
+    case 'goalPriceUpdate': return <GoalPriceUpdateModal open onClose={close} categoryId={modal.categoryId} />;
     default: return null;
   }
 }

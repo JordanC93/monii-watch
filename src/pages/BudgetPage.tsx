@@ -11,6 +11,7 @@ import { OverdraftBanner } from '../components/Budget/OverdraftBanner';
 import { LastSessionBanner } from '../components/Budget/LastSessionBanner';
 import { SubscriptionUsagePrompt } from '../components/Budget/SubscriptionUsagePrompt';
 import { AnomalyAlert } from '../components/Budget/AnomalyAlert';
+import { HardLimitsBanner } from '../components/Budget/HardLimitsBanner';
 import { MobileMonthSwitcher } from '../components/Budget/MobileMonthSwitcher';
 import { MobilePageHeader } from '../components/Layout/MobilePageHeader';
 import { useBudget } from '../store/budget';
@@ -51,6 +52,7 @@ export function BudgetPage() {
         <CreditUtilizationAlert />
         <OverdraftBanner />
         <AnomalyAlert />
+        <HardLimitsBanner />
         <SubscriptionUsagePrompt />
         <GoalDealBanner />
         <OverspendingAlert />

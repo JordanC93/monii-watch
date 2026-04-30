@@ -943,6 +943,8 @@ export type ScheduledInput = {
   frequency: RecurrenceFrequency;
   startDate: string;
   endDate?: string | null;
+  /** Tier 9 #5 — annual auto-escalation as decimal (0.03 = +3%/yr). */
+  escalationPctPerYear?: number;
 };
 
 export function createScheduled(input: ScheduledInput): ScheduledTransaction {
@@ -965,6 +967,7 @@ export function createScheduled(input: ScheduledInput): ScheduledTransaction {
     endDate: input.endDate ?? null,
     lastRunAt: null,
     paused: false,
+    escalationPctPerYear: input.escalationPctPerYear,
     createdAt: now,
     updatedAt: now,
   };
@@ -1050,6 +1053,9 @@ export function materializeDueScheduled(today: string = todayIso()): number {
 function materializeOne(sched: ScheduledTransaction, date: string): void {
   const id = newId();
   const now = Date.now();
+  // Tier 9 #5 — auto-escalation. Compute the effective amount based
+  // on years elapsed since startDate. Multiplicative compounding.
+  const escalatedAmount = applyEscalation(sched, date);
   const baseTxn: Transaction = {
     id,
     accountId: sched.accountId,
@@ -1058,7 +1064,7 @@ function materializeOne(sched: ScheduledTransaction, date: string): void {
     categoryId: sched.transferAccountId ? null : sched.categoryId,
     transferAccountId: sched.transferAccountId,
     transferTransactionId: null,
-    amount: sched.amount,
+    amount: escalatedAmount,
     memo: sched.memo,
     cleared: 'uncleared',
     flag: sched.flag,
@@ -1074,7 +1080,7 @@ function materializeOne(sched: ScheduledTransaction, date: string): void {
       accountId: sched.transferAccountId,
       transferAccountId: sched.accountId,
       transferTransactionId: id,
-      amount: -sched.amount,
+      amount: -escalatedAmount,
       categoryId: null,
       payeeId: null,
     };
@@ -1086,17 +1092,40 @@ function materializeOne(sched: ScheduledTransaction, date: string): void {
   // Tier 6 #1 — paycheck rules fire when scheduled income materializes.
   // Same gating as createTransaction: positive, on-budget, not a transfer.
   if (
-    sched.amount > 0
+    escalatedAmount > 0
     && !sched.transferAccountId
     && ACCOUNT_TYPE_META[accountsMap().get(sched.accountId)?.type ?? 'other']?.onBudget
   ) {
     const rules = listAllocationRules();
     if (rules.some((r) => r.enabled)) {
-      const txnRef = { amount: sched.amount, date };
+      const txnRef = { amount: escalatedAmount, date };
       applyAllocationRulesForTrigger('paycheck', { triggerTxn: txnRef, today: todayIso(), month: date.slice(0, 7) });
       applyAllocationRulesForTrigger('income-over', { triggerTxn: txnRef, today: todayIso(), month: date.slice(0, 7) });
     }
   }
+}
+
+/**
+ * Compute the escalated amount for a scheduled transaction at the
+ * given materialization date. Multiplicative compounding from
+ * `startDate` per `escalationPctPerYear`. No escalation when the
+ * field is unset or the date is before / equal to startDate.
+ */
+export function applyEscalation(sched: ScheduledTransaction, date: string): Money {
+  if (!sched.escalationPctPerYear || sched.escalationPctPerYear === 0) return sched.amount;
+  if (!sched.startDate || date <= sched.startDate) return sched.amount;
+  const start = new Date(sched.startDate + 'T00:00:00');
+  const cur = new Date(date + 'T00:00:00');
+  // Whole years elapsed since startDate (anniversary-based).
+  let years = cur.getFullYear() - start.getFullYear();
+  // If we haven't yet reached the anniversary in the current year, drop one.
+  const beforeAnniversary =
+    cur.getMonth() < start.getMonth() ||
+    (cur.getMonth() === start.getMonth() && cur.getDate() < start.getDate());
+  if (beforeAnniversary) years -= 1;
+  if (years <= 0) return sched.amount;
+  const factor = Math.pow(1 + sched.escalationPctPerYear, years);
+  return Math.round(sched.amount * factor);
 }
 
 // -- Bulk export / import -------------------------------------------------

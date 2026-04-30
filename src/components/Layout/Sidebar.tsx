@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Wallet, BarChart3, Settings as SettingsIcon, Search, ListChecks, Plus, RefreshCw, RefreshCwOff, Loader2, CalendarClock, CreditCard, Target, Pin, Wrench, Plane, Calendar, TrendingUp, Wand2, Image as ImageIcon, ChevronDown, ChevronRight, BookOpen, Tag, LayoutDashboard } from 'lucide-react';
+import { Wallet, BarChart3, Settings as SettingsIcon, Search, ListChecks, Plus, RefreshCw, RefreshCwOff, Loader2, CalendarClock, CreditCard, Target, Pin, Wrench, Plane, Calendar, TrendingUp, Wand2, Image as ImageIcon, ChevronDown, ChevronRight, BookOpen, Tag, LayoutDashboard, Flame, Briefcase } from 'lucide-react';
 import { useBudget } from '../../store/budget';
 import { useUI } from '../../store/ui';
 import { cn } from '../../lib/cn';
@@ -172,6 +172,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         className="hidden md:block absolute top-0 right-0 h-full w-1 cursor-col-resize hover:bg-accent/40 sidebar-resize-handle"
         aria-label="Resize sidebar"
       />
+      <WorkspaceFooter onClick={handleClick} />
       <div className="border-t border-border px-3 py-2.5 flex items-center justify-between">
         <div>
           <div className="text-[11px] text-fg-subtle">Net Worth</div>
@@ -190,6 +191,58 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </button>
       </div>
     </aside>
+  );
+}
+
+/**
+ * Workspace switcher (Tier 9 #4) — compact sidebar entry showing the
+ * active workspace with a click to open the picker. Only shown when
+ * the user has 2+ workspaces, otherwise hidden to keep the chrome
+ * minimal.
+ */
+function WorkspaceFooter({ onClick }: { onClick: () => void }) {
+  const openModal = useUI((s) => s.openModal);
+  // Re-read on every render — workspaces are localStorage, no Yjs hook
+  // needed. Cheap call.
+  const all = (() => {
+    try {
+      const raw = localStorage.getItem('monii:workspaces');
+      const list: Array<{ id: string; label: string; dbName: string }> = raw ? JSON.parse(raw) : [];
+      const def = { id: 'default', label: 'Personal', dbName: 'monii-watch-doc-v1' };
+      return list.some((w) => w.id === 'default') ? list : [def, ...list];
+    } catch { return [{ id: 'default', label: 'Personal', dbName: 'monii-watch-doc-v1' }]; }
+  })();
+  const activeName = (() => {
+    try {
+      const stored = localStorage.getItem('monii:active-workspace');
+      const ws = all.find((w) => w.dbName === stored);
+      return ws?.label ?? all[0]?.label ?? 'Personal';
+    } catch { return 'Personal'; }
+  })();
+  if (all.length < 2) {
+    // Show small "+ workspace" link instead of switcher when only one.
+    return (
+      <button
+        onClick={() => { openModal({ type: 'workspaces' }); onClick(); }}
+        className="border-t border-border px-3 py-1.5 flex items-center gap-1.5 text-[11px] text-fg-subtle hover:text-fg hover:bg-surface-2/40 w-full text-left"
+      >
+        <Briefcase size={11} />
+        <span>+ Add workspace</span>
+      </button>
+    );
+  }
+  return (
+    <button
+      onClick={() => { openModal({ type: 'workspaces' }); onClick(); }}
+      className="border-t border-border px-3 py-2 flex items-center gap-2 text-[12px] hover:bg-surface-2/40 w-full text-left"
+    >
+      <Briefcase size={12} className="text-accent" />
+      <div className="flex-1 min-w-0">
+        <div className="text-[10px] uppercase tracking-wider text-fg-subtle">Workspace</div>
+        <div className="font-medium truncate">{activeName}</div>
+      </div>
+      <ChevronRight size={12} className="text-fg-subtle" />
+    </button>
   );
 }
 
@@ -221,6 +274,7 @@ function defaultNavEntries(): NavEntry[] {
     { key: 'goals',        to: '/goals',        icon: <Target size={15} />,        label: 'Goals',            end: true },
     { key: 'credit-cards', to: '/credit-cards', icon: <CreditCard size={15} />,    label: 'Credit Cards',     end: true },
     { key: 'investments',  to: '/investments',  icon: <TrendingUp size={15} />,    label: 'Investments',      end: true },
+    { key: 'fire',         to: '/fire',         icon: <Flame size={15} />,         label: 'FIRE planner',     end: true },
     { key: 'scheduled',    to: '/scheduled',    icon: <CalendarClock size={15} />, label: 'Scheduled',        end: true },
     { key: 'trips',        to: '/trips',        icon: <Plane size={15} />,         label: 'Trips & events',   end: true },
     { key: 'calendar',     to: '/calendar',     icon: <Calendar size={15} />,      label: 'Calendar',         end: true },

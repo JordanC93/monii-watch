@@ -2,6 +2,73 @@
 
 ## Unreleased
 
+### v0.6.4 — FIRE · recurring transfers · workspaces · hard limits · calendar grid · price tracker
+
+A big swing batch — six features from Tier 9 plus the recurring-transfer
+auto-escalation. 19 tests added; 210 total passing.
+
+#### FIRE / retirement planner (Tier 9 #3)
+- New `/fire` route. Settings panel for current age / target age /
+  expected return / stdev / inflation / Social Security inputs.
+- **25× / 33× / 20× FIRE numbers** based on target annual spending.
+- **Deterministic projection** — year-by-year NW from today to life
+  expectancy.
+- **Monte Carlo simulation** (500 trials) — 10/50/90 percentile chart
+  + success probability headline.
+- **Withdrawal sequencing** — taxable → traditional → Roth with
+  rationale per bucket.
+- New `domain/fire.ts` (pure compute) + `components/Reports/FireChart.tsx`.
+
+#### Recurring transfers — auto-escalation (Tier 9 #5)
+- `ScheduledTransaction` gains `escalationPctPerYear`. Materializer
+  recomputes the amount each fire based on years elapsed since
+  startDate (multiplicative compounding). New `applyEscalation()`
+  helper exported from repo.
+- Existing scheduled transfers (paired transactions) ALREADY worked;
+  this batch surfaces escalation as a power-user knob in the
+  ScheduledModal under a new "Auto-escalate per year" field. Useful
+  for retirement contribution scheduling.
+
+#### Multiple budgets — workspace switcher (Tier 9 #4)
+- New `lib/workspaces.ts` registry. Each workspace = its own
+  IndexedDB database name + sync room.
+- Switching reloads the app to load that workspace's doc — simpler
+  than tearing down providers in-place.
+- New `WorkspacesModal` with create/rename/delete/switch.
+- Sidebar gets a workspace switcher footer (only visible when 2+
+  workspaces exist).
+- Active workspace stored in `localStorage` (NOT synced — local
+  per-device).
+
+#### Hard spending limits (Tier 9 #7)
+- `Settings.hardSpendingLimits` map keyed by categoryId. Each entry
+  has `limitCents`, `mode` (warn / block), `velocityAlert` flag.
+- New `domain/hardLimits.ts` computes per-category status: ok /
+  velocity-warn / near-limit / over.
+- New `HardLimitsBanner` on the Budget page — surfaces categories
+  hitting their limit with one-tap review.
+- EditCategoryModal exposes the new field. Velocity alert fires at
+  1.5× pace mid-month.
+
+#### Calendar grid view (Tier 9 #8)
+- New `/calendar/grid` route — true day-by-day calendar grid (vs
+  the existing `/calendar` heatmap).
+- Each day cell shows: date, inflow / outflow totals, txn count.
+- Click a day → expands a sheet with all transactions on that date.
+- Month nav with today button + heatmap-view toggle.
+
+#### Goal price-drop tracker (Tier 9 #2)
+- New `domain/priceParse.ts` extracts the lowest plausible price
+  from pasted product page text. Filters out "Save $X" promotional
+  callouts via a max-relative-magnitude heuristic.
+- New `GoalPriceUpdateModal` — quick numeric entry OR paste page
+  content for auto-extraction.
+- New chat intent: "set laptop price to $1299" / "macbook is now
+  $1299". The existing Goal Deal Banner picks up the change and
+  notifies if affordable.
+- Server-side / extension auto-fetcher remains in TODO (Tier 9 #2,
+  full spec).
+
 ### v0.6.3 — Multi-currency · smarter rules · dashboards · settings hotfix
 
 #### Critical fix

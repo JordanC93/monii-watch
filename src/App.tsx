@@ -51,6 +51,11 @@ const CategoryDetailPage = lazy(() => import('./pages/CategoryDetailPage').then(
 const HelpPage = lazy(() => import('./pages/HelpPage').then((m) => ({ default: m.HelpPage })));
 // Custom dashboard (Tier 8 #13).
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+// FIRE planner (Tier 9 #3).
+const FirePage = lazy(() => import('./pages/FirePage').then((m) => ({ default: m.FirePage })));
+// Calendar grid view (Tier 9 #8) — full month grid; the existing
+// /calendar is the heatmap, this adds a day-by-day view.
+const CalendarGridPage = lazy(() => import('./pages/CalendarGridPage').then((m) => ({ default: m.CalendarGridPage })));
 
 function PageFallback() {
   return (
@@ -329,6 +334,8 @@ export default function App() {
               <Route path="/categories/:categoryId" element={<CategoryDetailPage />} />
               <Route path="/help" element={<HelpPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/fire" element={<FirePage />} />
+              <Route path="/calendar/grid" element={<CalendarGridPage />} />
               <Route path="*" element={<Navigate to="/budget" replace />} />
             </Routes>
           </Suspense>

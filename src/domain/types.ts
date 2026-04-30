@@ -396,6 +396,18 @@ export type ScheduledTransaction = {
   lastRunAt: number | null;
   /** When true, scheduler skips this entry on materialization. */
   paused: boolean;
+  /**
+   * Annual auto-escalation percentage as a decimal (Tier 9 #5).
+   * 0.03 = +3% per year. Applied whenever materialization crosses
+   * a `startDate`-anniversary boundary. Useful for retirement
+   * contribution auto-escalation ("raise my 401k by 1% every
+   * year"). Optional; unset = no escalation.
+   *
+   * The amount is recomputed deterministically each materialization
+   * from `startDate` + years-elapsed, so there's no drift even if
+   * the user pauses + resumes.
+   */
+  escalationPctPerYear?: number;
   createdAt: number;
   updatedAt: number;
 };
@@ -979,6 +991,35 @@ export type Settings = {
    * Empty / undefined = use the default starter dashboard. Synced.
    */
   dashboardWidgets?: string[];
+  /**
+   * FIRE / retirement planner inputs (Tier 9 #3). Optional — when
+   * unset, the FIRE page surfaces a "set this up" empty state.
+   * All amounts in cents, percentages as decimals (0.07 = 7%).
+   */
+  fireCurrentAge?: number;
+  fireTargetAge?: number;
+  fireTargetAnnualSpending?: Money;
+  fireExpectedReturnPct?: number;
+  fireExpectedStdevPct?: number;
+  fireExpectedInflationPct?: number;
+  fireSocialSecurityStartAge?: number;
+  fireSocialSecurityMonthly?: Money;
+  fireLifeExpectancy?: number;
+  /**
+   * Tier 9 #7 — per-category hard spending limits. Map keyed by
+   * categoryId. When set, the budget table renders a warning when
+   * spending velocity puts you on track to overspend. Optional;
+   * unset means soft (envelope-only) tracking.
+   */
+  hardSpendingLimits?: Record<string, {
+    /** Cents per month — the hard cap. */
+    limitCents: Money;
+    /** Behavior when crossed: warn (in-app banner) or block
+     *  (confirmation prompt before saving the txn). */
+    mode: 'warn' | 'block';
+    /** When true, surface a velocity warning at 75% mid-month. */
+    velocityAlert?: boolean;
+  }>;
   /**
    * Recurring auto-allocation rules (Tier 6 #1). On a trigger event,
    * each enabled rule (sorted by priority asc) ADDS its `amount` to

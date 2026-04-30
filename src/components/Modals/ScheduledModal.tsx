@@ -42,6 +42,11 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
   const [frequency, setFrequency] = useState<RecurrenceFrequency>(existing?.frequency ?? 'monthly');
   const [startDate, setStartDate] = useState(existing?.startDate ?? todayIso());
   const [endDate, setEndDate] = useState(existing?.endDate ?? '');
+  // Tier 9 #5 — auto-escalation. Stored as a decimal (0.03 = +3%/yr).
+  // UI shows it as a whole-number percent for less friction.
+  const [escalationPctText, setEscalationPctText] = useState(
+    existing?.escalationPctPerYear ? (existing.escalationPctPerYear * 100).toString() : '',
+  );
 
   const isTransfer = !!transferTo;
   const isEdit = !!existing;
@@ -56,6 +61,11 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
     else return;
     if (!startDate) return;
 
+    const escalationPct = parseFloat(escalationPctText);
+    const escalationPctPerYear = Number.isFinite(escalationPct) && escalationPct !== 0
+      ? escalationPct / 100
+      : undefined;
+
     if (isEdit && existing) {
       updateScheduled(existing.id, {
         accountId,
@@ -67,6 +77,7 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
         frequency,
         startDate,
         endDate: endDate || null,
+        escalationPctPerYear,
         // Only reset nextDate if startDate changed forward — otherwise the
         // user keeps their place in the schedule.
         ...(startDate !== existing.startDate && startDate > existing.nextDate
@@ -84,6 +95,7 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
         frequency,
         startDate,
         endDate: endDate || null,
+        escalationPctPerYear,
       });
     }
     onClose();
@@ -239,6 +251,30 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
             placeholder="Optional"
             className="mt-1 w-full"
           />
+        </div>
+
+        {/* Tier 9 #5 — auto-escalation. Hidden behind a small section
+            since it's a power-user knob. Useful primarily for retirement
+            contribution scheduling ("auto-raise my 401k 1%/yr"). */}
+        <div>
+          <label className="text-[12px] text-fg-muted">
+            Auto-escalate per year <span className="text-fg-subtle">(optional)</span>
+          </label>
+          <div className="flex items-center gap-2 mt-1">
+            <Input
+              value={escalationPctText}
+              onChange={(e) => setEscalationPctText(e.target.value)}
+              placeholder="0"
+              inputMode="decimal"
+              className="w-20 text-right tabular"
+            />
+            <span className="text-[12px] text-fg-muted">% per year</span>
+          </div>
+          <div className="text-[10.5px] text-fg-subtle mt-1">
+            Multiplies the amount on each anniversary of the start date.
+            E.g. <code>3</code> = "raise by 3%/year." Useful for retirement
+            contribution auto-escalation.
+          </div>
         </div>
 
         {isEdit && existing && (

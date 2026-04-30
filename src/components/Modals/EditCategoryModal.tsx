@@ -6,7 +6,7 @@ import { Select } from '../ui/Select';
 import { IconPicker } from '../ui/IconPicker';
 import { CategoryAvatar } from '../ui/CategoryAvatar';
 import { useBudget } from '../../store/budget';
-import { updateCategory, deleteCategory } from '../../db/repo';
+import { updateCategory, deleteCategory, setSettingsField } from '../../db/repo';
 import { cn } from '../../lib/cn';
 import { parseAmountToCents } from '../../domain/calc';
 import { suggestIconForLegacy } from '../../lib/categoryIcons';
@@ -326,9 +326,96 @@ export function EditCategoryModal({ open, onClose, categoryId }: { open: boolean
               className="w-full mt-0.5 px-3 py-2 rounded-lg bg-surface-2 border border-border text-fg text-[13px] focus:outline-none focus:border-accent resize-y"
             />
           </div>
+          <HardLimitField categoryId={categoryId} />
         </div>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Tier 9 #7 — hard spending limit field. Optional cap independent
+ * of the envelope; surfaces a banner when at risk.
+ */
+function HardLimitField({ categoryId }: { categoryId: string }) {
+  const limitsRaw = useBudget((s) => s.settings.hardSpendingLimits);
+  const cur = limitsRaw?.[categoryId];
+  const [text, setText] = useState(cur?.limitCents ? (cur.limitCents / 100).toString() : '');
+  const [mode, setMode] = useState<'warn' | 'block'>(cur?.mode ?? 'warn');
+  const [velocity, setVelocity] = useState<boolean>(cur?.velocityAlert ?? true);
+
+  function commit() {
+    const cents = parseAmountToCents(text);
+    const next = { ...(limitsRaw ?? {}) };
+    if (cents !== null && cents > 0) {
+      next[categoryId] = { limitCents: cents, mode, velocityAlert: velocity };
+    } else {
+      delete next[categoryId];
+    }
+    setSettingsField('hardSpendingLimits', Object.keys(next).length > 0 ? next : undefined);
+  }
+
+  return (
+    <div className="border-t border-border pt-3 space-y-2">
+      <div className="text-[11.5px] text-fg-subtle">
+        Hard spending limit <span className="text-fg-subtle/80">(optional, in addition to envelope)</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          placeholder="0.00 (no limit)"
+          inputMode="decimal"
+          className="text-right tabular w-28"
+        />
+        <span className="text-[11.5px] text-fg-muted">/ month</span>
+      </div>
+      {parseAmountToCents(text) !== null && parseAmountToCents(text)! > 0 && (
+        <>
+          <div className="flex items-center gap-3 text-[11.5px] text-fg-muted">
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                checked={mode === 'warn'}
+                onChange={() => { setMode('warn'); }}
+                onBlur={commit}
+                className="accent-accent"
+              />
+              Warn when approaching
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                checked={mode === 'block'}
+                onChange={() => { setMode('block'); }}
+                onBlur={commit}
+                className="accent-accent"
+              />
+              Block when exceeded
+            </label>
+          </div>
+          <label className="flex items-center gap-1.5 text-[11.5px] text-fg-muted">
+            <input
+              type="checkbox"
+              checked={velocity}
+              onChange={(e) => { setVelocity(e.target.checked); }}
+              onBlur={commit}
+              className="accent-accent"
+            />
+            Velocity alert (warn at 75% mid-month if pace would overshoot)
+          </label>
+          <div className="flex gap-2">
+            <button
+              onClick={commit}
+              className="text-[11.5px] text-accent hover:underline"
+            >
+              Save limit
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

@@ -61,7 +61,27 @@ let lastError: string | null = null;
 const listeners = new Set<Listener>();
 const detailListeners = new Set<DetailListener>();
 
-const DOC_NAME = 'monii-watch-doc-v1';
+const DEFAULT_DOC_NAME = 'monii-watch-doc-v1';
+const ACTIVE_WORKSPACE_KEY = 'monii:active-workspace';
+
+/**
+ * Resolve the active workspace's IndexedDB database name. Reads from
+ * localStorage (`monii:active-workspace`); falls back to the default.
+ *
+ * Workspaces (Tier 9 #4) let users keep separate budgets — personal,
+ * LLC, household — each with its own DB + sync room. The active
+ * workspace is local-per-device (NOT synced) so different devices
+ * can be on different workspaces.
+ */
+export function getActiveDocName(): string {
+  try {
+    const stored = localStorage.getItem(ACTIVE_WORKSPACE_KEY);
+    if (stored && /^monii-watch-doc-[a-z0-9-]+$/i.test(stored)) return stored;
+  } catch {}
+  return DEFAULT_DOC_NAME;
+}
+
+const DOC_NAME = getActiveDocName();
 
 export function onSyncStatus(cb: Listener): () => void {
   listeners.add(cb);
