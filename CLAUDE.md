@@ -293,6 +293,32 @@ server/                  Self-hosted y-websocket sync server (Docker Compose
     lifecycle break unpredictably. The chat-panel paste flow uses
     the same convention — keep them aligned.
 
+20. **Don't push to GitHub or tag a release without explicit
+    confirmation from the project owner.** This includes routine work
+    like committing finished features, polishing copy, or shipping
+    documentation. Local edits + commits are fine; `git push` and
+    `git tag` are NOT — every push is a public-facing artifact and
+    every tag triggers a CI build that consumes minutes and produces
+    a draft release.
+
+    The ONE exception: a real, app-breaking bug that's blocking the
+    project owner right now (won't compile, can't open the app,
+    auto-update is broken, data corruption). In that case fix + ship
+    immediately and tell them what you did.
+
+    Default workflow when finishing a change:
+      1. Edit + commit locally (yes)
+      2. Run typecheck / build to verify (yes)
+      3. STOP and surface the work — describe what landed, ask if
+         they want to push + tag, wait for "yes" before doing either.
+      4. Only after explicit go-ahead: `git push` + (if a release)
+         `git tag` + `git push origin <tag>`.
+
+    This avoids the failure mode where the assistant burns through
+    versions during a debugging cycle (we did this with v0.5.4
+    through v0.5.13 across one session — fine when the user
+    consented, less fine as a default).
+
 ## Theme system
 
 CSS variables per `[data-theme="..."]` block in
