@@ -20,8 +20,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # macOS builds. Universal (--target universal-apple-darwin)
+          # was causing intermittent `bundle_dmg.sh` failures on
+          # GitHub Actions runners — the universal artifacts double the
+          # disk footprint AND `hdiutil create` locks contention with
+          # the lipos step. Splitting into two single-arch builds is
+          # both faster and reliable.
+          #
+          # macos-latest = ARM (M-series). macos-13 = the last Intel
+          # runner GitHub still hosts (used for Intel Mac builds).
           - platform: macos-latest
-            args: --target universal-apple-darwin
+            args: --target aarch64-apple-darwin
+            mac-arch: arm64
+          - platform: macos-13
+            args: --target x86_64-apple-darwin
+            mac-arch: x64
           - platform: ubuntu-22.04
             args: ''
           - platform: windows-latest
@@ -34,7 +47,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ contains(matrix.platform, 'macos') && (matrix.mac-arch == 'arm64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin') || '' }}
 
       - name: Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -275,9 +288,18 @@ jobs:
             return 0
           }
 
-          MAC_BUNDLE="$(asset_canonical_url '\\.app\\.tar\\.gz$' || true)"
-          MAC_SIG_RAW="$(read_sig_by_name '\\.app\\.tar\\.gz\\.sig$' || true)"
-          if validate_sig "$MAC_SIG_RAW"; then MAC_SIG="$MAC_SIG_RAW"; else MAC_SIG=""; fi
+          # Split macOS into per-arch bundles (v0.6.6+). Asset names
+          # produced by Tauri 2 single-arch builds include the arch
+          # (e.g. "Monii Watch_0.6.6_aarch64.app.tar.gz" /
+          # "..._x64.app.tar.gz" / "..._x86_64.app.tar.gz" depending
+          # on the Tauri CLI version).
+          MAC_ARM_BUNDLE="$(asset_canonical_url 'aarch64\\.app\\.tar\\.gz$' || true)"
+          MAC_ARM_SIG_RAW="$(read_sig_by_name 'aarch64\\.app\\.tar\\.gz\\.sig$' || true)"
+          if validate_sig "$MAC_ARM_SIG_RAW"; then MAC_ARM_SIG="$MAC_ARM_SIG_RAW"; else MAC_ARM_SIG=""; fi
+
+          MAC_X64_BUNDLE="$(asset_canonical_url '(x64|x86_64)\\.app\\.tar\\.gz$' || true)"
+          MAC_X64_SIG_RAW="$(read_sig_by_name '(x64|x86_64)\\.app\\.tar\\.gz\\.sig$' || true)"
+          if validate_sig "$MAC_X64_SIG_RAW"; then MAC_X64_SIG="$MAC_X64_SIG_RAW"; else MAC_X64_SIG=""; fi
 
           WIN_BUNDLE="$(asset_canonical_url 'x64-setup\\.nsis\\.zip$|x64-setup\\.exe$' || true)"
           WIN_SIG_RAW="$(read_sig_by_name 'x64-setup\\.nsis\\.zip\\.sig$|x64-setup\\.exe\\.sig$' || true)"
@@ -288,12 +310,14 @@ jobs:
           if validate_sig "$LIN_SIG_RAW"; then LIN_SIG="$LIN_SIG_RAW"; else LIN_SIG=""; fi
 
           echo "--- Resolved bundles + signatures ---"
-          echo "mac bundle:    ${MAC_BUNDLE:-<none>}"
-          echo "mac sig bytes: ${#MAC_SIG}"
-          echo "win bundle:    ${WIN_BUNDLE:-<none>}"
-          echo "win sig bytes: ${#WIN_SIG}"
-          echo "lin bundle:    ${LIN_BUNDLE:-<none>}"
-          echo "lin sig bytes: ${#LIN_SIG}"
+          echo "mac arm bundle:    ${MAC_ARM_BUNDLE:-<none>}"
+          echo "mac arm sig bytes: ${#MAC_ARM_SIG}"
+          echo "mac x64 bundle:    ${MAC_X64_BUNDLE:-<none>}"
+          echo "mac x64 sig bytes: ${#MAC_X64_SIG}"
+          echo "win bundle:        ${WIN_BUNDLE:-<none>}"
+          echo "win sig bytes:     ${#WIN_SIG}"
+          echo "lin bundle:        ${LIN_BUNDLE:-<none>}"
+          echo "lin sig bytes:     ${#LIN_SIG}"
 
           VERSION="${TAG#v}"
           PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -302,10 +326,15 @@ jobs:
           # JSON in one jq pass — avoids the variable-binding-with-parens
           # syntax that bit us before.
           PLATFORMS='{}'
-          if [ -n "$MAC_BUNDLE" ] && [ -n "$MAC_SIG" ]; then
+          if [ -n "$MAC_ARM_BUNDLE" ] && [ -n "$MAC_ARM_SIG" ]; then
             PLATFORMS="$(echo "$PLATFORMS" | jq \
-              --arg url "$MAC_BUNDLE" --arg sig "$MAC_SIG" \
-              '. + {"darwin-aarch64": {"signature": $sig, "url": $url}, "darwin-x86_64": {"signature": $sig, "url": $url}}')"
+              --arg url "$MAC_ARM_BUNDLE" --arg sig "$MAC_ARM_SIG" \
+              '. + {"darwin-aarch64": {"signature": $sig, "url": $url}}')"
+          fi
+          if [ -n "$MAC_X64_BUNDLE" ] && [ -n "$MAC_X64_SIG" ]; then
+            PLATFORMS="$(echo "$PLATFORMS" | jq \
+              --arg url "$MAC_X64_BUNDLE" --arg sig "$MAC_X64_SIG" \
+              '. + {"darwin-x86_64": {"signature": $sig, "url": $url}}')"
           fi
           if [ -n "$WIN_BUNDLE" ] && [ -n "$WIN_SIG" ]; then
             PLATFORMS="$(echo "$PLATFORMS" | jq \

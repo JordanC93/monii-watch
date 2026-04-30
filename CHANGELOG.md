@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### v0.6.6 — CI fix: split macOS build into per-architecture jobs
+
+The v0.6.4 release CI failed on the macOS step with
+`failed to run bundle_dmg.sh`. Root cause: the universal Apple
+Darwin build path is flaky on GitHub Actions — universal artifacts
+double the disk footprint, and `hdiutil create` (which
+`bundle_dmg.sh` calls) hits lock contention with the lipo step
+on cramped runners.
+
+#### Fix
+- Split the macOS matrix into two single-arch builds:
+  - `macos-latest` (ARM) → `aarch64-apple-darwin` DMG
+  - `macos-13` (Intel) → `x86_64-apple-darwin` DMG
+- Each runs independently → no shared lock, no doubled disk usage.
+- Updated `publish-updater-json` job to grab both darwin variants
+  and route them to `darwin-aarch64` / `darwin-x86_64` keys in
+  `latest.json` separately.
+- The result: Apple Silicon and Intel users each get the right
+  binary on update.
+
+No app behavior changes. v0.6.6 is identical to v0.6.5 in
+features — just a CI hotfix to actually ship the v0.6.4 release
+DMGs.
+
 ### v0.6.5 — Documentation update + 9 new Help articles
 
 Pure docs/help release. No new code features. Updates the Help
