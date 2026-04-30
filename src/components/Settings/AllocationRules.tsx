@@ -5,7 +5,7 @@
  * toggle · delete. Settings → Income & Deductions surfaces this panel.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useBudget } from '../../store/budget';
 import { Button } from '../ui/Button';
@@ -20,8 +20,15 @@ import { useFormatMoney } from '../../lib/format';
 import type { AllocationRule } from '../../domain/types';
 
 export function AllocationRules() {
-  const rules = useBudget((s) => s.settings.allocationRules ?? []);
-  const categories = useBudget((s) => s.categories.filter((c) => !c.hidden));
+  // CRITICAL: don't return derived arrays from Zustand selectors. They
+  // create a new reference every render and React 18's
+  // useSyncExternalStore (which Zustand v5 uses) detects the unstable
+  // snapshot, schedules a resync, and ends up in an infinite loop —
+  // "Maximum update depth exceeded." Pull raw fields, derive in render.
+  const allocationRulesField = useBudget((s) => s.settings.allocationRules);
+  const allCategories = useBudget((s) => s.categories);
+  const rules = useMemo(() => allocationRulesField ?? [], [allocationRulesField]);
+  const categories = useMemo(() => allCategories.filter((c) => !c.hidden), [allCategories]);
   const fmt = useFormatMoney();
   const [adding, setAdding] = useState(false);
 

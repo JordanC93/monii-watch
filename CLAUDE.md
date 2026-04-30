@@ -293,6 +293,29 @@ server/                  Self-hosted y-websocket sync server (Docker Compose
     lifecycle break unpredictably. The chat-panel paste flow uses
     the same convention — keep them aligned.
 
+21. **Never derive arrays inside Zustand selectors.** Patterns like
+    `useBudget((s) => s.categories.filter((c) => !c.hidden))` or
+    `useBudget((s) => s.someField ?? [])` return a NEW reference on
+    every render. Combined with React 18's `useSyncExternalStore` (which
+    Zustand v5 uses), the unstable snapshot triggers another sync and
+    can cause "Maximum update depth exceeded" infinite loops. The v0.6.2
+    Settings page broke this exact way.
+
+    **Always pull raw fields from the store, then derive in render with
+    `useMemo`.** Pattern:
+    ```ts
+    // BAD — new array every render
+    const visible = useBudget((s) => s.categories.filter(...));
+
+    // GOOD — stable raw reference, derive once per change
+    const all = useBudget((s) => s.categories);
+    const visible = useMemo(() => all.filter(...), [all]);
+    ```
+
+    Same rule for `?? []` defaults: pull the raw possibly-undefined
+    field, default it inside `useMemo`. The defensive form survives
+    older saved Yjs docs that pre-date the field.
+
 20. **Don't push to GitHub or tag a release without explicit
     confirmation from the project owner.** This includes routine work
     like committing finished features, polishing copy, or shipping
@@ -651,10 +674,16 @@ reference a tier/number.
 
 In rough priority order:
 
-1. **Multi-currency for on-budget accounts** — currently only tracking
-   accounts can override the budget currency. To budget across currencies
-   you'd need per-currency Ready-to-Assign pools or per-month FX snapshots
-   for assignments. Defer until the user asks.
+1. **Multi-currency on-budget accounts (v0.6.3)** — DONE. Any account
+   type can declare a non-budget `currency` + `fxRate`. Budget math
+   (`computeMonthBudget`, `computeReadyToAssign`, `computeMonthStats`)
+   converts to the budget currency using `lookupRate()` from
+   `domain/fx.ts` — checks `Settings.fxSnapshots` first (month-locked),
+   falls back to `Account.fxRate`. Open question: per-currency RTA
+   pools (you'd see "Ready to Assign: $1,200 USD + €300 EUR")
+   for users with substantial foreign-currency cash flow. Defer until
+   asked — current implementation works for travelers / cross-border
+   workers via the conversion approach.
 
 2. **Server-side price-checker** plugin for the goal item price tracker.
    Currently the user enters `currentItemPrice` manually (the browser

@@ -11,7 +11,7 @@
  * sandbox-aware commit path.)
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
@@ -26,8 +26,13 @@ import { todayIso } from '../../domain/date';
 import type { RecurrenceFrequency } from '../../domain/types';
 
 export function SandboxControls({ onClose }: { onClose: () => void }) {
-  const accounts = useBudget((s) => s.accounts.filter((a) => !a.closed));
-  const categories = useBudget((s) => s.categories.filter((c) => !c.hidden));
+  // Don't filter inside the selector — returns a new array each render
+  // and causes the Zustand-on-React-18 infinite loop. Pull raw, derive
+  // in render with useMemo.
+  const allAccounts = useBudget((s) => s.accounts);
+  const allCategoriesRaw = useBudget((s) => s.categories);
+  const accounts = useMemo(() => allAccounts.filter((a) => !a.closed), [allAccounts]);
+  const categories = useMemo(() => allCategoriesRaw.filter((c) => !c.hidden), [allCategoriesRaw]);
   const monthlyIncomeOverride = useSandbox((s) => s.monthlyIncomeOverride);
   const setMonthlyIncomeOverride = useSandbox((s) => s.setMonthlyIncomeOverride);
   const scheduled = useSandbox((s) => s.scheduled);

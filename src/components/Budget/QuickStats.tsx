@@ -5,6 +5,7 @@ import { computeGoalProgress } from '../../domain/goals';
 import { useFormatMoney } from '../../lib/format';
 import { TrendingUp, TrendingDown, Wallet, Target, Clock, PiggyBank } from 'lucide-react';
 import { cn } from '../../lib/cn';
+import { GlossaryHint, type GlossaryTerm } from '../ui/GlossaryHint';
 
 /**
  * Compact stats strip shown above the budget table.
@@ -81,6 +82,7 @@ export function QuickStats() {
           label="Age of Money"
           value={`${aom} ${aom === 1 ? 'day' : 'days'}`}
           tone="accent"
+          glossary="age-of-money"
         />
       )}
     </div>
@@ -88,10 +90,11 @@ export function QuickStats() {
 }
 
 function Stat({
-  icon, label, value, tone,
+  icon, label, value, tone, glossary,
 }: {
   icon: React.ReactNode; label: string; value: string;
   tone: 'positive' | 'negative' | 'accent' | 'warning' | 'neutral';
+  glossary?: GlossaryTerm;
 }) {
   const ring =
     tone === 'positive' ? 'ring-positive/20' :
@@ -104,6 +107,7 @@ function Stat({
       <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-fg-subtle">
         {icon}
         <span>{label}</span>
+        {glossary && <GlossaryHint term={glossary} size={11} />}
       </div>
       <div className="text-[15px] sm:text-[16px] font-semibold tabular mt-0.5 truncate">{value}</div>
     </div>

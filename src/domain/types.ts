@@ -43,17 +43,25 @@ export type Account = {
   /** ISO timestamp ms */
   createdAt: number;
   /**
-   * Optional ISO 4217 code. ONLY meaningful on tracking accounts (investment,
-   * loan, mortgage, other). On-budget accounts always use the budget currency
-   * to keep the envelope math sane. Empty / undefined = budget currency.
+   * Optional ISO 4217 code. Allowed on ALL account types (v0.6.3+). When
+   * set on an on-budget account, transactions are stored in the account's
+   * currency but converted to the budget currency for envelope math
+   * (Ready to Assign, category Available, etc.) using `fxRate` or a
+   * per-month FX snapshot from `Settings.fxSnapshots`. Empty / undefined
+   * = budget currency.
    */
   currency?: string;
   /**
    * Exchange rate FROM this account's currency TO the budget currency. Used
-   * to convert account balances into the budget currency for net-worth and
-   * sidebar totals. Only set when `currency` differs from the budget currency.
+   * to convert account balances + transaction amounts into the budget
+   * currency. Only set when `currency` differs from the budget currency.
    * Example: a EUR account when the budget is USD, with EUR/USD ≈ 1.07,
    * would have `fxRate: 1.07`.
+   *
+   * For on-budget accounts, monthly rate-locking via
+   * `Settings.fxSnapshots` is preferred — the snapshot for a given month
+   * stays fixed so retroactive rate changes don't shift past assignments.
+   * `fxRate` is the fallback when no snapshot exists.
    */
   fxRate?: number;
   /**
@@ -548,6 +556,24 @@ export type AutoRule = {
    * as the counterpart. Required for transfer rules.
    */
   toAccountId?: string;
+  /**
+   * Optional pattern matching mode (v0.6.3+).
+   *   - `'substring'` (default, original behavior): case-insensitive
+   *     substring match against the payee.
+   *   - `'regex'`: pattern is interpreted as a regular expression.
+   *     Invalid regexes are skipped at evaluation time (never throw).
+   */
+  patternMode?: 'substring' | 'regex';
+  /**
+   * Optional amount-range filter (v0.6.3+). When set, the rule only
+   * fires when |amount| is within the inclusive range. Both bounds
+   * are positive cents and optional independently. Example:
+   *   "Whole Foods AND amount > $50 → Groceries; otherwise → Coffee"
+   * is two rules with different `amountMin`/`amountMax`. Lower-priority
+   * (later in `order`) rules fire when earlier ones don't match.
+   */
+  amountMinAbs?: Money;
+  amountMaxAbs?: Money;
   /** Display order in the rules list. */
   order: number;
   createdAt: number;
@@ -947,6 +973,12 @@ export type Settings = {
    * this off.
    */
   useNwSnapshots: boolean;
+  /**
+   * Custom dashboard widget order + visibility (Tier 8 #13). Each
+   * entry is a widget id from `components/Dashboard/widgets`.
+   * Empty / undefined = use the default starter dashboard. Synced.
+   */
+  dashboardWidgets?: string[];
   /**
    * Recurring auto-allocation rules (Tier 6 #1). On a trigger event,
    * each enabled rule (sorted by priority asc) ADDS its `amount` to

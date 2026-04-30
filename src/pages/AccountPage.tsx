@@ -12,6 +12,7 @@ import { reopenAccount } from '../db/repo';
 import { formatInCurrency, useFormatMoney } from '../lib/format';
 import { LoanAmortization } from '../components/Account/LoanAmortization';
 import { SavingsBuckets } from '../components/Account/SavingsBuckets';
+import { AccountBalanceHistory } from '../components/Account/AccountBalanceHistory';
 import { QuickAddBar } from '../components/Transactions/QuickAddBar';
 import { TxnDetailPane } from '../components/Transactions/TxnDetailPane';
 
@@ -117,6 +118,8 @@ export function AccountPage() {
       {account.type === 'savings' && (
         <SavingsBuckets account={account} currentBalance={a.balance} />
       )}
+
+      <AccountBalanceHistory account={account} />
 
       <div className="flex gap-4 items-start">
         <div className="flex-1 min-w-0">

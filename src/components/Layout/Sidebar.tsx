@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Wallet, BarChart3, Settings as SettingsIcon, Search, ListChecks, Plus, RefreshCw, RefreshCwOff, Loader2, CalendarClock, CreditCard, Target, Pin, Wrench, Plane, Calendar, TrendingUp, Wand2, Image as ImageIcon, ChevronDown, ChevronRight, BookOpen, Tag } from 'lucide-react';
+import { Wallet, BarChart3, Settings as SettingsIcon, Search, ListChecks, Plus, RefreshCw, RefreshCwOff, Loader2, CalendarClock, CreditCard, Target, Pin, Wrench, Plane, Calendar, TrendingUp, Wand2, Image as ImageIcon, ChevronDown, ChevronRight, BookOpen, Tag, LayoutDashboard } from 'lucide-react';
 import { useBudget } from '../../store/budget';
 import { useUI } from '../../store/ui';
 import { cn } from '../../lib/cn';
@@ -214,6 +214,7 @@ type NavEntry = { key: string; to: string; icon: React.ReactNode; label: string;
 
 function defaultNavEntries(): NavEntry[] {
   return [
+    { key: 'dashboard',    to: '/dashboard',    icon: <LayoutDashboard size={15} />, label: 'Dashboard',       end: true },
     { key: 'budget',       to: '/budget',       icon: <ListChecks size={15} />,    label: 'Budget',           end: true },
     { key: 'accounts',     to: '/accounts',     icon: <Wallet size={15} />,        label: 'All Accounts',     end: false },
     { key: 'reports',      to: '/reports',      icon: <BarChart3 size={15} />,     label: 'Reports',          end: true },

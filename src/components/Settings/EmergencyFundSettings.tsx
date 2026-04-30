@@ -14,7 +14,12 @@ import { todayIso } from '../../domain/date';
 
 export function EmergencyFundSettings() {
   const settings = useBudget((s) => s.settings);
-  const categories = useBudget((s) => s.categories.filter((c) => !c.hidden));
+  // Pull raw, derive in render with useMemo. Filtering inside the
+  // Zustand selector returns a new array each call, which trips
+  // React 18's useSyncExternalStore "snapshot is unstable" check
+  // and causes "Maximum update depth exceeded".
+  const allCategories = useBudget((s) => s.categories);
+  const categories = useMemo(() => allCategories.filter((c) => !c.hidden), [allCategories]);
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
   const fmt = useFormatMoney();

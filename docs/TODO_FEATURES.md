@@ -643,6 +643,38 @@ is empty.
 
 ---
 
+## Tier 9 — Platform & ecosystem (when you're ready)
+
+Big-effort items that need active user demand AND/OR your physical
+device. Don't pull from here speculatively.
+
+### #1 Native iOS / Android app via Capacitor
+- The PWA works on iOS but it's awkward — no real notifications, no
+  home-screen widgets, no Siri shortcuts, no App Store distribution.
+- Capacitor wraps the existing Vite build into a native shell with
+  the WKWebView. Two new directories: `ios/` and `android/`. Build
+  via `npx cap sync` + Xcode / Android Studio.
+- Risks: Apple's app review (we DO ship our own data layer; no
+  account, no upload — should pass), provisioning profiles, signing.
+  Tauri-iOS was tried and shelved due to build issues; Capacitor is
+  the safer second attempt.
+- Estimated effort: 1-2 days for first build + TestFlight; ongoing
+  cost for app-store metadata, screenshots, App Privacy disclosures.
+- Consider: Capacitor plugins for native notifications, biometric
+  unlock, share sheet integration with the receipt OCR flow,
+  background fetch for sync.
+
+### #2 Server-side price-checker plugin (goal item prices)
+- Currently `Category.currentItemPrice` is updated manually. A
+  future user-side plugin (running on the user's Plex / home server)
+  could fetch product pages on a schedule and PUT the new price
+  into the synced Yjs doc.
+- Requires a stable plugin protocol — we'd publish a tiny TypeScript
+  interface (`fetchPrice(productUrl) -> { cents, fetchedAt }`) and
+  the server runs it on a cron.
+
+---
+
 ## How to use this with future Claude sessions
 
 After a `/compact` or fresh session, paste a prompt like:

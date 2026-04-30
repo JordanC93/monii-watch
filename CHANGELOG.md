@@ -2,6 +2,77 @@
 
 ## Unreleased
 
+### v0.6.3 — Multi-currency · smarter rules · dashboards · settings hotfix
+
+#### Critical fix
+- **Settings page no longer crashes on load.** A "Maximum update depth
+  exceeded" infinite loop in `AllocationRules` came from filtering
+  inside the Zustand selector — `useBudget((s) => s.categories.filter(...))`
+  returns a new array on every render, and React 18's
+  `useSyncExternalStore` (which Zustand v5 uses) treats that as an
+  unstable snapshot and re-syncs. Fixed by pulling raw store fields
+  and deriving with `useMemo`. Same pattern fixed in
+  `EmergencyFundSettings`, `SandboxControls`, `BillNegotiation`, and
+  `SubscriptionUsagePrompt` defensively. New iron rule (#21) added to
+  `CLAUDE.md` so this trap doesn't get re-introduced.
+
+#### Multi-currency on-budget accounts
+- Any account type can now declare a non-budget `currency` + `fxRate`,
+  not just tracking accounts. New `domain/fx.ts` provides
+  `lookupRate()` which resolves: per-month FX snapshot first
+  (`Settings.fxSnapshots`), then `Account.fxRate`, then 1.
+- `computeMonthBudget`, `computeReadyToAssign`, `computeMonthActivity`,
+  `computeMonthStats` now convert non-budget-currency transactions to
+  budget currency before envelope math.
+- EditAccountModal exposes the currency override on every account
+  type with appropriate help copy ("transactions stored in EUR;
+  envelope math converts via this rate").
+
+#### Smarter auto-categorize rules
+- `AutoRule` gains `patternMode` (`'substring' | 'regex'`) +
+  `amountMinAbs` / `amountMaxAbs` filters.
+- "Whole Foods AND amount > $50 → Groceries" is now expressible as one
+  rule.
+- Auto-rules page surfaces the new fields inline per row. Invalid
+  regexes are caught at evaluation time (never throw).
+
+#### Inline tooltip glossary
+- New `<GlossaryHint term="…">` component pre-loaded with curated
+  definitions for: ready-to-assign, available, assigned, activity,
+  cleared, reconciled, age-of-money, envelope, safe-to-spend,
+  utilization, one-time, cost-per-use, transfer, split, on-budget,
+  tracking, sandbox, allocation-rule. Each links to the matching
+  Help center article. Sprinkled into QuickStats; more spots to come.
+
+#### Account-level balance history
+- Each Account page now shows a 12/6/24-month balance line chart with
+  start / highest / lowest stats. Pure derivation. Honors the
+  account's currency.
+
+#### Bulk move months
+- New `bulkMoveTransactionsBetweenMonths(source, target)` repo function
+  re-dates every transaction in a source month to the same
+  day-of-month in target. Clamps to last day for short months. One
+  `tx()` so undo/redo works.
+
+#### Runway + savings-rate-trend reports
+- **Runway** card: "If income stops today, how many months of cash
+  runway?" Liquid balances ÷ trailing 6-month average burn.
+  Color-banded (green ≥ 6 mo, yellow ≥ 3, red below).
+- **Savings rate trend** chart: 12-month line chart with the 20%
+  reference line. Average rate displayed.
+
+#### Custom dashboard
+- New `/dashboard` route with widget picker. 9 widgets shipping:
+  net worth, ready-to-assign, month cash flow, health score, runway,
+  savings rate, anomalies, recent transactions, active goals.
+  `Settings.dashboardWidgets` stores ordering. Reset-to-default button.
+  Sidebar entry pinned at the top.
+
+#### TODO roadmap
+- Tier 9 added with native iOS via Capacitor (#1) + server-side
+  price-checker plugin (#2) for the goal item tracker.
+
 ### v0.6.2 — Foundation pass: tests · error boundaries · help center · search rebuild
 
 A "make the codebase tougher" release. Less new-feature spectacle,

@@ -19,13 +19,15 @@ export function BillNegotiation() {
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
   const payees = useBudget((s) => s.payees);
-  const prompts = useBudget((s) => s.settings.billNegotiationPrompts ?? []);
+  // Pull raw + default in render — safer than `?? []` in selector.
+  const promptsRaw = useBudget((s) => s.settings.billNegotiationPrompts);
   const fmt = useFormatMoney();
 
   const candidates = useMemo(() => {
+    const prompts = promptsRaw ?? [];
     const subs = detectSubscriptions(txns, payees, accounts);
     return findNegotiationCandidates(subs, prompts, todayIso());
-  }, [txns, payees, accounts, prompts]);
+  }, [txns, payees, accounts, promptsRaw]);
 
   if (candidates.length === 0) {
     return (

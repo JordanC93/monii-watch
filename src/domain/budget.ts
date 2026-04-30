@@ -10,10 +10,11 @@
  *    (overspent categories show red until covered).
  */
 
-import type { Account, Category, MonthAssignment, Transaction, Money } from './types';
+import type { Account, Category, FxSnapshot, MonthAssignment, Transaction, Money } from './types';
 import { ACCOUNT_TYPE_META, categoriesTouched } from './types';
 import { isoIsInMonth, parseMonth } from './date';
 import { parseISO } from 'date-fns';
+import { lookupRate } from './fx';
 
 export type AccountWithBalance = Account & {
   balance: Money;
@@ -82,14 +83,21 @@ export function computeNetWorth(accounts: AccountWithBalance[]): { onBudget: Mon
  * Compute per-category activity for a single month.
  * Activity is the *signed* sum of transactions touching that category in that month
  * on on-budget accounts. (Outflows are negative, refunds positive.)
+ *
+ * Multi-currency: when an on-budget account uses a non-budget currency,
+ * the txn's amount is converted to budget currency using the account's
+ * `fxRate` or a per-month snapshot from `budgetCurrency`/`fxSnapshots`.
  */
 export function computeMonthActivity(
   accounts: Account[],
   categories: Category[],
   txns: Transaction[],
   month: string,
+  budgetCurrency: string = 'USD',
+  fxSnapshots: FxSnapshot[] = [],
 ): Map<string, Money> {
   const onBudgetAcctIds = new Set(accounts.filter((a) => ACCOUNT_TYPE_META[a.type].onBudget && !a.closed).map((a) => a.id));
+  const acctById = new Map(accounts.map((a) => [a.id, a]));
   const result = new Map<string, Money>();
   for (const c of categories) result.set(c.id, 0);
 
@@ -97,10 +105,13 @@ export function computeMonthActivity(
     if (!onBudgetAcctIds.has(t.accountId)) continue;
     if (!isoIsInMonth(t.date, month)) continue;
     if (t.transferAccountId) continue; // transfers don't affect category activity
+    const acct = acctById.get(t.accountId);
+    const rate = lookupRate(acct, budgetCurrency, month, fxSnapshots);
     for (const part of categoriesTouched(t)) {
       if (!part.categoryId) continue;
       const prev = result.get(part.categoryId) ?? 0;
-      result.set(part.categoryId, prev + part.amount);
+      const converted = rate === 1 ? part.amount : Math.round(part.amount * rate);
+      result.set(part.categoryId, prev + converted);
     }
   }
   return result;
@@ -120,6 +131,8 @@ export function computeMonthBudget(
   txns: Transaction[],
   assignments: MonthAssignment[],
   month: string,
+  budgetCurrency: string = 'USD',
+  fxSnapshots: FxSnapshot[] = [],
 ): Map<string, { assigned: Money; activity: Money; available: Money }> {
   // Walk months from min(any data) to `month` accumulating per category.
   const allMonths = collectMonthsUpTo(month, txns, assignments);
@@ -130,7 +143,7 @@ export function computeMonthBudget(
   let lastActivity = new Map<string, Money>();
 
   for (const m of allMonths) {
-    const activity = computeMonthActivity(accounts, categories, txns, m);
+    const activity = computeMonthActivity(accounts, categories, txns, m, budgetCurrency, fxSnapshots);
     const monthAssignments = assignments.filter((a) => a.month === m);
     const assignedById = new Map<string, Money>();
     for (const a of monthAssignments) assignedById.set(a.categoryId, a.assigned);
@@ -152,7 +165,7 @@ export function computeMonthBudget(
 
   for (const c of categories) {
     const assigned = assignedById.get(c.id) ?? 0;
-    const activity = lastMonth === month ? (lastActivity.get(c.id) ?? 0) : (computeMonthActivity(accounts, categories, txns, month).get(c.id) ?? 0);
+    const activity = lastMonth === month ? (lastActivity.get(c.id) ?? 0) : (computeMonthActivity(accounts, categories, txns, month, budgetCurrency, fxSnapshots).get(c.id) ?? 0);
     const available = running.get(c.id) ?? 0;
     result.set(c.id, { assigned, activity, available });
   }
@@ -259,16 +272,21 @@ export function computeMonthStats(
   accounts: Account[],
   txns: Transaction[],
   month: string,
+  budgetCurrency: string = 'USD',
+  fxSnapshots: FxSnapshot[] = [],
 ): { income: Money; spent: Money; net: Money } {
   const onBudgetIds = new Set(accounts.filter((a) => ACCOUNT_TYPE_META[a.type].onBudget && !a.closed).map((a) => a.id));
+  const acctById = new Map(accounts.map((a) => [a.id, a]));
   let income = 0;
   let spent = 0;
   for (const t of txns) {
     if (!onBudgetIds.has(t.accountId)) continue;
     if (t.transferAccountId) continue;
     if (!t.date.startsWith(month)) continue;
-    if (t.amount > 0) income += t.amount;
-    else if (t.amount < 0) spent += -t.amount;
+    const rate = lookupRate(acctById.get(t.accountId), budgetCurrency, month, fxSnapshots);
+    const amt = rate === 1 ? t.amount : Math.round(t.amount * rate);
+    if (amt > 0) income += amt;
+    else if (amt < 0) spent += -amt;
   }
   return { income, spent, net: income - spent };
 }
@@ -278,19 +296,26 @@ export function computeReadyToAssign(
   txns: Transaction[],
   assignments: MonthAssignment[],
   month: string,
+  budgetCurrency: string = 'USD',
+  fxSnapshots: FxSnapshot[] = [],
 ): Money {
   const onBudgetAcctIds = new Set(accounts.filter((a) => ACCOUNT_TYPE_META[a.type].onBudget && !a.closed).map((a) => a.id));
+  const acctById = new Map(accounts.map((a) => [a.id, a]));
   let inflows = 0;
   for (const t of txns) {
     if (!onBudgetAcctIds.has(t.accountId)) continue;
     if (t.transferAccountId) continue;
     if (t.date.slice(0, 7) > month) continue;
+    const txnMonth = t.date.slice(0, 7);
+    const rate = lookupRate(acctById.get(t.accountId), budgetCurrency, txnMonth, fxSnapshots);
     if (t.splits.length > 0) {
       for (const s of t.splits) {
-        if (s.categoryId === null) inflows += s.amount; // uncategorized inflow goes to RTA
+        if (s.categoryId === null) {
+          inflows += rate === 1 ? s.amount : Math.round(s.amount * rate);
+        }
       }
     } else if (t.categoryId === null) {
-      inflows += t.amount;
+      inflows += rate === 1 ? t.amount : Math.round(t.amount * rate);
     }
   }
   let assigned = 0;

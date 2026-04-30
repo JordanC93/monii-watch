@@ -22,7 +22,9 @@ export function SubscriptionUsagePrompt() {
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
   const payees = useBudget((s) => s.payees);
-  const dismissals = useBudget((s) => s.settings.subscriptionUsagePrompts ?? []);
+  // Pull raw + default in render — safer than `?? []` in selector.
+  const dismissalsRaw = useBudget((s) => s.settings.subscriptionUsagePrompts);
+  const dismissals = useMemo(() => dismissalsRaw ?? [], [dismissalsRaw]);
   const fmt = useFormatMoney();
 
   const upcoming = useMemo(() => {

@@ -49,6 +49,8 @@ const PayeesPage = lazy(() => import('./pages/PayeesPage').then((m) => ({ defaul
 const CategoryDetailPage = lazy(() => import('./pages/CategoryDetailPage').then((m) => ({ default: m.CategoryDetailPage })));
 // In-app help center (built v0.6.2).
 const HelpPage = lazy(() => import('./pages/HelpPage').then((m) => ({ default: m.HelpPage })));
+// Custom dashboard (Tier 8 #13).
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 
 function PageFallback() {
   return (
@@ -326,6 +328,7 @@ export default function App() {
               <Route path="/payees" element={<PayeesPage />} />
               <Route path="/categories/:categoryId" element={<CategoryDetailPage />} />
               <Route path="/help" element={<HelpPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="*" element={<Navigate to="/budget" replace />} />
             </Routes>
           </Suspense>

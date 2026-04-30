@@ -21,10 +21,12 @@ import { TaxSummary } from '../components/Reports/TaxSummary';
 import { NetWorthAttribution } from '../components/Reports/NetWorthAttribution';
 import { BillNegotiation } from '../components/Reports/BillNegotiation';
 import { DayOfWeekHeatmap } from '../components/Reports/DayOfWeekHeatmap';
+import { Runway } from '../components/Reports/Runway';
+import { SavingsRateTrend } from '../components/Reports/SavingsRateTrend';
 import { Button } from '../components/ui/Button';
 import { MobilePageHeader } from '../components/Layout/MobilePageHeader';
 import { ErrorBoundary } from '../components/ErrorBoundary/ErrorBoundary';
-import { Hourglass, Receipt, Users, TrendingUp as TrendUpIcon, Settings as SettingsIcon, Activity, BarChart3, FileBarChart, CalendarDays } from 'lucide-react';
+import { Hourglass, Receipt, Users, TrendingUp as TrendUpIcon, Settings as SettingsIcon, Activity, BarChart3, FileBarChart, CalendarDays, Hourglass as HourglassIcon, PiggyBank } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { useUI } from '../store/ui';
 
@@ -208,6 +210,30 @@ export function ReportsPage() {
           Top vendors by spend over the selected window. Click through to filter Search by that payee.
         </div>
         <SpendingByPayee months={range} />
+      </div>
+
+      <div className="glass-panel p-4 sm:p-5" style={cardStyle('runway')}>
+        <div className="text-[14px] font-semibold mb-1 flex items-center gap-1.5">
+          <HourglassIcon size={14} className="text-accent" /> Runway
+        </div>
+        <div className="text-[11.5px] text-fg-subtle mb-3">
+          If income stops today, how many months of cash do you have? Liquid balances ÷ trailing 6-month average burn.
+        </div>
+        <ErrorBoundary variant="card" scope="runway">
+          <Runway />
+        </ErrorBoundary>
+      </div>
+
+      <div className="glass-panel p-4 sm:p-5" style={cardStyle('savings-rate-trend')}>
+        <div className="text-[14px] font-semibold mb-1 flex items-center gap-1.5">
+          <PiggyBank size={14} className="text-accent" /> Savings rate trend
+        </div>
+        <div className="text-[11.5px] text-fg-subtle mb-3">
+          Per-month savings rate over the trailing 12 months. Are you trending up or drifting down?
+        </div>
+        <ErrorBoundary variant="card" scope="savings-rate-trend">
+          <SavingsRateTrend />
+        </ErrorBoundary>
       </div>
 
       <div className="glass-panel p-4 sm:p-5" style={cardStyle('day-of-week')}>

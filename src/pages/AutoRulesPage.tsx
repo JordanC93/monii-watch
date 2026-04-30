@@ -178,14 +178,16 @@ function CategorySection({
           </div>
         ) : (
           rules.map((r: any) => (
-            <div key={r.id} className="glass-panel p-3 flex items-center gap-3">
-              <div className="flex-1 min-w-0">
+            <div key={r.id} className="glass-panel p-3 flex items-start gap-3">
+              <div className="flex-1 min-w-0 space-y-1.5">
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <span className="text-[13px] font-medium">When payee contains</span>
+                  <span className="text-[13px] font-medium">
+                    When payee {r.patternMode === 'regex' ? 'matches' : 'contains'}
+                  </span>
                   <Input
                     value={r.pattern}
                     onChange={(e: any) => updateAutoRule(r.id, { pattern: e.target.value })}
-                    className="text-[12.5px] inline-block w-auto min-w-[160px]"
+                    className="text-[12.5px] inline-block w-auto min-w-[160px] tabular"
                   />
                   <span className="text-[13px] text-fg-muted">→</span>
                   <Select
@@ -196,15 +198,50 @@ function CategorySection({
                     {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </Select>
                 </div>
-                <label className="flex items-center gap-1.5 text-[11.5px] text-fg-muted mt-1 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={r.override}
-                    onChange={(e: any) => updateAutoRule(r.id, { override: e.target.checked })}
-                    className="accent-accent"
-                  />
-                  Override existing categorizations on new txns
-                </label>
+                <div className="flex items-center gap-3 flex-wrap text-[11.5px] text-fg-muted">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={r.override}
+                      onChange={(e: any) => updateAutoRule(r.id, { override: e.target.checked })}
+                      className="accent-accent"
+                    />
+                    Override existing
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={r.patternMode === 'regex'}
+                      onChange={(e: any) => updateAutoRule(r.id, { patternMode: e.target.checked ? 'regex' : 'substring' })}
+                      className="accent-accent"
+                    />
+                    Regex
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <span>Amount:</span>
+                    <Input
+                      value={r.amountMinAbs ? (r.amountMinAbs / 100).toString() : ''}
+                      onChange={(e: any) => {
+                        const v = parseFloat(e.target.value);
+                        updateAutoRule(r.id, { amountMinAbs: Number.isFinite(v) && v > 0 ? Math.round(v * 100) : undefined });
+                      }}
+                      placeholder="≥ $"
+                      inputMode="decimal"
+                      className="text-right tabular text-[11.5px] w-16"
+                    />
+                    <span>to</span>
+                    <Input
+                      value={r.amountMaxAbs ? (r.amountMaxAbs / 100).toString() : ''}
+                      onChange={(e: any) => {
+                        const v = parseFloat(e.target.value);
+                        updateAutoRule(r.id, { amountMaxAbs: Number.isFinite(v) && v > 0 ? Math.round(v * 100) : undefined });
+                      }}
+                      placeholder="≤ $"
+                      inputMode="decimal"
+                      className="text-right tabular text-[11.5px] w-16"
+                    />
+                  </div>
+                </div>
               </div>
               <div className="flex-shrink-0 flex items-center gap-1">
                 <Button

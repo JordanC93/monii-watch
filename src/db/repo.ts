@@ -514,7 +514,7 @@ export function createTransaction(input: TxnInput): Transaction {
   // means the rule beats even an explicit category from the caller.
   let resolvedCategoryId = input.categoryId;
   if (input.payee && input.payee.trim() && (!effectiveTransferAccountId)) {
-    const ruled = lookupAutoCategory(input.payee);
+    const ruled = lookupAutoCategory(input.payee, input.amount);
     if (ruled) {
       const matchedRule = listAutoRules().find((r) => r.categoryId === ruled);
       if (matchedRule?.override || !resolvedCategoryId) {
@@ -816,6 +816,35 @@ export function moveAssignment(month: string, fromCategoryId: string, toCategory
     adjustAssignment(month, fromCategoryId, -cents);
     adjustAssignment(month, toCategoryId, +cents);
   });
+}
+
+/**
+ * Move ALL transactions from one month to another (Tier 8 #8).
+ * Re-dates every transaction whose `date` falls within `sourceMonth`
+ * to the same day-of-month in `targetMonth`. If `targetMonth` is
+ * shorter, clamps to the last day.
+ *
+ * Wrapped in a single tx() so undo works.
+ */
+export function bulkMoveTransactionsBetweenMonths(sourceMonth: string, targetMonth: string): { moved: number } {
+  if (!/^\d{4}-\d{2}$/.test(sourceMonth) || !/^\d{4}-\d{2}$/.test(targetMonth)) {
+    throw new Error('Months must be ISO yyyy-mm');
+  }
+  if (sourceMonth === targetMonth) return { moved: 0 };
+  const [ty, tm] = targetMonth.split('-').map(Number);
+  const targetLastDay = new Date(ty, tm, 0).getDate();
+  let moved = 0;
+  tx(() => {
+    txnsMap().forEach((t, id) => {
+      if (!t.date.startsWith(sourceMonth)) return;
+      const dom = parseInt(t.date.slice(8, 10), 10);
+      const safeDom = Math.min(dom, targetLastDay);
+      const newDate = `${targetMonth}-${String(safeDom).padStart(2, '0')}`;
+      txnsMap().set(id, { ...t, date: newDate, updatedAt: Date.now() });
+      moved++;
+    });
+  });
+  return { moved };
 }
 
 /**
@@ -1181,23 +1210,55 @@ export function deleteAutoRule(id: string): void {
 }
 
 /**
- * Find the FIRST matching auto-rule for a given payee name. Returns the
- * category id, or null. Case-insensitive substring match. Used by
- * `createTransaction` upstream of the per-payee remembered category.
+ * Find the FIRST matching auto-rule for a given payee name + amount.
+ * Returns the category id, or null. Used by `createTransaction`
+ * upstream of the per-payee remembered category.
+ *
+ * v0.6.3 — supports:
+ *   - regex pattern mode (`patternMode === 'regex'`)
+ *   - amount-range filters (`amountMinAbs`/`amountMaxAbs`)
  *
  * Transfer-flavored rules are skipped here — they're applied by
  * `lookupTransferRule` instead since they convert the txn shape, not
  * just its category.
  */
-export function lookupAutoCategory(payeeName: string): string | null {
+export function lookupAutoCategory(payeeName: string, amount: Money = 0): string | null {
   if (!payeeName) return null;
-  const needle = payeeName.toLowerCase();
   for (const r of listAutoRules()) {
     if (!r.pattern) continue;
     if (r.kind === 'transfer') continue;
-    if (needle.includes(r.pattern.toLowerCase())) return r.categoryId;
+    if (!ruleMatches(r, payeeName, amount)) continue;
+    return r.categoryId;
   }
   return null;
+}
+
+/**
+ * Internal: check whether an AutoRule matches a given payee + amount.
+ * Handles substring vs regex pattern mode + amount-range filtering.
+ */
+function ruleMatches(r: AutoRule, payeeName: string, amount: Money): boolean {
+  // Pattern check
+  const mode = r.patternMode ?? 'substring';
+  if (mode === 'regex') {
+    try {
+      // Anchor with case-insensitive flag — same as substring's intent.
+      // Pattern is user-controlled but only runs against in-memory strings,
+      // no DB / network impact even on catastrophic backtracking. Defensive
+      // try/catch swallows invalid regexes.
+      const re = new RegExp(r.pattern, 'i');
+      if (!re.test(payeeName)) return false;
+    } catch {
+      return false;
+    }
+  } else {
+    if (!payeeName.toLowerCase().includes(r.pattern.toLowerCase())) return false;
+  }
+  // Amount-range check (uses absolute value — outflows are negative)
+  const abs = Math.abs(amount);
+  if (typeof r.amountMinAbs === 'number' && abs < r.amountMinAbs) return false;
+  if (typeof r.amountMaxAbs === 'number' && abs > r.amountMaxAbs) return false;
+  return true;
 }
 
 /**

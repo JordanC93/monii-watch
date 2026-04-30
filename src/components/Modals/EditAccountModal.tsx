@@ -278,35 +278,35 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
             </Select>
           </div>
         )}
-        {isTracking && (
-          <div className="border-t border-border pt-3 space-y-2">
-            <div className="text-[11.5px] text-fg-subtle">
-              Currency override <span className="text-fg-subtle/80">(tracking accounts only)</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                <option value="">{budgetCurrency} (budget default)</option>
-                {SUPPORTED_CURRENCIES.filter((c) => c.code !== budgetCurrency).map((c) => (
-                  <option key={c.code} value={c.code}>{c.code} — {c.symbol}</option>
-                ))}
-              </Select>
-              {usingForeignCurrency && (
-                <Input
-                  value={fxRateText}
-                  onChange={(e) => setFxRateText(e.target.value)}
-                  placeholder={`1 ${currency} = ? ${budgetCurrency}`}
-                  inputMode="decimal"
-                  className="text-right tabular w-full"
-                />
-              )}
-            </div>
+        <div className="border-t border-border pt-3 space-y-2">
+          <div className="text-[11.5px] text-fg-subtle">
+            Currency override
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+              <option value="">{budgetCurrency} (budget default)</option>
+              {SUPPORTED_CURRENCIES.filter((c) => c.code !== budgetCurrency).map((c) => (
+                <option key={c.code} value={c.code}>{c.code} — {c.symbol}</option>
+              ))}
+            </Select>
             {usingForeignCurrency && (
-              <div className="text-[10.5px] text-fg-subtle">
-                Balance is stored and shown in {currency}; net worth converts via this rate. Update the rate when it shifts (no live FX feed — privacy first).
-              </div>
+              <Input
+                value={fxRateText}
+                onChange={(e) => setFxRateText(e.target.value)}
+                placeholder={`1 ${currency} = ? ${budgetCurrency}`}
+                inputMode="decimal"
+                className="text-right tabular w-full"
+              />
             )}
           </div>
-        )}
+          {usingForeignCurrency && (
+            <div className="text-[10.5px] text-fg-subtle">
+              {isTracking
+                ? `Balance is stored in ${currency}; net worth converts via this rate. Update the rate when it shifts (no live FX feed — privacy first).`
+                : `Transactions are stored in ${currency}. Envelope math (Ready to Assign, category Available) converts via this rate. For best stability, lock the rate per-month via Settings → FX snapshots.`}
+            </div>
+          )}
+        </div>
       </div>
     </Modal>
   );
