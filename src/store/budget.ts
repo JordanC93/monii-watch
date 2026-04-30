@@ -85,6 +85,11 @@ const initialSettings: Settings = {
   billNegotiationPrompts: [],
   subscriptionUsagePrompts: [],
   overdraftBannerDismissedAt: 0,
+  lastSeenVersion: '',
+  auditLog: [],
+  autoBackupDays: 0,
+  lastAutoBackupAt: 0,
+  autoBackupHistory: [],
 };
 
 export const useBudget = create<State>((set) => ({

@@ -77,7 +77,9 @@ export type ModalState =
   | { type: 'uninstall' }
   | { type: 'billSplit' }
   | { type: 'workspaces' }
-  | { type: 'goalPriceUpdate'; categoryId: string };
+  | { type: 'goalPriceUpdate'; categoryId: string }
+  | { type: 'whatsNew' }
+  | { type: 'auditLog' };
 
 export const useUI = create<State>((set, get) => ({
   commandOpen: false,

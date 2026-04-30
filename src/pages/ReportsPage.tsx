@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SpendingByCategory } from '../components/Reports/SpendingByCategory';
 import { NetWorth } from '../components/Reports/NetWorth';
 import { IncomeVsExpenses } from '../components/Reports/IncomeVsExpenses';
@@ -37,8 +37,77 @@ const RANGES = [
   { id: 12, label: 'Last 12 Months' },
 ];
 
+/**
+ * Reports tab grouping (Tier 10 #3). Maps each card key to one of
+ * the four conceptual tabs. The "All" tab shows every card. Cards
+ * NOT in this map fall through to "All" only — safe default for
+ * any card the customizer adds in the future.
+ */
+type ReportsTab = 'all' | 'spending' | 'wealth' | 'time' | 'tax';
+
+const TAB_LABELS: Array<{ id: ReportsTab; label: string }> = [
+  { id: 'all',      label: 'All' },
+  { id: 'spending', label: 'Spending' },
+  { id: 'wealth',   label: 'Wealth' },
+  { id: 'time',     label: 'Time' },
+  { id: 'tax',      label: 'Tax' },
+];
+
+const CARD_TABS: Record<string, ReportsTab[]> = {
+  // Spending — outflow analysis, where money goes day-to-day
+  'spending-by-category':  ['spending'],
+  'spending-by-payee':     ['spending'],
+  'subscriptions':         ['spending'],
+  'subscription-creep':    ['spending'],
+  'bill-negotiation':      ['spending'],
+  'category-heatmap':      ['spending'],
+  'bills-trend':           ['spending'],
+  'pending-refunds':       ['spending'],
+  'iou':                   ['spending'],
+  // Wealth — net worth, debt, runway, savings rate
+  'net-worth':             ['wealth'],
+  'net-worth-attribution': ['wealth'],
+  'runway':                ['wealth'],
+  'savings-rate-trend':    ['wealth'],
+  'debt-payoff':           ['wealth'],
+  'financial-health':      ['wealth'],
+  'cash-flow-forecast':    ['wealth'],
+  'what-if':               ['wealth'],
+  'sankey':                ['wealth'],
+  'income-vs-expenses':    ['wealth'],
+  // Time — when you spend / patterns over time
+  'day-of-week':           ['time'],
+  'year-over-year':        ['time'],
+  // Tax
+  'tax-summary':           ['tax'],
+  'tax-prep':              ['tax'],
+  'tax-calc':              ['tax'],
+};
+
+const TAB_LS_KEY = 'monii:reports-active-tab';
+
+function isCardInTab(cardKey: string, tab: ReportsTab): boolean {
+  if (tab === 'all') return true;
+  const tags = CARD_TABS[cardKey];
+  if (!tags) return false;
+  return tags.includes(tab);
+}
+
 export function ReportsPage() {
   const [range, setRange] = useState(3);
+  // Tier 10 #3 — tab grouping. Persisted to localStorage so navigating
+  // away and back doesn't lose the user's tab choice. Stored locally
+  // (not synced) — different devices can independently scope to a
+  // tab depending on context.
+  const [tab, setTab] = useState<ReportsTab>(() => {
+    if (typeof window === 'undefined') return 'all';
+    const v = window.localStorage.getItem(TAB_LS_KEY);
+    return (v === 'spending' || v === 'wealth' || v === 'time' || v === 'tax' || v === 'all') ? v : 'all';
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem(TAB_LS_KEY, tab); } catch { /* private mode */ }
+  }, [tab]);
+
   const txns = useBudget((s) => s.transactions);
   const ious = useBudget((s) => s.settings.iouLedger);
   const reportsOrder = useBudget((s) => s.settings.reportsOrder ?? []);
@@ -54,7 +123,9 @@ export function ReportsPage() {
   };
   function cardStyle(key: string): React.CSSProperties {
     const c = cardCfg(key);
-    return c.hidden ? { display: 'none' } : { order: c.order };
+    if (c.hidden) return { display: 'none' };
+    if (!isCardInTab(key, tab)) return { display: 'none' };
+    return { order: c.order };
   }
 
   return (
@@ -64,7 +135,7 @@ export function ReportsPage() {
         subtitle="Spending · bills · net worth · debt"
       />
       <div className="p-3 sm:p-5 flex flex-col gap-4">
-        <div className="flex items-center gap-2 flex-wrap" style={{ order: -1 }}>
+        <div className="flex items-center gap-2 flex-wrap" style={{ order: -2 }}>
           <span className="text-[12px] text-fg-subtle">Range:</span>
           {RANGES.map((r) => (
             <Button
@@ -81,6 +152,31 @@ export function ReportsPage() {
           >
             <SettingsIcon size={11} /> Customize
           </button>
+        </div>
+
+        {/* Tab strip — Tier 10 #3. Sits beneath the range chips. The
+            "All" tab unscopes (everything visible); the others narrow
+            to a conceptual grouping. */}
+        <div
+          className="flex items-center gap-1 -mx-1 px-1 overflow-x-auto no-scrollbar border-b border-border"
+          style={{ order: -1 }}
+          role="tablist"
+          aria-label="Report categories"
+        >
+          {TAB_LABELS.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+              className={
+                'px-3 py-2 text-[12.5px] font-medium border-b-2 transition whitespace-nowrap '
+                + (tab === t.id
+                  ? 'border-accent text-fg'
+                  : 'border-transparent text-fg-subtle hover:text-fg')
+              }
+            >{t.label}</button>
+          ))}
         </div>
 
         <div className="glass-panel p-4 sm:p-5" style={cardStyle('financial-health')}>

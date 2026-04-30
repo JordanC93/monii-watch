@@ -127,22 +127,30 @@ export function CalendarGridPage() {
                 key={i}
                 disabled={!c.inMonth}
                 onClick={() => c.inMonth && setSelectedDay(c.iso)}
-                className={`bg-surface min-h-[64px] sm:min-h-[88px] p-1.5 sm:p-2 text-left flex flex-col gap-0.5 ${
+                className={`bg-surface min-h-[72px] sm:min-h-[88px] p-1 sm:p-2 text-left flex flex-col gap-0.5 ${
                   c.inMonth ? 'hover:bg-surface-2/40 active:bg-surface-2' : 'opacity-40 cursor-default'
                 }`}
               >
                 {c.inMonth && (
                   <>
-                    <div className="text-[11px] tabular text-fg-subtle">{c.day}</div>
+                    <div className="text-[11px] tabular text-fg-subtle leading-none">{c.day}</div>
                     {(inflow > 0 || outflow > 0) && (
-                      <div className="space-y-0.5 text-[10px] sm:text-[11px] tabular leading-tight">
+                      <div className="space-y-0.5 text-[9.5px] sm:text-[11px] tabular leading-tight">
                         {inflow > 0 && <div className="text-positive truncate">+{fmt(inflow, { showCents: false })}</div>}
                         {outflow > 0 && <div className="text-negative truncate">-{fmt(outflow, { showCents: false })}</div>}
                       </div>
                     )}
                     {dayTxns.length > 0 && (
-                      <div className="text-[9.5px] sm:text-[10px] text-fg-subtle mt-auto">
+                      <div className="text-[9.5px] sm:text-[10px] text-fg-subtle mt-auto hidden sm:block">
                         {dayTxns.length} txn{dayTxns.length === 1 ? '' : 's'}
+                      </div>
+                    )}
+                    {/* On phones we drop the "X txn" line entirely — a small dot
+                        in the bottom-right tells the user "something happened
+                        here" without burning two pixels of text. */}
+                    {dayTxns.length > 0 && (
+                      <div className="sm:hidden mt-auto flex justify-end">
+                        <span className="w-1 h-1 rounded-full bg-fg-subtle/60" aria-hidden />
                       </div>
                     )}
                   </>

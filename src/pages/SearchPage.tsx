@@ -13,7 +13,8 @@ import {
   Flag, AlertCircle, Search as SearchIcon, ArrowDownLeft, ArrowUpRight, ArrowLeftRight,
 } from 'lucide-react';
 import { useBudget } from '../store/budget';
-import { createSavedSearch, deleteSavedSearch } from '../db/repo';
+import { createSavedSearch, deleteSavedSearch, bulkSetCategory } from '../db/repo';
+import { toast } from '../lib/toast';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
@@ -401,43 +402,136 @@ function FilteredList({ list }: { list: Transaction[] }) {
   const categories = useBudget((s) => s.categories);
   const payees = useBudget((s) => s.payees);
   const fmt = useFormatMoney();
+  // Tier 10 #7 — bulk selection + recategorize. The action bar
+  // appears when at least one row is selected; submitting commits
+  // to repo via the existing `bulkSetCategory` (which skips
+  // transfers automatically + atomically). Cleared on commit.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkCatId, setBulkCatId] = useState<string>('');
+
+  function toggle(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function selectAll() {
+    setSelectedIds(new Set(list.map((t) => t.id)));
+  }
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+  function applyBulkCategory() {
+    if (selectedIds.size === 0) return;
+    if (!bulkCatId) return;
+    const ids = Array.from(selectedIds);
+    const targetCat = bulkCatId === '__uncategorized__' ? null : bulkCatId;
+    const { updated, skippedTransfers } = bulkSetCategory(ids, targetCat);
+    const catName = targetCat
+      ? categories.find((c) => c.id === targetCat)?.name ?? 'category'
+      : 'Uncategorized';
+    toast.success(
+      `Recategorized ${updated} transaction${updated === 1 ? '' : 's'} as ${catName}`
+      + (skippedTransfers > 0 ? ` (${skippedTransfers} transfer${skippedTransfers === 1 ? '' : 's'} skipped)` : ''),
+    );
+    clearSelection();
+    setBulkCatId('');
+  }
+
   if (list.length === 0) {
     return <div className="glass-panel p-6 text-[12.5px] text-fg-subtle text-center">No matches. Adjust filters above.</div>;
   }
+  // Visible-set ⇒ scope "select all" to the current filter results.
+  const visibleSelectedCount = list.filter((t) => selectedIds.has(t.id)).length;
+  const allVisibleSelected = visibleSelectedCount === list.length && list.length > 0;
+
   return (
-    <div className="glass-panel p-2">
-      <div className="text-[10.5px] uppercase tracking-wider text-fg-subtle px-2 py-1.5 border-b border-border/50">
-        {list.length} match{list.length === 1 ? '' : 'es'}
-      </div>
-      <div className="divide-y divide-border/40">
-        {list.map((t) => {
-          const acct = accounts.find((a) => a.id === t.accountId);
-          const cat = t.categoryId ? categories.find((c) => c.id === t.categoryId) : null;
-          const payee = t.payeeId ? payees.find((p) => p.id === t.payeeId) : null;
-          return (
-            <Link
-              key={t.id}
-              to={`/accounts/${t.accountId}`}
-              className="grid grid-cols-[80px_1fr_auto] gap-2 py-2 px-2 items-center hover:bg-surface-2/30 rounded"
-            >
-              <div className="text-[11.5px] text-fg-subtle tabular">{t.date}</div>
-              <div className="min-w-0">
-                <div className="text-[13px] font-medium truncate flex items-center gap-1.5">
-                  {payee?.name ?? '—'}
-                  {t.flag && <span className={cn('w-2 h-2 rounded-full', `bg-${t.flag === 'red' ? 'negative' : t.flag === 'green' ? 'positive' : t.flag === 'orange' ? 'warning' : 'accent'}`)} aria-label={`Flagged ${t.flag}`} />}
-                  {t.receiptImageDataUrl && <Receipt size={10} className="text-fg-subtle" aria-label="Has receipt" />}
-                </div>
-                <div className="text-[11px] text-fg-subtle truncate">
-                  {cat?.name ?? 'Uncategorized'} · {acct?.name ?? '?'}{t.memo ? ` · ${t.memo}` : ''}
-                </div>
+    <>
+      {selectedIds.size > 0 && (
+        <div
+          className="sticky top-0 z-20 glass-panel p-2 mb-2 flex flex-wrap items-center gap-2 bg-accent/10 border border-accent/40"
+          role="region"
+          aria-label="Bulk actions"
+        >
+          <span className="text-[12.5px] font-medium">
+            {selectedIds.size} selected
+          </span>
+          <Select
+            value={bulkCatId}
+            onChange={(e) => setBulkCatId(e.target.value)}
+            className="text-[12px]"
+            aria-label="Recategorize as"
+          >
+            <option value="">Recategorize as…</option>
+            <option value="__uncategorized__">— Uncategorized —</option>
+            {categories.filter((c) => !c.hidden).map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </Select>
+          <Button size="sm" onClick={applyBulkCategory} disabled={!bulkCatId}>
+            Apply
+          </Button>
+          <button
+            onClick={clearSelection}
+            className="text-[11.5px] text-fg-subtle hover:text-fg ml-auto"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+      <div className="glass-panel p-2">
+        <div className="text-[10.5px] uppercase tracking-wider text-fg-subtle px-2 py-1.5 border-b border-border/50 flex items-center justify-between gap-2">
+          <span>{list.length} match{list.length === 1 ? '' : 'es'}</span>
+          <button
+            onClick={allVisibleSelected ? clearSelection : selectAll}
+            className="normal-case tracking-normal text-[11px] hover:text-fg"
+          >
+            {allVisibleSelected ? 'Clear all' : `Select all ${list.length}`}
+          </button>
+        </div>
+        <div className="divide-y divide-border/40">
+          {list.map((t) => {
+            const acct = accounts.find((a) => a.id === t.accountId);
+            const cat = t.categoryId ? categories.find((c) => c.id === t.categoryId) : null;
+            const payee = t.payeeId ? payees.find((p) => p.id === t.payeeId) : null;
+            const checked = selectedIds.has(t.id);
+            return (
+              <div
+                key={t.id}
+                className={cn(
+                  'grid grid-cols-[24px_80px_1fr_auto] gap-2 py-2 px-2 items-center hover:bg-surface-2/30 rounded',
+                  checked && 'bg-accent/8',
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggle(t.id)}
+                  aria-label={`Select ${payee?.name ?? 'transaction'}`}
+                  className="cursor-pointer"
+                />
+                <Link to={`/accounts/${t.accountId}`} className="contents">
+                  <div className="text-[11.5px] text-fg-subtle tabular">{t.date}</div>
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-medium truncate flex items-center gap-1.5">
+                      {payee?.name ?? '—'}
+                      {t.flag && <span className={cn('w-2 h-2 rounded-full', `bg-${t.flag === 'red' ? 'negative' : t.flag === 'green' ? 'positive' : t.flag === 'orange' ? 'warning' : 'accent'}`)} aria-label={`Flagged ${t.flag}`} />}
+                      {t.receiptImageDataUrl && <Receipt size={10} className="text-fg-subtle" aria-label="Has receipt" />}
+                    </div>
+                    <div className="text-[11px] text-fg-subtle truncate">
+                      {cat?.name ?? 'Uncategorized'} · {acct?.name ?? '?'}{t.memo ? ` · ${t.memo}` : ''}
+                    </div>
+                  </div>
+                  <div className={cn('text-right tabular text-[13px]', t.amount > 0 ? 'text-positive' : 'text-fg')}>
+                    {fmt(t.amount)}
+                  </div>
+                </Link>
               </div>
-              <div className={cn('text-right tabular text-[13px]', t.amount > 0 ? 'text-positive' : 'text-fg')}>
-                {fmt(t.amount)}
-              </div>
-            </Link>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

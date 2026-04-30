@@ -519,6 +519,22 @@ html[data-theme='glass'] svg.lucide.text-accent {
   opacity: 1;
 }
 
+/* Sandbox-mode visual polish (Tier 10 #4) — rows whose assignments
+ * have been overridden in the sandbox slice get a subtle yellow
+ * background tint + left border so the user can scan the table and
+ * see at a glance which numbers are hypothetical vs. real. The
+ * "SBX" badge next to the assigned input gives a textual cue.
+ *
+ * Scoped to `.sandbox-overridden-row` — never to a Tailwind utility
+ * class (would bleed across the app, see iron rule #18). */
+.sandbox-overridden-row {
+  background-color: rgb(var(--warning) / 0.06);
+  box-shadow: inset 3px 0 0 rgb(var(--warning) / 0.55);
+}
+.sandbox-overridden-row:hover {
+  background-color: rgb(var(--warning) / 0.10);
+}
+
 /* Glass-theme buttons get a subtle vertical pillow (top-light, bottom-dark
  * gradient) so they feel raised, like Apple HIG buttons. Targets accent /
  * primary buttons specifically — secondary buttons stay flat. */
@@ -679,6 +695,27 @@ input[type='number'] { -moz-appearance: textfield; }
   .money-positive, .money-negative, .money-zero { color: black !important; }
   /* Print-only: render category rows as a clean B&W table. */
   .budget-row { border-bottom: 1px solid #ddd !important; padding: 0.4rem 0 !important; }
+
+  /* FIRE plan print mode (Tier 10 #12). Strip chart cards;
+     surface the year-by-year table with tighter margins so the
+     full plan fits on 2-3 pages. */
+  .fire-page .glass-panel {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0.5rem 0 !important;
+    margin-bottom: 0.5rem !important;
+  }
+  .fire-page h1, .fire-page h2 { color: black !important; }
+  .fire-page .text-fg-subtle, .fire-page .text-fg-muted { color: #444 !important; }
+  .fire-page .text-positive, .fire-page .text-warning, .fire-page .text-negative,
+  .fire-page .text-accent {
+    color: black !important;
+  }
+  .fire-page .bg-warning\/10, .fire-page .bg-negative\/10, .fire-page .bg-accent\/15 {
+    background: #f5f5f5 !important;
+  }
+  .fire-page table { page-break-inside: auto; }
+  .fire-page table tr { page-break-inside: avoid; page-break-after: auto; }
 }
 
 /* ---------- Drag-drop hover state (Tier 4 #6) ---------- */

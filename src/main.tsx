@@ -87,6 +87,18 @@ async function bootstrap() {
   // Cheap (~one map walk every 5 minutes), so no harm in always running.
   import('./lib/notify').then((m) => m.startNotificationLoop()).catch(() => {});
 
+  // Tier 10 #9 — auto-backup. No-op when disabled; otherwise downloads
+  // a JSON snapshot if `lastAutoBackupAt + autoBackupDays * 86400s` is
+  // past. Defer one tick so the React tree mounts first (the download
+  // can briefly steal focus on some browsers).
+  setTimeout(() => {
+    void import('./lib/autoBackup').then((m) => {
+      try { m.maybeRunAutoBackup(); } catch (err) {
+        console.warn('[auto-backup] failed', err);
+      }
+    });
+  }, 1500);
+
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <BrowserRouter>

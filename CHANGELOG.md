@@ -2,6 +2,106 @@
 
 ## Unreleased
 
+### v0.6.7 — Tier 10 polish wave (12 items)
+
+A focused QoL pass off the back of v0.6.4. Twelve items, mostly
+"make the existing features feel finished" work — discoverability
+boosts, recovery + safety nets, mobile polish, and the long-promised
+"audit everything" scope expansion.
+
+#### New: "What's new" modal after upgrade (#1)
+- Auto-opens once when `__APP_VERSION__` advances past
+  `Settings.lastSeenVersion`. Curated bullet list per release in
+  `src/components/Modals/WhatsNewModal.tsx → RELEASE_NOTES`.
+- First-time users see nothing (welcome tour wins). On the next
+  upgrade, the modal fires once and stamps the version.
+- "View full changelog" link routes to GitHub for the deep dive.
+
+#### Reports page tabs (#3)
+- New tab strip on `/reports` — All · Spending · Wealth · Time · Tax.
+- Each card declares its tab(s) via the `CARD_TABS` map; the
+  Customize modal still controls hide/order independently.
+- Active tab persists in localStorage (per device — different devices
+  can scope to different tabs depending on context).
+
+#### Sandbox-mode visual polish (#4)
+- Sandbox-overridden budget rows render with a yellow tint + left
+  border + an "SBX" badge next to the assigned input. No more
+  "wait, is this number live or hypothetical?" guessing.
+- BudgetTable is now sandbox-aware: edits while sandbox is active
+  flow into the sandbox slice (the Apply / Discard banner commits
+  or throws them away). The aspirational comment in
+  SandboxControls is now actually true.
+- Read-side overlay also reaches `computeMonthBudget`, so Available
+  / goal status / sparklines / insight bands all reflect the
+  sandbox numbers in real time.
+
+#### Onboarding step for v0.6+ features (#5)
+- New WelcomeModal step "Long-game tools (v0.6+)" lists FIRE
+  planner, workspaces, hard limits, calendar grid, recurring
+  transfer auto-escalation, and the goal price-drop tracker. So
+  users who finish the tour discover the v0.6 surface area.
+
+#### Cross-workspace summary widget (#6)
+- Sidebar's WorkspaceFooter (visible when 2+ workspaces exist) now
+  surfaces a per-workspace net-worth roll-up. The active workspace
+  writes its summary to localStorage on every NW change; other
+  workspaces' last-known summaries persist across reloads.
+- Inactive workspaces show "—" until they've been opened at least
+  once on this device. New `lib/workspaces.ts → readAllWorkspaceSummaries()`.
+
+#### Bulk-recategorize via search (#7)
+- Search results now have row checkboxes + a sticky bulk-action
+  bar. Pick a category, hit Apply — atomically routed through
+  `bulkSetCategory` (transfers + splits skip automatically).
+- "Select all visible" scopes to the current filter. Selection
+  state lives in the page (not the global ui store) so it
+  doesn't bleed.
+
+#### Audit log for ALL mutations (#8)
+- New `Settings.auditLog` (separate from `chatAuditLog`) captures
+  direct edits: account/category/transaction/scheduled deletes,
+  group/category renames, bulk-imports, bulk-recategorizes,
+  category hides.
+- New unified `<AuditLogModal />` merges both sources with filters
+  by source (Chat / Direct / All) and kind (create / update /
+  delete / import). FIFO-pruned at 500 entries for direct, 200 for
+  chat.
+- New `appendAudit(description, kind, entityId?)` helper exported
+  from `db/repo.ts`. Instrumented at the key mutation sites.
+
+#### Auto-backup every N days (#9)
+- New `Settings.autoBackupDays` (off / 7 / 14 / 30) +
+  `lastAutoBackupAt` + `autoBackupHistory` (last 5).
+- New `lib/autoBackup.ts → maybeRunAutoBackup()` runs on app boot.
+  Downloads the snapshot if `now - lastAutoBackupAt > N * 86400s`.
+- New "Auto-backup" panel in Settings → Backup & Import with
+  cadence picker + "Recent backups" history.
+
+#### Mobile audit pass (#10)
+- Calendar grid: tighter cell typography on phones; "X txn" line
+  drops to a small dot under sm breakpoint to save vertical space.
+- FIRE setup form: tighter padding + 1-col stack on phones.
+
+#### Goal contribution auto-deposit (#11)
+- New `ScheduledTransaction.autoAssignCategoryId`. When set, every
+  materialization ALSO bumps that category's monthly assignment by
+  `|amount|` cents.
+- Useful for "$200 from Checking → Savings AND assign $200 to the
+  Vacation envelope" — one scheduled entry handles both the cash
+  movement AND the envelope funding.
+- New "Also assign to envelope" picker in ScheduledModal.
+- Additive (never overwrites a manual assignment); the bump lands
+  in the materialization's month.
+
+#### Print-friendly FIRE plan (#12)
+- New "Print plan" button on `/fire`. Strips the chart card and
+  setup card from the printed page; surfaces a year-by-year
+  projection table with age / net-worth / phase columns.
+- New `@media print` rules in globals.css under `.fire-page`
+  scope. Blacks out theme colors, removes panel backgrounds, and
+  enforces page-break-inside: avoid on the table rows.
+
 ### v0.6.6 — CI fix: split macOS build into per-architecture jobs
 
 The v0.6.4 release CI failed on the macOS step with

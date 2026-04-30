@@ -92,6 +92,11 @@ const DEFAULT_SETTINGS: Settings = {
   billNegotiationPrompts: [],
   subscriptionUsagePrompts: [],
   overdraftBannerDismissedAt: 0,
+  lastSeenVersion: '',
+  auditLog: [],
+  autoBackupDays: 0,
+  lastAutoBackupAt: 0,
+  autoBackupHistory: [],
 };
 
 /** Internal tag we add to category names to identify auto-created credit-card payment categories. */
@@ -133,6 +138,37 @@ export function getSettings(): Settings {
 
 export function setSettingsField<K extends keyof Settings>(key: K, value: Settings[K]): void {
   tx(() => settingsMap().set(key, value));
+}
+
+/**
+ * Tier 10 #8 — append a direct-edit entry to `Settings.auditLog`. FIFO
+ * pruned at 500. Distinct from `chatAuditLog` which is the chat-only
+ * source. The unified Audit Log modal merges both.
+ *
+ * Caller is OUTSIDE `tx()`; this function wraps its own transaction.
+ * Skipping this from inside `tx()` is fine — the inner write will
+ * just be part of the outer transaction.
+ *
+ * Description should be short + human-readable. Include the entity's
+ * name (not its id) so the log reads like a journal — "Renamed
+ * Groceries → Food," not "Updated cat-abc123."
+ */
+export function appendAudit(
+  description: string,
+  kind: 'create' | 'update' | 'delete' | 'import' | 'export' | 'other' = 'update',
+  entityId?: string,
+): void {
+  const sm = settingsMap();
+  const existing = (sm.get('auditLog') as Settings['auditLog'] | undefined) ?? [];
+  const next = [...existing, {
+    id: newId(),
+    at: Date.now(),
+    description: description.slice(0, 240),
+    kind,
+    entityId,
+  }];
+  while (next.length > 500) next.shift();
+  sm.set('auditLog', next);
 }
 
 // -- Accounts -------------------------------------------------------------
@@ -229,6 +265,7 @@ export function closeAccount(id: string): void { updateAccount(id, { closed: tru
 export function reopenAccount(id: string): void { updateAccount(id, { closed: false }); }
 
 export function deleteAccount(id: string): void {
+  const acct = accountsMap().get(id);
   tx(() => {
     // Delete all transactions in this account
     const toDelete: string[] = [];
@@ -246,6 +283,13 @@ export function deleteAccount(id: string): void {
       txnsMap().delete(tid);
     }
     accountsMap().delete(id);
+    if (acct) {
+      appendAudit(
+        `Deleted account ${acct.name} (${toDelete.length} txn${toDelete.length === 1 ? '' : 's'})`,
+        'delete',
+        id,
+      );
+    }
   });
 }
 
@@ -273,6 +317,9 @@ export function updateGroup(id: string, patch: Partial<CategoryGroup>): void {
     const cur = groupsMap().get(id);
     if (!cur) return;
     groupsMap().set(id, { ...cur, ...patch });
+    if (patch.name && patch.name !== cur.name) {
+      appendAudit(`Renamed group ${cur.name} → ${patch.name}`, 'update', id);
+    }
   });
 }
 
@@ -324,10 +371,16 @@ export function updateCategory(id: string, patch: Partial<Category>): void {
     const cur = categoriesMap().get(id);
     if (!cur) return;
     categoriesMap().set(id, { ...cur, ...patch });
+    if (patch.name && patch.name !== cur.name) {
+      appendAudit(`Renamed category ${cur.name} → ${patch.name}`, 'update', id);
+    } else if (patch.hidden === true && !cur.hidden) {
+      appendAudit(`Hid category ${cur.name}`, 'update', id);
+    }
   });
 }
 
 export function deleteCategory(id: string): void {
+  const cat = categoriesMap().get(id);
   tx(() => {
     // Clear category from any transactions that referenced it.
     txnsMap().forEach((t, tid) => {
@@ -346,6 +399,7 @@ export function deleteCategory(id: string): void {
     aMap.forEach((a, k) => { if (a.categoryId === id) toDel.push(k); });
     for (const k of toDel) aMap.delete(k);
     categoriesMap().delete(id);
+    if (cat) appendAudit(`Deleted category ${cat.name}`, 'delete', id);
   });
 }
 
@@ -640,6 +694,12 @@ export function deleteTransaction(id: string): void {
       txnsMap().delete(t.transferTransactionId);
     }
     txnsMap().delete(id);
+    const payee = t.payeeId ? payeesMap().get(t.payeeId) : null;
+    appendAudit(
+      `Deleted transaction ${payee?.name ?? '—'} ${t.date}`,
+      'delete',
+      id,
+    );
   });
 }
 
@@ -674,6 +734,9 @@ export function bulkCreateTransactions(inputs: TxnInput[]): { created: number; i
       const t = createTransaction(input);
       created.push(t.id);
     }
+    if (created.length > 0) {
+      appendAudit(`Imported ${created.length} transaction${created.length === 1 ? '' : 's'}`, 'import');
+    }
   });
   return { created: created.length, ids: created };
 }
@@ -687,6 +750,9 @@ export function bulkDeleteTransactions(ids: string[]): { deleted: number } {
       if (t.transferTransactionId) txnsMap().delete(t.transferTransactionId);
       txnsMap().delete(id);
       deleted++;
+    }
+    if (deleted > 0) {
+      appendAudit(`Bulk-deleted ${deleted} transaction${deleted === 1 ? '' : 's'}`, 'delete');
     }
   });
   return { deleted };
@@ -703,6 +769,12 @@ export function bulkSetCategory(ids: string[], categoryId: string | null): { upd
       if (t.splits.length > 0) { skippedTransfers++; continue; }
       txnsMap().set(id, { ...t, categoryId, updatedAt: Date.now() });
       updated++;
+    }
+    if (updated > 0) {
+      const catName = categoryId
+        ? categoriesMap().get(categoryId)?.name ?? 'category'
+        : 'Uncategorized';
+      appendAudit(`Bulk-recategorized ${updated} txn${updated === 1 ? '' : 's'} → ${catName}`, 'update');
     }
   });
   return { updated, skippedTransfers };
@@ -945,6 +1017,8 @@ export type ScheduledInput = {
   endDate?: string | null;
   /** Tier 9 #5 — annual auto-escalation as decimal (0.03 = +3%/yr). */
   escalationPctPerYear?: number;
+  /** Tier 10 #11 — auto-deposit assignment target. */
+  autoAssignCategoryId?: string;
 };
 
 export function createScheduled(input: ScheduledInput): ScheduledTransaction {
@@ -968,6 +1042,7 @@ export function createScheduled(input: ScheduledInput): ScheduledTransaction {
     lastRunAt: null,
     paused: false,
     escalationPctPerYear: input.escalationPctPerYear,
+    autoAssignCategoryId: input.autoAssignCategoryId,
     createdAt: now,
     updatedAt: now,
   };
@@ -996,7 +1071,14 @@ export function updateScheduled(
 }
 
 export function deleteScheduled(id: string): void {
-  tx(() => { scheduledMap().delete(id); });
+  const cur = scheduledMap().get(id);
+  tx(() => {
+    scheduledMap().delete(id);
+    if (cur) {
+      const payee = cur.payeeId ? payeesMap().get(cur.payeeId) : null;
+      appendAudit(`Deleted scheduled ${payee?.name ?? '(unnamed)'}`, 'delete', id);
+    }
+  });
 }
 
 export function setScheduledPaused(id: string, paused: boolean): void {
@@ -1088,6 +1170,16 @@ function materializeOne(sched: ScheduledTransaction, date: string): void {
     txnsMap().set(id, { ...baseTxn, transferTransactionId: partnerId, payeeId: null });
   } else {
     txnsMap().set(id, baseTxn);
+  }
+  // Tier 10 #11 — goal contribution auto-deposit. When the user
+  // wires a scheduled transfer to also fund an envelope, bump the
+  // assignment for the target category by the absolute amount in
+  // the month of the materialization. Additive, never overwrites.
+  if (sched.autoAssignCategoryId) {
+    const targetCat = categoriesMap().get(sched.autoAssignCategoryId);
+    if (targetCat) {
+      adjustAssignment(date.slice(0, 7), sched.autoAssignCategoryId, Math.abs(escalatedAmount));
+    }
   }
   // Tier 6 #1 — paycheck rules fire when scheduled income materializes.
   // Same gating as createTransaction: positive, on-budget, not a transfer.

@@ -9,6 +9,9 @@ import { computeAccountBalances, computeNetWorth } from '../../domain/budget';
 import { useEffect, useRef, useState } from 'react';
 import { onSyncStatus, type SyncStatus, peerCount } from '../../sync/provider';
 import { useFormatMoney, formatInCurrency } from '../../lib/format';
+import {
+  getActiveWorkspaceId, listWorkspaces, readAllWorkspaceSummaries, writeWorkspaceSummary,
+} from '../../lib/workspaces';
 
 // Persisted UI preferences for the sidebar — local-per-device.
 function readSidebarWidth(): number {
@@ -81,6 +84,19 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   const [sync, setSync] = useState<SyncStatus>('idle');
   useEffect(() => onSyncStatus((s) => setSync(s)), []);
+
+  // Tier 10 #6 — write the active workspace's summary on every NW
+  // change so the cross-workspace widget on OTHER workspaces sees
+  // up-to-date numbers next time they're opened. Cheap call; only
+  // touches localStorage when the value actually changes.
+  useEffect(() => {
+    const wsId = getActiveWorkspaceId();
+    writeWorkspaceSummary(wsId, {
+      netWorth: networth.total,
+      currency: settings.currency || 'USD',
+      updatedAt: Date.now(),
+    });
+  }, [networth.total, settings.currency]);
 
   const handleClick = () => onNavigate?.();
 
@@ -202,23 +218,22 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
  */
 function WorkspaceFooter({ onClick }: { onClick: () => void }) {
   const openModal = useUI((s) => s.openModal);
+  const fmt = useFormatMoney();
   // Re-read on every render — workspaces are localStorage, no Yjs hook
   // needed. Cheap call.
-  const all = (() => {
-    try {
-      const raw = localStorage.getItem('monii:workspaces');
-      const list: Array<{ id: string; label: string; dbName: string }> = raw ? JSON.parse(raw) : [];
-      const def = { id: 'default', label: 'Personal', dbName: 'monii-watch-doc-v1' };
-      return list.some((w) => w.id === 'default') ? list : [def, ...list];
-    } catch { return [{ id: 'default', label: 'Personal', dbName: 'monii-watch-doc-v1' }]; }
-  })();
-  const activeName = (() => {
-    try {
-      const stored = localStorage.getItem('monii:active-workspace');
-      const ws = all.find((w) => w.dbName === stored);
-      return ws?.label ?? all[0]?.label ?? 'Personal';
-    } catch { return 'Personal'; }
-  })();
+  const all = listWorkspaces();
+  const activeId = getActiveWorkspaceId();
+  const active = all.find((w) => w.id === activeId);
+  const activeName = active?.label ?? 'Personal';
+
+  // Cross-workspace summary (Tier 10 #6). Only meaningful when 2+
+  // workspaces exist; even then, only renders rows for OTHER
+  // workspaces (the active one is shown elsewhere). Stale-data
+  // friendly — each row has its own updatedAt.
+  const summaries = readAllWorkspaceSummaries();
+  const others = all.filter((w) => w.id !== activeId);
+  const otherTotal = others.reduce((sum, w) => sum + (summaries[w.id]?.netWorth ?? 0), 0);
+
   if (all.length < 2) {
     // Show small "+ workspace" link instead of switcher when only one.
     return (
@@ -232,17 +247,49 @@ function WorkspaceFooter({ onClick }: { onClick: () => void }) {
     );
   }
   return (
-    <button
-      onClick={() => { openModal({ type: 'workspaces' }); onClick(); }}
-      className="border-t border-border px-3 py-2 flex items-center gap-2 text-[12px] hover:bg-surface-2/40 w-full text-left"
-    >
-      <Briefcase size={12} className="text-accent" />
-      <div className="flex-1 min-w-0">
-        <div className="text-[10px] uppercase tracking-wider text-fg-subtle">Workspace</div>
-        <div className="font-medium truncate">{activeName}</div>
-      </div>
-      <ChevronRight size={12} className="text-fg-subtle" />
-    </button>
+    <div className="border-t border-border">
+      <button
+        onClick={() => { openModal({ type: 'workspaces' }); onClick(); }}
+        className="px-3 py-2 flex items-center gap-2 text-[12px] hover:bg-surface-2/40 w-full text-left"
+      >
+        <Briefcase size={12} className="text-accent" />
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] uppercase tracking-wider text-fg-subtle">Workspace</div>
+          <div className="font-medium truncate">{activeName}</div>
+        </div>
+        <ChevronRight size={12} className="text-fg-subtle" />
+      </button>
+
+      {/* All-workspaces rollup — only when there's at least one other
+          workspace summary cached. Inactive workspaces won't have a
+          summary until they've been opened at least once on this
+          device, which is the right model. */}
+      {others.length > 0 && (
+        <div className="px-3 pb-2 text-[10.5px] text-fg-subtle">
+          <div className="flex items-center justify-between">
+            <span className="uppercase tracking-wider">All workspaces</span>
+            <span className="tabular text-fg-muted">{fmt(otherTotal + (summaries[activeId]?.netWorth ?? 0))}</span>
+          </div>
+          <ul className="mt-1 space-y-0.5">
+            {all.map((w) => {
+              const s = summaries[w.id];
+              const isActive = w.id === activeId;
+              return (
+                <li key={w.id} className="flex items-center justify-between gap-2">
+                  <span className="truncate">
+                    {isActive && <span className="text-accent">●</span>}{' '}
+                    {w.label}
+                  </span>
+                  <span className="tabular text-fg-muted">
+                    {s ? fmt(s.netWorth) : <span className="text-fg-subtle/70 italic">—</span>}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 

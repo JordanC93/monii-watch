@@ -12,7 +12,7 @@
  */
 
 import { useMemo, useState, lazy, Suspense } from 'react';
-import { Flame, TrendingUp, AlertTriangle, ChevronRight, Settings as Cog } from 'lucide-react';
+import { Flame, TrendingUp, AlertTriangle, ChevronRight, Settings as Cog, Printer } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { useUI } from '../store/ui';
 import { setSettingsField } from '../db/repo';
@@ -94,14 +94,36 @@ function FirePageContent({ inputs, netWorth, annualContribution }: {
   const onTrack = projection.netWorthAtRetirement >= target.fireNumber25x;
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto fire-page">
       <MobilePageHeader
         title="FIRE planner"
         subtitle={`Age ${inputs.currentAge} · Target ${inputs.targetRetirementAge} (${yearsLeft} yrs)`}
       />
 
       <div className="p-3 sm:p-5 space-y-4">
-        <FireSetupCard collapsed />
+        {/* Print button — Tier 10 #12. Triggers the OS print
+            dialog with our @media print stylesheet which strips
+            the chart + setup card and lays out the numbers as
+            a tidy one-pager. */}
+        <div className="flex justify-end print:hidden">
+          <Button size="sm" variant="secondary" onClick={() => window.print()}>
+            <Printer size={13} /> Print plan
+          </Button>
+        </div>
+
+        <div className="print:hidden">
+          <FireSetupCard collapsed />
+        </div>
+
+        {/* Print-only header — visible only when @media print kicks in. */}
+        <div className="hidden print:block print-header">
+          <h1 className="text-2xl font-bold mb-1">FIRE Plan</h1>
+          <div className="text-sm">
+            Age {inputs.currentAge} → {inputs.targetRetirementAge} ({yearsLeft} years to go) ·
+            Generated {new Date().toLocaleDateString()}
+          </div>
+          <hr className="mt-2 mb-4 border-black" />
+        </div>
 
         {/* Your FIRE numbers */}
         <div className="glass-panel p-4 sm:p-5">
@@ -182,8 +204,10 @@ function FirePageContent({ inputs, netWorth, annualContribution }: {
           )}
         </div>
 
-        {/* Monte Carlo chart */}
-        <div className="glass-panel p-4 sm:p-5">
+        {/* Monte Carlo chart — hidden in print since charts don't
+            translate well to monochrome. The numbers above already
+            cover the key takeaway. */}
+        <div className="glass-panel p-4 sm:p-5 print:hidden">
           <div className="text-[14px] font-semibold mb-1">Monte Carlo simulation</div>
           <div className="text-[11.5px] text-fg-subtle mb-3">
             {monte.trials} runs at {Math.round(inputs.expectedReturnPct * 100)}% mean / {Math.round(inputs.expectedStdevPct * 100)}% stdev.
@@ -198,6 +222,37 @@ function FirePageContent({ inputs, netWorth, annualContribution }: {
               fireNumber={target.fireNumber25x}
             />
           </Suspense>
+        </div>
+
+        {/* Print-only year-by-year table — visible only when printed.
+            Gives the reader the same data the chart shows but in a
+            format that copies cleanly to paper. */}
+        <div className="hidden print:block">
+          <h2 className="text-base font-semibold mb-2 mt-4">Year-by-year projection</h2>
+          <table className="w-full text-[11px] tabular border-collapse">
+            <thead>
+              <tr className="border-b border-black">
+                <th className="text-left py-1">Age</th>
+                <th className="text-right py-1">Net worth</th>
+                <th className="text-left py-1 pl-3">Phase</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projection.yearly.map((nw, idx) => {
+                const age = inputs.currentAge + idx;
+                const phase = age < inputs.targetRetirementAge
+                  ? 'Working'
+                  : 'Retirement';
+                return (
+                  <tr key={age} className="border-b border-black/20">
+                    <td className="py-1">{age}</td>
+                    <td className="py-1 text-right">{fmt(nw)}</td>
+                    <td className="py-1 pl-3">{phase}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
 
         {/* Withdrawal sequencing */}
@@ -258,7 +313,7 @@ function FireSetupCard({ collapsed = false }: { collapsed?: boolean }) {
   }
 
   return (
-    <div className="glass-panel p-4 sm:p-5 space-y-3">
+    <div className="glass-panel p-3 sm:p-5 space-y-2.5 sm:space-y-3">
       <div className="text-[14px] font-semibold flex items-center gap-1.5">
         <Cog size={14} /> FIRE assumptions
       </div>
@@ -267,7 +322,7 @@ function FireSetupCard({ collapsed = false }: { collapsed?: boolean }) {
         automatically.
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
         <SetupField label="Your current age">
           <Input
             type="number"

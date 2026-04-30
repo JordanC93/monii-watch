@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronRight, Plus, Target, GripVertical } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Target, GripVertical, FlaskConical } from 'lucide-react';
 import { useBudget } from '../../store/budget';
 import { useUI } from '../../store/ui';
+import { useSandbox } from '../../store/sandbox';
 import { computeMonthBudgetCached as computeMonthBudget } from '../../domain/budgetCache';
 import { computeGoalProgress } from '../../domain/goals';
 import { Money } from '../ui/Money';
@@ -17,7 +18,7 @@ import {
   setAssignment, updateGroup, reorderGroups, reorderCategoriesInGroup, moveCategory,
 } from '../../db/repo';
 import { cn } from '../../lib/cn';
-import type { Category, CategoryGroup } from '../../domain/types';
+import type { Category, CategoryGroup, Money as MoneyCents } from '../../domain/types';
 
 /**
  * DragState describes what the user is currently dragging. Lives in
@@ -49,9 +50,56 @@ export function BudgetTable() {
   const month = useBudget((s) => s.selectedMonth);
   const openModal = useUI((s) => s.openModal);
 
+  // Sandbox-mode visual polish (Tier 10 #4) — when sandbox is
+  // active, assignment edits land on the sandbox slice instead of
+  // the live store, and cells with overlays render with a yellow
+  // tint so it's clear what's hypothetical vs. real.
+  const sandboxActive = useSandbox((s) => s.active);
+  const sandboxAssignments = useSandbox((s) => s.assignments);
+  const sandboxUpsertAssignment = useSandbox((s) => s.upsertAssignment);
+
+  // Build a lookup of overlay-affected (month × category) → assigned
+  // cents that bridges the sandbox slice into the table without
+  // rerouting through repo. Reads from sandbox first, falls back to
+  // live assignment via the `assignments` array. Only meaningful when
+  // sandbox is active; otherwise empty so the table behaves normally.
+  const sandboxOverlay = useMemo<Map<string, MoneyCents>>(() => {
+    if (!sandboxActive) return new Map();
+    const m = new Map<string, MoneyCents>();
+    for (const a of sandboxAssignments) {
+      if (a.month !== month) continue;
+      m.set(a.categoryId, a.assigned);
+    }
+    return m;
+  }, [sandboxActive, sandboxAssignments, month]);
+
+  // Effective assignments seen by computeMonthBudget. Replaces live
+  // entries with sandbox overlays for the active month so all
+  // downstream math (Available, goal status, sparklines, insight
+  // bands) reflects the hypothetical numbers in real time.
+  const effectiveAssignments = useMemo(() => {
+    if (sandboxOverlay.size === 0) return assignments;
+    const out = assignments.slice();
+    for (let i = 0; i < out.length; i++) {
+      const a = out[i];
+      if (a.month !== month) continue;
+      const overlay = sandboxOverlay.get(a.categoryId);
+      if (overlay !== undefined && overlay !== a.assigned) {
+        out[i] = { ...a, assigned: overlay };
+      }
+    }
+    // Add overlays for categories that don't have a live assignment yet.
+    const seen = new Set(out.filter((a) => a.month === month).map((a) => a.categoryId));
+    for (const [catId, assigned] of sandboxOverlay) {
+      if (seen.has(catId)) continue;
+      out.push({ id: `${month}|${catId}`, month, categoryId: catId, assigned });
+    }
+    return out;
+  }, [assignments, sandboxOverlay, month]);
+
   const monthBudget = useMemo(
-    () => computeMonthBudget(accounts, categories, txns, assignments, month),
-    [accounts, categories, txns, assignments, month],
+    () => computeMonthBudget(accounts, categories, txns, effectiveAssignments, month),
+    [accounts, categories, txns, effectiveAssignments, month],
   );
 
   const visibleGroups = groups.filter((g) => !g.hidden);
@@ -178,6 +226,15 @@ export function BudgetTable() {
           setDrag={setDrag}
           onGroupDrop={onGroupDrop}
           onCategoryDrop={onCategoryDrop}
+          sandboxActive={sandboxActive}
+          sandboxOverlay={sandboxOverlay}
+          onCommitAssignment={(catId, value) => {
+            if (sandboxActive) {
+              sandboxUpsertAssignment({ month, categoryId: catId, assigned: value });
+            } else {
+              setAssignment(month, catId, value);
+            }
+          }}
         />
       ))}
 
@@ -196,6 +253,7 @@ export function BudgetTable() {
 function BudgetGroupRow({
   group, categories, monthBudget, onEdit, onAddCategory,
   drag, setDrag, onGroupDrop, onCategoryDrop,
+  sandboxActive, sandboxOverlay, onCommitAssignment,
 }: {
   group: CategoryGroup;
   categories: Category[];
@@ -206,6 +264,9 @@ function BudgetGroupRow({
   setDrag: (d: DragState) => void;
   onGroupDrop: (targetGroupId: string) => void;
   onCategoryDrop: (targetGroupId: string, targetCategoryId: string | null) => void;
+  sandboxActive: boolean;
+  sandboxOverlay: Map<string, MoneyCents>;
+  onCommitAssignment: (categoryId: string, value: MoneyCents) => void;
 }) {
   const collapsed = group.collapsed;
   const totals = categories.reduce(
@@ -285,6 +346,9 @@ function BudgetGroupRow({
           drag={drag}
           setDrag={setDrag}
           onCategoryDrop={onCategoryDrop}
+          sandboxActive={sandboxActive}
+          isSandboxOverridden={sandboxOverlay.has(c.id)}
+          onCommitAssignment={onCommitAssignment}
         />
       ))}
 
@@ -314,17 +378,23 @@ const BudgetCategoryRow = memo(BudgetCategoryRowImpl, (prev, next) => {
     && prev.activity === next.activity
     && prev.available === next.available
     && prev.drag === next.drag
+    && prev.sandboxActive === next.sandboxActive
+    && prev.isSandboxOverridden === next.isSandboxOverridden
   );
 });
 
 function BudgetCategoryRowImpl({
   category, assigned, activity, available, drag, setDrag, onCategoryDrop,
+  sandboxActive, isSandboxOverridden, onCommitAssignment,
 }: {
   category: Category;
   assigned: number; activity: number; available: number;
   drag: DragState;
   setDrag: (d: DragState) => void;
   onCategoryDrop: (targetGroupId: string, targetCategoryId: string) => void;
+  sandboxActive: boolean;
+  isSandboxOverridden: boolean;
+  onCommitAssignment: (categoryId: string, value: MoneyCents) => void;
 }) {
   const month = useBudget((s) => s.selectedMonth);
   const openModal = useUI((s) => s.openModal);
@@ -363,6 +433,11 @@ function BudgetCategoryRowImpl({
         'border-b border-border/60 hover:bg-surface-2/30',
         isBeingDragged && 'opacity-50',
         isDropTarget && 'border-t-2 border-t-accent',
+        // Sandbox polish (Tier 10 #4) — yellow tint on rows the user
+        // has overridden in the sandbox slice. Distinct from the
+        // banner so it's clear at-a-glance which numbers are
+        // hypothetical vs. real.
+        sandboxActive && isSandboxOverridden && 'sandbox-overridden-row',
       )}
     >
       {/* Desktop layout */}
@@ -410,10 +485,18 @@ function BudgetCategoryRowImpl({
         <div className="px-1 py-0.5 flex items-center gap-0.5">
           <MoneyInput
             value={assigned}
-            onCommit={(v) => setAssignment(month, category.id, v)}
+            onCommit={(v) => onCommitAssignment(category.id, v)}
             cellGroup="assigned"
             className="w-full"
           />
+          {sandboxActive && isSandboxOverridden && (
+            <span
+              className="ml-1 inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-warning/20 text-warning text-[9.5px] uppercase tracking-wider"
+              title="Sandbox override — not yet applied to your live budget"
+            >
+              <FlaskConical size={9} /> SBX
+            </span>
+          )}
           <AssignmentMemo month={month} categoryId={category.id} memo={memo} />
         </div>
         <div className="px-3 py-1.5 text-right tabular text-[12.5px] flex items-center justify-end gap-1.5">
@@ -527,9 +610,17 @@ function BudgetCategoryRowImpl({
           </button>
           <MoneyInput
             value={assigned}
-            onCommit={(v) => setAssignment(month, category.id, v)}
+            onCommit={(v) => onCommitAssignment(category.id, v)}
             className="w-[110px]"
           />
+          {sandboxActive && isSandboxOverridden && (
+            <span
+              className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-warning/20 text-warning text-[9.5px] uppercase tracking-wider"
+              title="Sandbox override — not yet applied to your live budget"
+            >
+              <FlaskConical size={9} /> SBX
+            </span>
+          )}
         </div>
       </div>
     </div>

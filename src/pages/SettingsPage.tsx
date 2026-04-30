@@ -465,6 +465,8 @@ export function SettingsPage() {
         </div>
         {importMsg && <div className="text-[12px] mt-2 text-fg-muted">{importMsg}</div>}
         <input ref={fileRef} type="file" accept="application/json,.cb-backup" onChange={onFile} className="hidden" />
+
+        <AutoBackupSettings />
       </Section>
 
       <Section title="Danger zone">
@@ -983,6 +985,71 @@ function MoneyColorToggle() {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Auto-backup settings (Tier 10 #9). Lets the user pick a cadence
+ * (off / 7 / 14 / 30 days) and shows the most recent five backups.
+ * The actual download happens on app boot via `lib/autoBackup.ts`.
+ */
+function AutoBackupSettings() {
+  const days = useBudget((s) => s.settings.autoBackupDays ?? 0);
+  const lastAt = useBudget((s) => s.settings.lastAutoBackupAt ?? 0);
+  const history = useBudget((s) => s.settings.autoBackupHistory ?? []);
+
+  const options: Array<{ days: number; label: string }> = [
+    { days: 0, label: 'Off' },
+    { days: 7, label: 'Weekly' },
+    { days: 14, label: 'Every 2 weeks' },
+    { days: 30, label: 'Monthly' },
+  ];
+
+  function nextLabel(): string {
+    if (!days) return '';
+    const next = (lastAt || Date.now()) + days * 86400 * 1000;
+    const d = new Date(next);
+    return `Next: ${d.toLocaleDateString()}`;
+  }
+
+  return (
+    <div className="mt-4 border-t border-border pt-3">
+      <div className="text-[12px] font-medium mb-1">Auto-backup</div>
+      <div className="text-[11.5px] text-fg-subtle mb-2 leading-snug">
+        Set-and-forget. On app launch, downloads a JSON snapshot if the
+        last backup is older than the chosen interval. Set to <strong>Off</strong>{' '}
+        to disable. {days > 0 && <span className="text-fg-muted">{nextLabel()}</span>}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {options.map((o) => (
+          <button
+            key={o.days}
+            onClick={() => setSettingsField('autoBackupDays', o.days)}
+            className={`text-left rounded-lg border-2 p-2 transition ${
+              days === o.days ? 'border-accent' : 'border-border hover:border-border-strong'
+            }`}
+          >
+            <div className="font-medium text-[12.5px]">{o.label}</div>
+            <div className="text-[10.5px] text-fg-subtle">
+              {o.days === 0 ? 'Manual export only' : `Every ${o.days} day${o.days === 1 ? '' : 's'}`}
+            </div>
+          </button>
+        ))}
+      </div>
+      {history.length > 0 && (
+        <div className="mt-3">
+          <div className="text-[11px] uppercase tracking-wider text-fg-subtle mb-1">Recent backups</div>
+          <ul className="text-[11.5px] text-fg-muted space-y-0.5">
+            {[...history].sort((a, b) => b.at - a.at).map((h) => (
+              <li key={h.at} className="flex justify-between gap-2">
+                <span className="truncate">{h.filename}</span>
+                <span className="tabular text-fg-subtle">{new Date(h.at).toLocaleString()}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

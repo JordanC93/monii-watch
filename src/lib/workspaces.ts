@@ -128,6 +128,9 @@ export async function deleteWorkspace(workspaceId: string): Promise<void> {
       setTimeout(finish, 3000);
     } catch { finish(); }
   });
+  // Clear any cached cross-workspace summary so the widget doesn't
+  // show stale data for a workspace that no longer exists.
+  clearWorkspaceSummary(workspaceId);
   // If we just deleted the active workspace, switch to default.
   if (getActiveWorkspaceId() === workspaceId) {
     switchWorkspace('default');
@@ -149,4 +152,59 @@ export function renameWorkspace(workspaceId: string, label: string): void {
   const cur = listWorkspaces();
   const next = cur.map((w) => w.id === workspaceId ? { ...w, label: label.trim() || w.label } : w);
   try { localStorage.setItem(REGISTRY_KEY, JSON.stringify(next)); } catch {}
+}
+
+// ---------------------------------------------------------------------------
+// Cross-workspace summary (Tier 10 #6).
+//
+// Each workspace knows its OWN net worth + on-budget liquid balance,
+// but the sidebar widget needs to summarize ALL workspaces. Since we
+// can't open every workspace's IndexedDB at once (and don't want
+// to), each workspace's app instance writes its summary to
+// localStorage on every Yjs observer fire. The widget reads all
+// summaries and renders a roll-up.
+//
+// Stored under a single key as `Record<workspaceId, Summary>` to
+// keep localStorage tidy. Summaries persist across reloads — an
+// inactive workspace's last-known summary stays visible until that
+// workspace is opened again. Stale data is normal and OK; the
+// widget shows the timestamp so the user knows.
+
+const SUMMARY_KEY = 'monii:workspace-summaries';
+
+export type WorkspaceSummary = {
+  /** Net worth in cents (budget currency of THAT workspace). */
+  netWorth: number;
+  /** ISO 4217 of the workspace's budget currency. */
+  currency: string;
+  /** Unix ms when this summary was last written. */
+  updatedAt: number;
+};
+
+export function readAllWorkspaceSummaries(): Record<string, WorkspaceSummary> {
+  try {
+    const raw = localStorage.getItem(SUMMARY_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, WorkspaceSummary>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function writeWorkspaceSummary(workspaceId: string, summary: WorkspaceSummary): void {
+  try {
+    const all = readAllWorkspaceSummaries();
+    all[workspaceId] = summary;
+    localStorage.setItem(SUMMARY_KEY, JSON.stringify(all));
+  } catch {}
+}
+
+/** Strip a workspace's summary entry — call this from `deleteWorkspace`. */
+export function clearWorkspaceSummary(workspaceId: string): void {
+  try {
+    const all = readAllWorkspaceSummaries();
+    if (workspaceId in all) {
+      delete all[workspaceId];
+      localStorage.setItem(SUMMARY_KEY, JSON.stringify(all));
+    }
+  } catch {}
 }

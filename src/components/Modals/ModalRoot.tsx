@@ -35,6 +35,8 @@ import { UninstallModal } from './UninstallModal';
 import { BillSplitModal } from './BillSplitModal';
 import { WorkspacesModal } from './WorkspacesModal';
 import { GoalPriceUpdateModal } from './GoalPriceUpdateModal';
+import { WhatsNewModal } from './WhatsNewModal';
+import { AuditLogModal } from './AuditLogModal';
 
 export function ModalRoot() {
   const modal = useUI((s) => s.modal);
@@ -79,6 +81,8 @@ export function ModalRoot() {
     case 'billSplit':     return <BillSplitModal open onClose={close} />;
     case 'workspaces':    return <WorkspacesModal open onClose={close} />;
     case 'goalPriceUpdate': return <GoalPriceUpdateModal open onClose={close} categoryId={modal.categoryId} />;
+    case 'whatsNew':      return <WhatsNewModal open onClose={close} />;
+    case 'auditLog':      return <AuditLogModal open onClose={close} />;
     default: return null;
   }
 }

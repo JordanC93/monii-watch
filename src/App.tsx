@@ -183,6 +183,7 @@ export default function App() {
 
   // Show the welcome tour on first run only.
   const onboardingCompleted = useBudget((s) => s.settings.onboardingCompleted);
+  const lastSeenVersion = useBudget((s) => s.settings.lastSeenVersion);
   const yearInReviewShownFor = useBudget((s) => s.settings.yearInReviewShownFor);
   const monthlyReviewLastShown = useBudget((s) => s.settings.monthlyReviewLastShown);
   const vacationMode = useBudget((s) => s.settings.vacationMode);
@@ -261,6 +262,31 @@ export default function App() {
       openModal({ type: 'welcome' });
     }
   }, [onboardingCompleted, openModal, currentModal]);
+
+  // What's new (Tier 10 #1) — auto-fire after onboarding finishes
+  // when the build version has advanced past `lastSeenVersion`.
+  // Empty `lastSeenVersion` means first-ever boot — suppress so the
+  // welcome tour wins; we'll stamp the current version below for
+  // the next upgrade.
+  useEffect(() => {
+    if (!onboardingCompleted || currentModal !== null) return;
+    if (!lastSeenVersion) {
+      // Stamp once so the next upgrade triggers the modal.
+      void import('./components/Modals/WhatsNewModal').then(() => {
+        setSettingsField('lastSeenVersion', __APP_VERSION__);
+      });
+      return;
+    }
+    if (lastSeenVersion === __APP_VERSION__) return;
+    void import('./components/Modals/WhatsNewModal').then((m) => {
+      if (m.pickReleaseEntry(__APP_VERSION__) !== null) {
+        openModal({ type: 'whatsNew' });
+      } else {
+        // No notes for this build — silently advance the marker.
+        setSettingsField('lastSeenVersion', __APP_VERSION__);
+      }
+    });
+  }, [onboardingCompleted, lastSeenVersion, currentModal, openModal]);
 
   // Year-in-review auto-open. Trigger conditions:
   //   - It's after Jan 5 of the current year (give the user a few days

@@ -47,6 +47,12 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
   const [escalationPctText, setEscalationPctText] = useState(
     existing?.escalationPctPerYear ? (existing.escalationPctPerYear * 100).toString() : '',
   );
+  // Tier 10 #11 — goal contribution auto-deposit. Each materialization
+  // bumps the assignment for this category. Most useful for transfers
+  // ("$200 from Checking → Savings AND assign $200 to the Vacation
+  // envelope") but works on any scheduled entry. Empty = no
+  // envelope side effect.
+  const [autoAssignCategoryId, setAutoAssignCategoryId] = useState<string>(existing?.autoAssignCategoryId ?? '');
 
   const isTransfer = !!transferTo;
   const isEdit = !!existing;
@@ -78,6 +84,7 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
         startDate,
         endDate: endDate || null,
         escalationPctPerYear,
+        autoAssignCategoryId: autoAssignCategoryId || undefined,
         // Only reset nextDate if startDate changed forward — otherwise the
         // user keeps their place in the schedule.
         ...(startDate !== existing.startDate && startDate > existing.nextDate
@@ -96,6 +103,7 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
         startDate,
         endDate: endDate || null,
         escalationPctPerYear,
+        autoAssignCategoryId: autoAssignCategoryId || undefined,
       });
     }
     onClose();
@@ -274,6 +282,32 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
             Multiplies the amount on each anniversary of the start date.
             E.g. <code>3</code> = "raise by 3%/year." Useful for retirement
             contribution auto-escalation.
+          </div>
+        </div>
+
+        {/* Tier 10 #11 — goal contribution auto-deposit. Picks an
+            envelope to also fund on each materialization. Most useful
+            for transfer-style schedules ("move $200 to Savings AND
+            assign $200 to Vacation envelope"). Doesn't replace the
+            existing assignment — adds to it. */}
+        <div>
+          <label className="text-[12px] text-fg-muted">
+            Also assign to envelope <span className="text-fg-subtle">(optional)</span>
+          </label>
+          <Select
+            value={autoAssignCategoryId}
+            onChange={(e) => setAutoAssignCategoryId(e.target.value)}
+            className="mt-1 w-full"
+          >
+            <option value="">— Don&apos;t auto-deposit —</option>
+            {categories.filter((c) => !c.hidden).map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </Select>
+          <div className="text-[10.5px] text-fg-subtle mt-1">
+            On each materialization, also bump this envelope's assignment
+            by the absolute amount. Useful when you actually move money
+            (transfer to Savings) AND want the envelope funded.
           </div>
         </div>
 

@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
   Sparkles, ListChecks, Wallet, Cloud, ArrowLeft, ArrowRight, Check,
-  ShieldCheck, MessageSquare, BarChart3, CreditCard, Plus,
+  ShieldCheck, MessageSquare, BarChart3, CreditCard, Plus, Rocket,
 } from 'lucide-react';
 // Note: every icon listed above appears in the STEPS body below; the linter
 // would warn on any unused imports.
@@ -446,6 +446,43 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
             And <strong>payee merge</strong> (More → Payees) cleans up
             "Starbucks" + "STARBUCKS STORE #5821" + "Starbucks Coffee"
             into one canonical name.
+          </p>
+        </>
+      ),
+    },
+    {
+      icon: <Rocket size={28} className="text-accent" />,
+      title: 'Long-game tools (v0.6+)',
+      body: (
+        <>
+          <p>
+            Once you're comfortable with the basics, Monii Watch ships
+            several power-user features for thinking longer-term:
+          </p>
+          <ul className="mt-2 space-y-1.5 text-[12.5px]">
+            <li>• <strong>FIRE planner</strong> — visit{' '}
+              <code>/fire</code> for retirement projections, Monte Carlo
+              simulation, and tax-efficient withdrawal sequencing.</li>
+            <li>• <strong>Workspaces</strong> — separate budgets for
+              personal / LLC / household. Visit <code>/workspaces</code>{' '}
+              to add one. Each workspace = its own data + sync room.</li>
+            <li>• <strong>Hard spending limits</strong> — set a cap per
+              category (warn or block) with optional velocity alerts.
+              Edit category → Hard limit.</li>
+            <li>• <strong>Calendar grid</strong> — visit{' '}
+              <code>/calendar/grid</code> for a true day-by-day view of
+              transactions.</li>
+            <li>• <strong>Recurring transfer auto-escalation</strong> —
+              "raise my 401k contribution 1% each year." Configure on any
+              scheduled transfer.</li>
+            <li>• <strong>Goal price-drop tracker</strong> — paste a
+              product page; the app extracts the price and pings you
+              when it drops to your envelope balance.</li>
+          </ul>
+          <p className="mt-3 text-fg-subtle text-[12.5px]">
+            All of these are documented in the Help center under
+            "Advanced features." None require any setup beyond their
+            own page.
           </p>
         </>
       ),

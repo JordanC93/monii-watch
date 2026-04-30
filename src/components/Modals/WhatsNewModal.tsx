@@ -1,0 +1,184 @@
+/**
+ * "What's new" modal (Tier 10 #1).
+ *
+ * Auto-opens once per release. Shown only when `__APP_VERSION__`
+ * differs from `Settings.lastSeenVersion`. Dismissal stamps the
+ * setting so the modal stays quiet until the next release.
+ *
+ * The release notes registry below is a small hand-curated subset
+ * of the CHANGELOG — the full file is too long for a modal. Add
+ * new entries at the TOP for each release; the modal shows the
+ * single most recent entry that's NEWER than `lastSeenVersion`.
+ *
+ * Skipping versions is fine: a user upgrading from 0.6.0 → 0.6.7
+ * sees the 0.6.7 entry only. The CHANGELOG link in the footer
+ * lets them dig deeper if curious.
+ */
+
+import { Sparkles, Check, BookOpen } from 'lucide-react';
+import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
+import { setSettingsField } from '../../db/repo';
+import { useBudget } from '../../store/budget';
+import { useEffect, useMemo } from 'react';
+
+type ReleaseEntry = {
+  version: string;
+  title: string;
+  bullets: Array<string>;
+};
+
+/**
+ * Hand-maintained list of user-facing changes per release. Order
+ * doesn't matter — the modal picks the entry whose `version`
+ * matches the current build. Add new entries here when a release
+ * ships features the user should discover.
+ *
+ * Kept short on purpose. If you want to direct users to deeper
+ * docs, add a Help center link in the bullets (see v0.6.4 below).
+ */
+export const RELEASE_NOTES: ReleaseEntry[] = [
+  {
+    version: '0.6.7',
+    title: 'Polish + power-user pass',
+    bullets: [
+      'New: "What\'s new" auto-opens after each upgrade so you don\'t miss features.',
+      'Reports now organized into tabs — Spending · Wealth · Time · Tax.',
+      'Sandbox mode visually highlights cells you\'ve overridden so you know what\'s live vs. hypothetical.',
+      'Sidebar gets a "All workspaces" rollup widget when you have more than one workspace.',
+      'Search results: select rows + bulk-recategorize via the action bar.',
+      'Audit log now captures direct edits (rename / delete / import) — not just chat.',
+      'Auto-backup to local file every N days (Settings → Backup & Import).',
+      'Goal auto-deposit on scheduled transfers — funds the envelope automatically.',
+      'Print-friendly FIRE plan — File → Print on /fire produces a clean one-pager.',
+    ],
+  },
+  {
+    version: '0.6.4',
+    title: 'FIRE planner + workspaces + hard limits',
+    bullets: [
+      'New /fire page: 25× / 33× FIRE numbers, Monte Carlo, withdrawal sequencing.',
+      'Multiple workspaces — separate budgets per IndexedDB. /workspaces to switch.',
+      'Hard spending limits per category (warn / block + velocity alerts).',
+      'New /calendar/grid view — true day-by-day grid alongside the heatmap.',
+      'Recurring transfer auto-escalation (+X% per year for 401k contributions).',
+      'Goal price-drop tracker v1: paste page content, app extracts the price.',
+    ],
+  },
+  {
+    version: '0.6.3',
+    title: 'Multi-currency + smarter rules + dashboards',
+    bullets: [
+      'Settings page no longer crashes on load — Zustand selector fix.',
+      'Any account can declare a non-budget currency + FX rate.',
+      'Auto-rules: regex patterns + amount-range filters.',
+      'New /dashboard with 9 customizable widgets.',
+      'Account balance history chart on every Account page.',
+      'Runway report + savings-rate-trend chart.',
+    ],
+  },
+];
+
+/**
+ * Resolve the entry that matches the current build version. Falls
+ * back to `null` when no entry is registered (e.g. point-release
+ * with no user-facing changes — the modal stays closed).
+ */
+export function pickReleaseEntry(currentVersion: string): ReleaseEntry | null {
+  return RELEASE_NOTES.find((r) => r.version === currentVersion) ?? null;
+}
+
+export function WhatsNewModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const lastSeen = useBudget((s) => s.settings.lastSeenVersion);
+  // Used by the footer "view full changelog" link copy. The literal
+  // import of __APP_VERSION__ is replaced at build time.
+  const current = __APP_VERSION__;
+  const entry = useMemo(() => pickReleaseEntry(current), [current]);
+
+  function dismiss() {
+    setSettingsField('lastSeenVersion', current);
+    onClose();
+  }
+
+  // If there are no notes for this version, dismiss silently.
+  useEffect(() => {
+    if (open && !entry) {
+      setSettingsField('lastSeenVersion', current);
+      onClose();
+    }
+  }, [open, entry, current, onClose]);
+
+  if (!entry) return null;
+
+  return (
+    <Modal
+      open={open}
+      onClose={dismiss}
+      size="md"
+      title={
+        <span className="flex items-center gap-2">
+          <Sparkles size={16} className="text-accent" />
+          <span>What's new</span>
+          <span className="text-fg-subtle text-[11.5px] font-normal">v{entry.version}</span>
+        </span>
+      }
+      footer={
+        <div className="flex items-center justify-between gap-2">
+          {lastSeen && lastSeen !== current ? (
+            <span className="text-[11px] text-fg-subtle">
+              You were on v{lastSeen}.
+            </span>
+          ) : <span />}
+          <Button variant="primary" onClick={dismiss}>
+            <Check size={14} /> Got it
+          </Button>
+        </div>
+      }
+    >
+      <div className="py-1">
+        <h3 className="text-[15px] font-semibold mb-3">{entry.title}</h3>
+        <ul className="space-y-2 text-[13px] text-fg-muted">
+          {entry.bullets.map((b, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="text-accent mt-1.5 w-1 h-1 rounded-full bg-accent flex-shrink-0" />
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4 pt-3 border-t border-border text-[11.5px] text-fg-subtle flex items-center gap-1.5">
+          <BookOpen size={11} />
+          <a
+            href="https://github.com/JordanC93/monii-watch/blob/main/CHANGELOG.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-accent underline-offset-2 hover:underline"
+          >
+            View full changelog →
+          </a>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Helper used by the boot effect in App.tsx to decide whether to
+ * fire the modal. Pure function so it's easy to test.
+ *
+ *   - Empty `lastSeen` → first-ever boot. Suppress; the welcome
+ *     tour wins.
+ *   - `lastSeen === current` → up to date. No-op.
+ *   - `lastSeen !== current` AND notes exist → fire.
+ *
+ * Returns true when the modal should open.
+ */
+export function shouldShowWhatsNew(lastSeen: string, current: string): boolean {
+  if (!lastSeen) return false;
+  if (lastSeen === current) return false;
+  return pickReleaseEntry(current) !== null;
+}
+
+// Used by tests to clear state between cases.
+export function _testHooks() {
+  return { pickReleaseEntry, shouldShowWhatsNew };
+}

@@ -408,6 +408,19 @@ export type ScheduledTransaction = {
    * the user pauses + resumes.
    */
   escalationPctPerYear?: number;
+  /**
+   * Tier 10 #11 — goal contribution auto-deposit. When set, every
+   * materialization of this scheduled transaction ALSO bumps the
+   * monthly assignment for `autoAssignCategoryId` by `|amount|`.
+   * Useful for "on the 1st, transfer $200 from Checking to Savings
+   * AND assign it to the Vacation envelope" — one scheduled entry
+   * handles both the cash movement and the envelope funding.
+   *
+   * The assignment lands in the month of the materialization (not
+   * `startDate`), and is additive — it never overwrites existing
+   * assignments. Optional; unset = no envelope side-effect.
+   */
+  autoAssignCategoryId?: string;
   createdAt: number;
   updatedAt: number;
 };
@@ -1064,6 +1077,46 @@ export type Settings = {
    * predictor banner. Re-shows on the next session even if dismissed.
    */
   overdraftBannerDismissedAt: number;
+  /**
+   * Tier 10 #1 — last app version the user has dismissed the
+   * "What's New" modal for. When `__APP_VERSION__` differs from this
+   * on boot, the modal auto-opens once. Empty = first-ever boot,
+   * suppressed (the welcome tour wins). Updated when the user
+   * dismisses or clicks "Got it".
+   */
+  lastSeenVersion: string;
+  /**
+   * Tier 10 #8 — global audit log. Every direct mutation (delete /
+   * rename / recategorize / scheduled change / import) appends an
+   * entry. Distinct from `chatAuditLog` which only tracks chat-driven
+   * edits. FIFO-pruned at 500 entries. Surfaced via the Audit Log
+   * modal which filters across both sources.
+   */
+  auditLog: Array<{
+    id: string;
+    at: number;
+    /** Short human-readable description ("Deleted category Groceries"). */
+    description: string;
+    /** Coarse classification for filtering / icons. */
+    kind: 'create' | 'update' | 'delete' | 'import' | 'export' | 'other';
+    /** Optional entity reference (free-form — accountId, categoryId, …). */
+    entityId?: string;
+  }>;
+  /**
+   * Tier 10 #9 — auto-backup interval, in days. 0 / undefined =
+   * disabled. When set, the app downloads a JSON backup file on
+   * boot if `now - lastAutoBackupAt >= autoBackupDays * 86400000`.
+   */
+  autoBackupDays: number;
+  /** Unix ms of the last successful auto-backup download. */
+  lastAutoBackupAt: number;
+  /**
+   * Tier 10 #9 — recent auto-backup history (capped at 5). Each entry
+   * is the unix ms timestamp + filename of a download triggered by
+   * the auto-backup engine. Lets the Settings panel show "last 5
+   * backups" without polling the file system.
+   */
+  autoBackupHistory: Array<{ at: number; filename: string }>;
 };
 
 export type ThemeName = 'light' | 'dark' | 'oled' | 'glass' | 'auto';
