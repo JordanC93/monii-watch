@@ -664,14 +664,139 @@ device. Don't pull from here speculatively.
   unlock, share sheet integration with the receipt OCR flow,
   background fetch for sync.
 
-### #2 Server-side price-checker plugin (goal item prices)
-- Currently `Category.currentItemPrice` is updated manually. A
-  future user-side plugin (running on the user's Plex / home server)
-  could fetch product pages on a schedule and PUT the new price
-  into the synced Yjs doc.
-- Requires a stable plugin protocol — we'd publish a tiny TypeScript
-  interface (`fetchPrice(productUrl) -> { cents, fetchedAt }`) and
-  the server runs it on a cron.
+### #2 Auto-notify when a goal item goes on sale
+**The big idea:** the user is saving for a $1,500 laptop. The app
+already shows their available balance. If the laptop drops to
+$1,300 on Apple's site and the user has $1,300 saved — ping them
+right then so they don't miss the window.
+
+This was deliberately deferred in v0.6 because the browser CAN'T
+fetch arbitrary store pages (CORS), and a centralized
+privacy-leaking proxy is incompatible with our values. It needs
+ONE of these architectures:
+
+#### Option A: Self-hosted price-fetcher (cleanest)
+- Tiny Node service the user runs on their Plex / Pi / home box
+- A simple plugin protocol — we ship a TypeScript interface:
+  ```ts
+  interface PriceFetcher {
+    fetchPrice(productUrl: string): Promise<{ cents: number; fetchedAt: number }>;
+  }
+  ```
+- Per-vendor adapters (Apple, Amazon, Best Buy, B&H, etc.) live in
+  the server side, each one a tiny scraping module
+- Server polls each user-defined `category.link` URL every 6h
+- When a price drops, server PUTs the new `currentItemPrice` +
+  `priceCheckedAt` into the synced Yjs doc via the existing
+  websocket sync transport
+- Notification + UI flow already exist (the Goal Deal Banner +
+  in-app notification). Just need the data updates to flow in.
+
+#### Option B: Browser extension (medium)
+- Chrome / Firefox extension that activates on the user's tracked
+  product URLs when they happen to visit
+- On page load, scrape the price + push to Monii via a deeplink or
+  the extension messaging API
+- Pros: no server needed, no privacy leak. Cons: only updates when
+  the user happens to visit the page (so not actively useful for
+  catching sales).
+
+#### Option C: User-paste workflow (lightweight, no infra)
+- Add a "Paste price" field to the Goals page that takes a URL
+- The user pastes the page HTML (or just the price) and the app
+  parses it client-side
+- Browser extension makes this one click
+- This is a half-step toward Option B — useful as a stopgap
+
+**Decision criteria:** ship Option A when there's enough demand to
+justify the server side. Option B is friendlier to non-technical
+users (since it doesn't require running a server) but limited to
+"sale catches you when you're already shopping." Option C is the
+zero-infra fallback.
+
+The notification + UI side is DONE — the deal banner already
+fires when `currentItemPrice` ≤ available envelope. We just need
+the data pipeline to update prices automatically.
+
+**Notification spec for whichever option ships:**
+- Native OS notification ("MacBook Air dropped to $1,299 — you
+  have $1,310 in your Laptop envelope. Open store →")
+- Persistent in-app banner on Budget + Goals pages until silenced
+  or the price goes back up
+- Per-goal "silence for 90 days" same as the existing deal banner
+- Configurable threshold: 0% (any sale), 5%, 10% off the user's
+  saved amount
+
+### #3 Real retirement / FIRE planner
+The biggest gap vs Personal Capital / Empower. Goes well beyond our
+basic Tax Estimator:
+
+- **Target retirement age + net worth target.** User picks "I want
+  to retire at 55 with $2.5M." App shows projected progress.
+- **Monte Carlo simulation.** Given expected returns + standard
+  deviation, run 1000 simulations and show the 10th / 50th / 90th
+  percentile outcomes. Probability of running out of money before
+  age 95.
+- **Withdrawal sequencing.** Tax-efficient drawdown:
+  taxable → tax-deferred → Roth. Show the "lifetime tax bill" for
+  different sequences.
+- **Glide path / asset allocation.** "At your age, target X% stocks
+  / Y% bonds." Surface drift if positions deviate.
+- **Coast / Lean / Fat FIRE thresholds.** Three target lines on
+  the net-worth chart.
+- **Social Security integration.** User enters expected start age
+  + amount. App folds it into the projection.
+
+Pure compute over the existing data + a few new Settings fields.
+Heavy lift but Personal-Capital-killer.
+
+### #4 Multiple budgets (separate documents)
+Recurring complaint from small-business owners and people with
+"personal vs LLC vs household-shared" splits. Currently every
+install has ONE Yjs doc.
+
+- New "Workspace switcher" in the sidebar. Each workspace = its
+  own IndexedDB database + sync room.
+- Switch via the picker; the doc swaps under the hood.
+- Cross-workspace transfer (rare but real — "I paid for the
+  business out of personal funds, transfer between budgets").
+- Backup / restore per workspace.
+
+### #5 Recurring transfers / contribution scheduling
+Distinct from envelope assignment — actual SCHEDULED money movement.
+- "Move $500 from Checking to Savings on the 1st of each month"
+- Automatically logs both halves of the transfer pair on the
+  trigger date
+- Optional "increase by X% per year" for retirement-style auto-
+  escalation
+- Builds on the existing `ScheduledTransaction` infrastructure
+
+### #6 Lot-level investment tracking
+For users who care about tax-loss harvesting + accurate capital
+gains reporting.
+- Each `InvestmentPosition` becomes a list of LOTS (date + shares
+  + price-per-share)
+- Sale events match against lots (FIFO / LIFO / specific-ID per
+  position)
+- Realized gain/loss reports for tax season
+- "Tax-loss harvesting candidates" surfaced when a lot is
+  underwater AND the wash-sale 30-day rule allows the harvest
+
+### #7 Hard spending limits (vs soft envelope tracking)
+- Per-category "block" or "warn" thresholds
+- "When I'm at 75% of my Dining budget for the month, send me a
+  push notification"
+- "When I try to add a transaction that would push me over, show
+  a confirmation prompt instead of just letting it through"
+- Velocity-based alerts: "by day 10 you've spent 60% of dining —
+  at this pace you'll overspend by $80"
+
+### #8 Calendar of transactions (literal day-by-day view)
+- Beyond the existing `/calendar` heatmap
+- Google-Calendar-style grid where each day shows the transactions
+  that happened on that day
+- Click a date to add a new transaction with that date pre-filled
+- Drag a transaction between days to re-date it
 
 ---
 
