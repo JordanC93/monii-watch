@@ -42,6 +42,10 @@ const MaintainerHelpPage = lazy(() => import('./pages/MaintainerHelpPage').then(
 const SharePage = lazy(() => import('./pages/SharePage').then((m) => ({ default: m.SharePage })));
 // Receipt gallery (Tier 3 #5).
 const ReceiptGalleryPage = lazy(() => import('./pages/ReceiptGalleryPage').then((m) => ({ default: m.ReceiptGalleryPage })));
+// Payees management (Tier 7 #3).
+const PayeesPage = lazy(() => import('./pages/PayeesPage').then((m) => ({ default: m.PayeesPage })));
+// Category drill-down (Tier 7 #4).
+const CategoryDetailPage = lazy(() => import('./pages/CategoryDetailPage').then((m) => ({ default: m.CategoryDetailPage })));
 
 function PageFallback() {
   return (
@@ -314,6 +318,8 @@ export default function App() {
             <Route path="/help-maint" element={<MaintainerHelpPage />} />
             <Route path="/share" element={<SharePage />} />
             <Route path="/receipts" element={<ReceiptGalleryPage />} />
+            <Route path="/payees" element={<PayeesPage />} />
+            <Route path="/categories/:categoryId" element={<CategoryDetailPage />} />
             <Route path="*" element={<Navigate to="/budget" replace />} />
           </Routes>
         </Suspense>

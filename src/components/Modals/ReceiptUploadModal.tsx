@@ -21,6 +21,7 @@ import { parseAmountToCents } from '../../domain/calc';
 import { useFormatMoney } from '../../lib/format';
 import { cn } from '../../lib/cn';
 import { toast } from '../../lib/toast';
+import { findDuplicateOf } from '../../domain/duplicates';
 
 type Progress = OcrProgress | PdfProgress | null;
 
@@ -47,6 +48,8 @@ type StatementRowDraft = {
   /** Bank's type column (e.g. "ACH debit"). */
   type: string | null;
   isPeerPayment: boolean;
+  /** Tier 7 #2 — id of an existing transaction this row likely duplicates. */
+  dupOfId?: string;
 };
 
 type Draft =
@@ -201,6 +204,33 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
       setDocKind('statement');
       const defaultAcct = accounts.find((a) => !a.closed)?.id ?? '';
       const rows = result.statement.rows.map((r) => statementRowToDraft(r, categories));
+      // Tier 7 #2 — flag likely duplicates against the existing
+      // transactions in the chosen account. Auto-deselect them.
+      if (defaultAcct && rows.length > 0) {
+        try {
+          const existingTxns = useBudget.getState().transactions;
+          const existingPayees = useBudget.getState().payees;
+          const inputs = rows.map((r) => ({
+            accountId: defaultAcct,
+            date: r.date,
+            payee: r.vendor || null,
+            categoryId: null,
+            amount: parseFloat(r.amountText) ? Math.round(parseFloat(r.amountText) * 100) : 0,
+          }));
+          const matches = findDuplicateOf(inputs, existingTxns, existingPayees);
+          for (let i = 0; i < rows.length; i++) {
+            const m = matches[i];
+            if (m) {
+              rows[i].dupOfId = m.existingId;
+              rows[i].include = false;
+            }
+          }
+          const dupCount = matches.filter(Boolean).length;
+          if (dupCount > 0) console.info(`[duplicates] auto-deselected ${dupCount}/${rows.length} likely-duplicate rows`);
+        } catch (err) {
+          console.warn('[duplicates] scan failed', err);
+        }
+      }
       setDraft({ kind: 'statement', accountId: defaultAcct, rows });
       console.info(`[classify] statement — ${rows.length} rows extracted`);
       return;
@@ -908,6 +938,11 @@ function StatementRow({
             placeholder="Vendor"
           />
         </div>
+        {row.dupOfId && (
+          <div className="text-[10px] text-warning truncate mt-0.5" title="Looks like a duplicate of an existing transaction">
+            ⚠ Likely duplicate — auto-deselected
+          </div>
+        )}
         <div className="text-[10px] text-fg-subtle truncate sm:hidden mt-0.5">
           {row.date} {row.type ? `· ${row.type}` : ''}
         </div>

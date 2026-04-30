@@ -430,6 +430,49 @@ export function deletePayee(id: string): void {
   });
 }
 
+/**
+ * Merge `sourceIds` into `targetId` (Tier 7 #3). Re-points every
+ * transaction whose `payeeId` is in `sourceIds` to `targetId`, then
+ * deletes the source payees. If the target payee has no
+ * `defaultCategoryId` but a source does, the source's category is
+ * adopted. Idempotent — does nothing if `targetId` doesn't exist.
+ */
+export function mergePayees(targetId: string, sourceIds: string[]): { merged: number; updatedTxns: number } {
+  if (sourceIds.length === 0) return { merged: 0, updatedTxns: 0 };
+  const target = payeesMap().get(targetId);
+  if (!target) return { merged: 0, updatedTxns: 0 };
+  let updatedTxns = 0;
+  let merged = 0;
+  tx(() => {
+    // Adopt source's defaultCategoryId if target doesn't have one.
+    if (!target.defaultCategoryId) {
+      for (const sid of sourceIds) {
+        const src = payeesMap().get(sid);
+        if (src?.defaultCategoryId) {
+          payeesMap().set(targetId, { ...target, defaultCategoryId: src.defaultCategoryId });
+          break;
+        }
+      }
+    }
+    // Re-point transactions.
+    txnsMap().forEach((t, tid) => {
+      if (!t.payeeId) return;
+      if (sourceIds.includes(t.payeeId) && t.payeeId !== targetId) {
+        txnsMap().set(tid, { ...t, payeeId: targetId, updatedAt: Date.now() });
+        updatedTxns++;
+      }
+    });
+    // Delete source payees.
+    for (const sid of sourceIds) {
+      if (sid === targetId) continue;
+      if (!payeesMap().has(sid)) continue;
+      payeesMap().delete(sid);
+      merged++;
+    }
+  });
+  return { merged, updatedTxns };
+}
+
 // -- Transactions ---------------------------------------------------------
 
 export function listTransactions(): Transaction[] {

@@ -8,6 +8,7 @@
 import { useMemo, useState } from 'react';
 import { Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import { useBudget } from '../../store/budget';
+import { useEffectiveScheduled } from '../../store/sandboxSelectors';
 import { computeSafeSpend } from '../../domain/safeSpend';
 import { todayIso, formatDate } from '../../domain/date';
 import { useFormatMoney } from '../../lib/format';
@@ -15,7 +16,7 @@ import { useFormatMoney } from '../../lib/format';
 export function SafeToSpendBanner() {
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
-  const scheduled = useBudget((s) => s.scheduled);
+  const scheduled = useEffectiveScheduled();
   const settings = useBudget((s) => s.settings);
   const fmt = useFormatMoney();
 

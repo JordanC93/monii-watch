@@ -9,6 +9,7 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import { useBudget } from '../../store/budget';
+import { useEffectiveScheduled, useEffectiveMonthlyIncome } from '../../store/sandboxSelectors';
 import { computeForecast } from '../../domain/forecast';
 import { useFormatMoney } from '../../lib/format';
 import { todayIso, formatDate } from '../../domain/date';
@@ -19,8 +20,8 @@ const HORIZON_DAYS = 7;
 export function OverdraftBanner() {
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
-  const scheduled = useBudget((s) => s.scheduled);
-  const monthlyIncome = useBudget((s) => s.settings.monthlyIncome);
+  const scheduled = useEffectiveScheduled();
+  const monthlyIncome = useEffectiveMonthlyIncome();
   const dismissedAt = useBudget((s) => s.settings.overdraftBannerDismissedAt ?? 0);
   const fmt = useFormatMoney();
   const [localDismiss, setLocalDismiss] = useState(false);

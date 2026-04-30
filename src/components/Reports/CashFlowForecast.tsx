@@ -14,6 +14,7 @@ import {
   ResponsiveContainer, ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from 'recharts';
 import { useBudget } from '../../store/budget';
+import { useEffectiveScheduled, useEffectiveMonthlyIncome } from '../../store/sandboxSelectors';
 import { computeForecast } from '../../domain/forecast';
 import { useFormatMoney } from '../../lib/format';
 import { format, parseISO } from 'date-fns';
@@ -30,8 +31,8 @@ const HORIZONS = [
 export function CashFlowForecast() {
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
-  const scheduled = useBudget((s) => s.scheduled);
-  const monthlyIncome = useBudget((s) => s.settings.monthlyIncome);
+  const scheduled = useEffectiveScheduled();
+  const monthlyIncome = useEffectiveMonthlyIncome();
   const fmt = useFormatMoney();
   const [horizon, setHorizon] = useState(60);
 

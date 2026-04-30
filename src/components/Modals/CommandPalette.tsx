@@ -7,6 +7,7 @@ import { Search, Wallet, ListChecks, BarChart3, Settings as SettingsIcon, Plus, 
 import { exportSnapshot } from '../../db/repo';
 import { undo, redo } from '../../store/undo';
 import { cn } from '../../lib/cn';
+import { useSandbox } from '../../store/sandbox';
 
 type Cmd = { id: string; label: string; hint?: string; icon?: React.ReactNode; run: () => void };
 
@@ -36,6 +37,10 @@ export function CommandPalette() {
       { id: 'open-chat', label: 'Open chat', icon: <MessageSquare size={14} />, hint: '⌘J', run: () => setChatOpen(true) },
       { id: 'upload-receipt', label: 'Upload receipt (OCR)…', icon: <ImagePlus size={14} />, run: () => openModal({ type: 'receiptUpload' }) },
       { id: 'bill-split', label: 'Bill split calculator…', icon: <Plus size={14} />, run: () => openModal({ type: 'billSplit' }) },
+      { id: 'sandbox-toggle', label: useSandbox.getState().active ? 'Exit sandbox mode' : 'Enter sandbox mode (what-if)', icon: <Plus size={14} />, run: () => {
+        const sb = useSandbox.getState();
+        if (sb.active) sb.exit(); else sb.enter();
+      } },
       { id: 'debug-logs', label: 'Debug logs', icon: <Bug size={14} />, run: () => openModal({ type: 'debugLogs' }) },
       { id: 'add-group',   label: 'New category group…', icon: <Plus size={14} />, run: () => openModal({ type: 'addGroup' }) },
       { id: 'sync',        label: 'Sync settings…',  icon: <Cloud size={14} />, run: () => openModal({ type: 'sync' }) },

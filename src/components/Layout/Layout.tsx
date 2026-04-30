@@ -7,6 +7,7 @@ import { MobileFab } from './MobileFab';
 import { ModalRoot } from '../Modals/ModalRoot';
 import { DesktopStatusBar } from './DesktopStatusBar';
 import { TabBar } from './TabBar';
+import { SandboxBanner } from '../Sandbox/SandboxBanner';
 import { cn } from '../../lib/cn';
 import { useEffectiveLayout } from '../../lib/layout';
 import { useLocation } from 'react-router-dom';
@@ -121,6 +122,8 @@ export function Layout({ children }: { children: ReactNode }) {
             ...(isCompact && { paddingTop: 'calc(env(safe-area-inset-top, 0) + 56px)' }),
           }}
         >
+          {/* Tier 7 #5 — sandbox banner pins above page content when active. */}
+          <SandboxBanner />
           {children}
         </main>
         <DesktopStatusBar />

@@ -13,7 +13,7 @@ import { Link } from 'react-router-dom';
 import {
   CalendarClock, CreditCard, Search as SearchIcon, Settings as SettingsIcon,
   Cloud, Wallet, BarChart3, FileText, ChevronRight, HelpCircle, Wrench,
-  Plane, Calendar, TrendingUp, Wand2, Sparkles, Bookmark, Star,
+  Plane, Calendar, TrendingUp, Wand2, Sparkles, Bookmark, Star, Tag, Image as ImageIcon,
 } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { useUI } from '../store/ui';
@@ -57,6 +57,8 @@ export function MorePage() {
 
       <Section title="Find">
         <Row to="/search" icon={<SearchIcon size={16} />} label="Search transactions" />
+        <Row to="/payees" icon={<Tag size={16} />} label="Payees" subtitle="Manage · merge duplicates" />
+        <Row to="/receipts" icon={<ImageIcon size={16} />} label="Receipts gallery" subtitle="Search OCR'd text" />
       </Section>
 
       <Section title="Setup">

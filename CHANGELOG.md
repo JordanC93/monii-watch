@@ -2,6 +2,62 @@
 
 ## Unreleased
 
+### v0.6.1 — Tier 7 first wave: anomaly + dedup + drill-down + sandbox
+
+Five user-experience improvements that fill gaps the v0.6.0 batch
+left open. All purely client-side; no schema changes for #1, #2,
+or #4.
+
+#### Bug-catchers
+- **Unusual transaction alerts.** New `domain/anomaly.ts` flags recent
+  outflows that are >2 stdev OR ≥2× median vs the payee's history
+  (≥4 priors required, ignores noise <$20). Surfaces as a Budget
+  banner ("3 unusual transactions this week") with a per-row review
+  link + dismiss.
+- **Duplicate-transaction detector.** New `domain/duplicates.ts` runs
+  during bulk-statement import: rows that look like overlap with
+  existing transactions are auto-deselected with a warning ("⚠ Likely
+  duplicate"). Conservative match rule (same account + amount within
+  $0.01 + ±2 days + payee similar).
+
+#### Data hygiene
+- **Bulk payee canonicalization.** New `/payees` page: list every
+  payee with txn count + total spend, multi-select to merge into a
+  canonical entry. Auto-suggests likely-same-vendor groups
+  ("Starbucks", "STARBUCKS STORE #5821") via name normalization.
+  New repo function `mergePayees()` re-points all transactions
+  atomically.
+
+#### Drill-down (variable utility bills)
+- **Category detail page.** New route `/categories/:id` answers
+  "show me my electricity bills throughout the year." Includes:
+   - 12-month bar chart with last-year overlay
+   - Stats card: average / median / highest month / lowest month
+   - Variability insight ("3.2× swing — highest in July at $412")
+   - Top payees in this category
+   - Recent transactions (last 30) with click-through to account
+   - Year-over-year YTD comparison
+  Reachable from clicking the activity (Spent) number on any budget
+  row — both desktop + mobile layouts.
+
+#### Scenario sandbox
+- **Sandbox mode.** New `/store/sandbox.ts` Zustand slice + sticky
+  banner. Lets users try changes without committing:
+   - Override `monthlyIncome` for the projection
+   - Add hypothetical recurring bills ("$500 car payment monthly
+     starting next month")
+  The cash-flow forecast, safe-to-spend banner, and overdraft predictor
+  all read merged data via new `useEffectiveScheduled()` /
+  `useEffectiveMonthlyIncome()` selectors. Apply commits the
+  overlay through repo as real edits; Discard throws it away.
+  Toggle from Command Palette ("Enter sandbox mode").
+
+#### Wiring
+- Budget rows are clickable on both layouts → drill-down.
+- More page (mobile) gets `Payees` + `Receipts` entries under Find.
+- Pre-statement credit utilization now also warns under the
+  notification engine (system + in-app toast fallback).
+
 ### Tier 6 (v0.6.0) — depth on the budgeting workflow
 
 Nineteen features across three categories: workflow automation,

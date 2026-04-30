@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Plus, Target, GripVertical } from 'lucide-react';
 import { useBudget } from '../../store/budget';
 import { useUI } from '../../store/ui';
@@ -315,6 +316,7 @@ function BudgetCategoryRow({
 }) {
   const month = useBudget((s) => s.selectedMonth);
   const openModal = useUI((s) => s.openModal);
+  const navigate = useNavigate();
   const memo = useBudget((s) => s.assignments.find((a) => a.month === month && a.categoryId === category.id)?.memo);
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
@@ -404,7 +406,16 @@ function BudgetCategoryRow({
         </div>
         <div className="px-3 py-1.5 text-right tabular text-[12.5px] flex items-center justify-end gap-1.5">
           <CategorySparkline categoryId={category.id} month={month} />
-          <Money cents={activity} dimZero monochrome={false} />
+          {/* Tier 7 #4 — click activity number to drill into the category. */}
+          <button
+            type="button"
+            onClick={() => navigate(`/categories/${category.id}`)}
+            className="hover:text-accent rounded px-0.5"
+            title="See month-by-month breakdown"
+            aria-label={`See ${category.name} breakdown`}
+          >
+            <Money cents={activity} dimZero monochrome={false} />
+          </button>
           <InsightBadge insight={insight} />
         </div>
         <div
@@ -475,7 +486,14 @@ function BudgetCategoryRow({
           </div>
           <div className="flex items-baseline gap-3 mt-0.5 text-[11.5px] text-fg-subtle">
             <span>Assigned <span className="text-fg-muted tabular">{centsShort(assigned)}</span></span>
-            <span>Spent <span className={cn('tabular', activity < 0 ? 'text-negative' : 'text-fg-muted')}>{centsShort(activity)}</span></span>
+            <button
+              type="button"
+              onClick={() => navigate(`/categories/${category.id}`)}
+              className="hover:text-accent text-left"
+              aria-label={`See ${category.name} breakdown`}
+            >
+              Spent <span className={cn('tabular', activity < 0 ? 'text-negative' : 'text-fg-muted')}>{centsShort(activity)}</span>
+            </button>
           </div>
           {goal.status !== 'noGoal' && (
             <div className="mt-1.5 flex items-center gap-1.5">
