@@ -421,6 +421,228 @@ single-source-of-truth.
 
 ---
 
+## Tier 6 — Genuine gaps in the budgeting workflow
+
+These are the features I (Claude) identified as **actually missing**
+relative to what real users need day-to-day. Tier 1–5 covered breadth
+(receipts, calendar, sankey, desktop polish, etc.); Tier 6 covers
+depth on the workflow itself. Top entries are highest impact;
+priority drops as the list goes on.
+
+### #1 Recurring auto-allocation rules
+- Biggest reduction in daily friction. Today users assign money
+  manually each paycheck; this automates it.
+- New `Settings.allocationRules: Array<{ id, sourceTrigger:
+  'paycheck' | 'income-over' | 'monthly-1st', amount: Money,
+  targetCategoryId, priority }>`
+- When a paycheck materializes (or any txn matching a rule fires),
+  the engine pre-fills `assignments` for the current month
+- Settings → Income & Deductions gets a "Auto-allocate paychecks"
+  panel for managing the rule list
+- Manual override still wins — the rule fires once per trigger
+  occurrence, never overwrites later changes
+- New domain module `domain/allocation.ts` for the rule evaluation
+
+### #2 Financial Health Scorecard
+- Single `/health` page (also card on Reports) with green/yellow/red
+  indicators across 6 dimensions:
+   - Savings rate (target ≥20%)
+   - Emergency fund coverage (months of expenses)
+   - Debt-to-income ratio
+   - Credit utilization (already tracked — pull from creditCard.ts)
+   - Subscription bloat (ratio of recurring vs total spending)
+   - Variable-spend % (vs fixed bills)
+- Each indicator has a one-line "to improve this, do X" suggestion
+- Pure derivation from existing data — no schema changes. New
+  `domain/financialHealth.ts` with `computeHealthScore(...)`
+- Shows under Reports OR as a sidebar nav entry (configurable)
+
+### #3 "What's left to spend this week / before next paycheck"
+- Small banner above the budget table (or as a sidebar widget)
+  showing days-until-next-paycheck + cash on hand + safe daily
+  spend rate
+- Computed from existing `paySchedule` settings + cash flow forecast
+- Most users think in days, not months — fills the gap between
+  monthly budget view + the cash flow chart
+- Hidden if pay schedule isn't set
+- Tap → expands to show the deeper cash flow forecast
+
+### #4 Pre-statement credit utilization alert
+- Notification 2-3 days before each card's statement closing day:
+  "Visa statement closes in 3 days. Current utilization 47%. Pay
+  down $X to get under 30% before reporting."
+- Per-card thresholds + the existing `domain/creditCard.ts` already
+  has the data
+- High-leverage feature — most users don't know about pre-statement
+  utilization, this gives them free credit-score points
+- Lives under existing Notification system — new notification type
+  `credit-utilization-warning`
+
+### #5 Year-over-year comparison view
+- New Reports card "Year over year" — same month / same period
+  this year vs last year, by category
+- Computed from existing transactions; no schema changes
+- Surfaces drift before it becomes a problem
+
+### #6 End-of-year tax summary report
+- Pulls together everything tax-relevant from the year:
+   - Per-deductible-category totals (already in Tax Preparation card)
+   - Charitable donations totaled
+   - Investment dividend / capital gains/losses (if data exists)
+   - Mortgage interest paid (loan amortization data)
+   - Health expenses
+   - Business / home-office expenses
+- Export as CSV + PDF (PDF via browser print stylesheet)
+- New `/tax-summary` route, available year-round but auto-prompts
+  at year end via the year-in-review modal pipeline
+
+### #7 Plain-English chat queries (read-side)
+- Expand the existing chat panel to answer reporting questions:
+   - "How much did I spend on dining last month?"
+   - "Show me transactions over $100 in March"
+   - "What's my biggest payee this year?"
+   - "How much have I given to charity this year?"
+- Pure regex + repo lookups, no LLM. Pattern: extract category,
+  date range, payee, amount filter → run aggregation
+- New intents in `conversation/intents.ts` — read-only, no
+  mutations, no audit log
+- Keeps the privacy-first promise (no third-party API)
+
+### #8 Cost-per-use tracker
+- Tag a transaction or goal as a "purchase to track" → log uses
+  over time → show cost-per-use stat
+- New `Transaction.usageCount?: number` field; right-click row →
+  "Track usage" → toggles the field on; tap to increment
+- Goal page tile: when a category is funded by a tracked purchase,
+  show "$500 / 12 uses = $42 per use"
+- Encourages thoughtful spending review
+
+### #9 One-time / outlier expense flag
+- Right-click a transaction → "Mark as one-time" → that txn gets
+  excluded from category averages, trend lines, and "based on last
+  6 months" projections
+- New `Transaction.oneTime?: boolean` field
+- Spending insights, sparklines, cash flow forecast, what-if
+  scenarios all need to filter out one-time txns
+- The big couch purchase shouldn't make Furniture look like a
+  $1200/mo category
+
+### #10 Subscription "did you use this?" prompt
+- 5 days before a detected recurring charge renews:
+  "Netflix renews in 5 days for $15.99. Have you watched anything
+  in the last 30 days?"
+- If user says no → one-tap "open Netflix to cancel" + "set
+  reminder to revisit in 90 days"
+- Builds on existing subscription detector (`domain/subscriptions.ts`)
+- Per-subscription `lastUsedReminderDismissedAt` to suppress repeat
+  prompts within the same cycle
+
+### #11 Right-sized emergency fund recommendation
+- Based on actual monthly expenses (already known from txns),
+  suggest a 3-6 month emergency fund target
+- Show progress against it on the Goals page (pinned to top if
+  not yet hit, hidden once met)
+- New `Settings.emergencyFundCategoryId?: string` field — links a
+  user-chosen category as "the emergency fund" so we know what to
+  measure against
+- Prompts during onboarding wizard to designate one
+
+### #12 Net worth attribution
+- When net worth changes month-over-month, separate it into:
+   - "You saved $X (income minus spending)"
+   - "Investments grew $Y (market gains)"
+   - "Debt decreased $Z (net paydown)"
+- Show on the Net Worth chart's tooltip + as a new "What changed"
+  card under the chart
+- Computed from existing data — no schema change
+
+### #13 Smart receipt search
+- Full-text search the OCR'd receipt text (in addition to current
+  payee/category/memo filters)
+- Search bar on the new Receipts gallery page
+- "That Home Depot receipt from May for $80-something for wood
+  stain" → finds it because the receipt text contains "wood stain"
+- Index built lazily on first search; updated on each receipt
+  upload
+
+### #14 Bill split calculator
+- New modal accessible from the chat panel and the IOU ledger:
+  enter restaurant items, tax %, tip %, optional per-person tweaks
+  ("Sara doesn't drink"), output goes into the IOU ledger atomically
+- Bridges the gap between IOU tracking and the actual math people
+  do at restaurants
+
+### #15 Quick "balance check" on app open
+- When app launches OR comes back from background, show a banner
+  at the top: "Since you last opened: 3 new transactions, +$120 net,
+  1 bill came due."
+- Dismisses on click or after 6 sec
+- Helps reorient after a few days away
+- Driven by `lastOpenedAt` timestamp + delta computation
+
+### #16 Birthday / anniversary fund
+- New goal type: tied to a recurring date (annually). $50/month
+  into "Family Birthdays," resets each year on the date
+- Extends `Category.goal` with a new `recurring: 'annual'` flavor
+- Auto-rolls assigned amount over to the next year on the trigger
+  date
+
+### #17 Overdraft predictor banner
+- The cash flow forecast already detects "you'll go negative on
+  date X." Surface it as a notification + a banner on Budget page
+  when within 7 days
+- Soft-dismiss for the day; re-shows next session
+- Single source of truth: `domain/forecast.ts` — just changes
+  presentation
+
+### #18 CSV-from-screenshot pipeline
+- Bridge the existing OCR pipeline (statement parsing) with the
+  CSV import flow. User pastes/drops a screenshot → it goes through
+  OCR → bank-statement parser → straight into the CSV import review
+  table
+- One less step than the current path
+- Pure UI plumbing, no new domain logic
+
+### #19 Bill negotiation reminder
+- Once a year per detected recurring bill that's been continuously
+  paid for 12+ months, surface: "You've been with Verizon 14 months
+  at $90/mo. Average customer who calls + asks gets $15-30 off.
+  Worth a 10-minute call?"
+- Track `lastNegotiationPromptedAt` per subscription so we don't
+  re-prompt for a year
+- Pays for itself the first time it works
+- Lower priority than #1-#18 — the data is already in the
+  subscription detector; this is presentation + state tracking
+  only
+
+---
+
+## Tier 99 — Bottom of the barrel (only when there's nothing else)
+
+Genuinely low-priority. Don't pick from here unless every other tier
+is empty.
+
+### #1 Joint household mode
+- Two real users (you + partner) sharing one budget but each tracking
+  their own income/spending. Each transaction carries `enteredBy:
+  string` (a name picked at first run); reports can split or combine
+- The current sync-between-MY-devices model already handles "two
+  laptops, one person" perfectly. This is the different case of
+  "one budget, two people"
+- LARGE design surface — interactions with payees (whose payees
+  are these?), categories (shared or separate?), goals, IOU ledger
+  (becomes redundant if we have shared budget?), Drive sync (whose
+  Drive?). All need re-thinking
+- Conflicts with the privacy-first model in subtle ways: each
+  partner could now see the other's spending in real time, which
+  some couples want and others explicitly don't
+- Existing IOU ledger + WebRTC pairing covers ~80% of what most
+  couples actually need
+- Defer until: someone has actually asked for it, AND no other
+  Tier 1-6 work remains
+
+---
+
 ## How to use this with future Claude sessions
 
 After a `/compact` or fresh session, paste a prompt like:
