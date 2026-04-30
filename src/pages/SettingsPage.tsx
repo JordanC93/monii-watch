@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { useBudget } from '../store/budget';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -222,8 +222,25 @@ export function SettingsPage() {
     }
   }
 
+  // Tab-based reorg (v0.6.2). Tabs are stored in state — pages aren't
+  // unmounted when you switch tabs (preserves form input drafts).
+  // The URL hash is read once on mount so deep links work
+  // (`/settings#sync`).
+  const initialTab = useMemo<TabId>(() => {
+    const hash = typeof window !== 'undefined' ? window.location.hash.slice(1) : '';
+    if (TAB_IDS.includes(hash as TabId)) return hash as TabId;
+    return 'general';
+  }, []);
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  function pickTab(t: TabId) {
+    setActiveTab(t);
+    try { history.replaceState(null, '', `#${t}`); } catch {}
+  }
+
   return (
     <div className="p-3 sm:p-5 space-y-4 max-w-3xl mx-auto">
+      <SettingsTabs active={activeTab} onPick={pickTab} />
+      <SettingsTab tab="general" active={activeTab}>
       <Section title="General">
         <Field label="Budget name">
           <Input
@@ -386,7 +403,9 @@ export function SettingsPage() {
       >
         <EmergencyFundSettings />
       </Section>
+      </SettingsTab>
 
+      <SettingsTab tab="display" active={activeTab}>
       <Section title="Appearance">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {THEMES.map((t) => (
@@ -408,6 +427,16 @@ export function SettingsPage() {
         <LayoutToggle />
       </Section>
 
+      <Section title="Display density" subtitle="Compact / comfortable / spacious row heights. Local to this device.">
+        <DensitySetting />
+      </Section>
+
+      <Section title="Privacy mode" subtitle="Blur every dollar amount. ⌘. toggles. Local — never synced.">
+        <PrivacyToggle />
+      </Section>
+      </SettingsTab>
+
+      <SettingsTab tab="sync" active={activeTab}>
       <Section title="Sync" subtitle="Peer-to-peer over WebRTC. The signaling server only helps devices find each other — your data stays on your devices.">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -445,9 +474,14 @@ export function SettingsPage() {
           <Button onClick={resetEverything} variant="danger"><AlertTriangle size={14} /> Reset everything</Button>
         </div>
       </Section>
+      </SettingsTab>
 
+      <SettingsTab tab="more" active={activeTab}>
       <Section title="Help">
         <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => window.location.href = '/help'}>
+            <FileText size={14} /> Help center
+          </Button>
           <Button variant="secondary" onClick={() => openModal({ type: 'welcome' })}>
             Show tutorial again
           </Button>
@@ -503,14 +537,6 @@ export function SettingsPage() {
         <VacationModeSettings />
       </Section>
 
-      <Section title="Display density" subtitle="Compact / comfortable / spacious row heights. Local to this device.">
-        <DensitySetting />
-      </Section>
-
-      <Section title="Privacy mode" subtitle="Blur every dollar amount. ⌘. toggles. Local — never synced.">
-        <PrivacyToggle />
-      </Section>
-
       <Section title="Updates" subtitle="Desktop app only. Browser builds always serve the latest version on reload.">
         <DesktopUpdates />
       </Section>
@@ -535,8 +561,52 @@ export function SettingsPage() {
           <div>v{__APP_VERSION__} · Local-first · No accounts required.</div>
         </div>
       </Section>
+      </SettingsTab>
     </div>
   );
+}
+
+// ---------- Tabs --------------------------------------------------------
+
+const TAB_IDS = ['general', 'display', 'sync', 'more'] as const;
+type TabId = typeof TAB_IDS[number];
+
+const TAB_LABELS: Record<TabId, string> = {
+  general: 'General',
+  display: 'Display',
+  sync: 'Data',
+  more: 'More',
+};
+
+function SettingsTabs({ active, onPick }: { active: TabId; onPick: (t: TabId) => void }) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Settings tabs"
+      className="glass-panel px-2 py-1.5 flex gap-1 sticky top-0 z-10 overflow-x-auto"
+    >
+      {TAB_IDS.map((id) => (
+        <button
+          key={id}
+          role="tab"
+          aria-selected={active === id}
+          onClick={() => onPick(id)}
+          className={`px-3 py-1.5 rounded-md text-[12.5px] font-medium whitespace-nowrap transition ${
+            active === id
+              ? 'bg-accent text-accent-fg'
+              : 'text-fg-muted hover:text-fg hover:bg-surface-2/40'
+          }`}
+        >
+          {TAB_LABELS[id]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SettingsTab({ tab, active, children }: { tab: TabId; active: TabId; children: React.ReactNode }) {
+  if (tab !== active) return null;
+  return <div className="space-y-4" role="tabpanel" aria-labelledby={`tab-${tab}`}>{children}</div>;
 }
 
 /**

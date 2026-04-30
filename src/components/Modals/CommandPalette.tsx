@@ -32,6 +32,8 @@ export function CommandPalette() {
       { id: 'go-credit-cards', label: 'Go to Credit Cards', icon: <CreditCard size={14} />, hint: 'g k', run: () => nav('/credit-cards') },
       { id: 'go-goals', label: 'Go to Goals', icon: <Target size={14} />, hint: 'g o', run: () => nav('/goals') },
       { id: 'go-settings', label: 'Go to Settings',    icon: <SettingsIcon size={14} />, hint: 'g s', run: () => nav('/settings') },
+      { id: 'go-help',     label: 'Open Help center',  icon: <SettingsIcon size={14} />, run: () => nav('/help') },
+      { id: 'go-payees',   label: 'Manage payees',     icon: <SettingsIcon size={14} />, run: () => nav('/payees') },
       { id: 'add-account', label: 'New account…',    icon: <Plus size={14} />, run: () => openModal({ type: 'addAccount' }) },
       { id: 'add-scheduled', label: 'New scheduled transaction…', icon: <CalendarClock size={14} />, run: () => openModal({ type: 'scheduledNew' }) },
       { id: 'open-chat', label: 'Open chat', icon: <MessageSquare size={14} />, hint: '⌘J', run: () => setChatOpen(true) },

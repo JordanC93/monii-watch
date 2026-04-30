@@ -43,3 +43,46 @@ export async function extractPdfText(
   onProgress?.({ stage: 'done' });
   return { text: pageTexts.join('\n'), pages: pageCount };
 }
+
+/**
+ * Rasterize the FIRST page of a PDF to a JPEG data URL so it can be
+ * stored alongside transactions like a regular receipt image. Capped
+ * at `maxEdge` (default 900px on the long edge) to keep the Yjs doc
+ * lean. Returns null on any failure — caller falls back to "no
+ * receipt image attached".
+ */
+export async function rasterizePdfFirstPage(
+  file: File | Blob,
+  opts: { maxEdge?: number; quality?: number } = {},
+): Promise<string | null> {
+  const maxEdge = opts.maxEdge ?? 900;
+  const quality = opts.quality ?? 0.85;
+  try {
+    const pdfjs: any = await import('pdfjs-dist');
+    try {
+      const workerSrc = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
+      pdfjs.GlobalWorkerOptions.workerSrc = workerSrc.default;
+    } catch {}
+    const data = await file.arrayBuffer();
+    const doc = await pdfjs.getDocument({ data, disableAutoFetch: true, disableStream: true }).promise;
+    if (doc.numPages < 1) return null;
+    const page = await doc.getPage(1);
+    const baseViewport = page.getViewport({ scale: 1 });
+    const longest = Math.max(baseViewport.width, baseViewport.height);
+    const scale = longest > maxEdge ? maxEdge / longest : 1;
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    // White background — most PDFs assume it.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    return canvas.toDataURL('image/jpeg', quality);
+  } catch (err) {
+    console.warn('[pdf] rasterize failed', err);
+    return null;
+  }
+}

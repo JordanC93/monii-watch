@@ -389,23 +389,63 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
     },
     {
       icon: <BarChart3 size={28} className="text-accent" />,
-      title: 'Reports + tools',
+      title: 'Reports + insights',
       body: (
         <>
           <p>
-            The <strong>Reports</strong> page has spending by category, net
-            worth over time, a <strong>subscription detector</strong> with
-            one-click "Schedule this", a <strong>debt payoff planner</strong>{' '}
-            (snowball vs. avalanche), and a <strong>tax estimator</strong>.
+            The <strong>Reports</strong> page is full of insights derived
+            from your data. Highlights:
+          </p>
+          <ul className="mt-2 space-y-1 text-[12.5px]">
+            <li>• <strong>Financial Health Scorecard</strong> — six
+              dimensions in green/yellow/red with concrete fixes</li>
+            <li>• <strong>Cash Flow Forecast</strong> — projects your
+              balance forward 30/60/90 days</li>
+            <li>• <strong>Year over Year</strong> — this YTD vs same
+              range last year</li>
+            <li>• <strong>Day of week</strong> — which days you spend most</li>
+            <li>• <strong>Tax Summary</strong> — deductibles aggregated +
+              CSV / PDF export</li>
+          </ul>
+          <p className="mt-3">
+            On the Budget page, <strong>click any "Spent" number</strong> to
+            drill into that category — month-by-month chart, top payees,
+            recent transactions. Great for variable bills like electricity.
+          </p>
+          <p className="mt-2 text-fg-subtle text-[12.5px]">
+            Banners on the Budget page surface things you should know:
+            unusual transactions, overdraft warnings, credit utilization
+            alerts, "did you use this?" subscription nudges.
+          </p>
+        </>
+      ),
+    },
+    {
+      icon: <Sparkles size={28} className="text-accent" />,
+      title: 'Sandbox & smart tools',
+      body: (
+        <>
+          <p>
+            <strong>Sandbox mode</strong> lets you try changes without
+            committing. "What if I had a $500 car payment?" Open the
+            command palette (<kbd className="kbd-style">⌘K</kbd>) → "Enter
+            sandbox mode," override income or add hypothetical bills, see
+            how cash flow + safe-to-spend change. Apply or discard.
           </p>
           <p className="mt-2">
-            The <strong>Scheduled</strong> page tracks recurring transactions
-            that materialize automatically when due (rent, paychecks,
-            subscriptions). Pick one of 5 frequencies + an optional end date.
+            <strong>Auto-allocation rules</strong> (Settings → Income) fire
+            on each paycheck and pre-fill envelope assignments. So if every
+            paycheck should put $500 into Rent, $300 into Savings, you
+            set it once.
           </p>
           <p className="mt-2">
-            The <strong>Credit Cards</strong> page shows utilization bars,
-            days-until-due, and one-tap Pay for every credit account.
+            <strong>Bill split calculator</strong> (⌘K → Bill split) does
+            restaurant math + writes IOUs to the ledger atomically.
+          </p>
+          <p className="mt-2 text-fg-subtle text-[12.5px]">
+            And <strong>payee merge</strong> (More → Payees) cleans up
+            "Starbucks" + "STARBUCKS STORE #5821" + "Starbucks Coffee"
+            into one canonical name.
           </p>
         </>
       ),
@@ -422,11 +462,15 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12.5px]">
             <div className="bg-surface-2/50 rounded-lg p-2.5">
               <div className="font-semibold">Stuck?</div>
-              <div className="text-fg-subtle">Settings → Help → Show tutorial again. Every page has a small ? button next to tricky concepts.</div>
+              <div className="text-fg-subtle">
+                Open the <strong>Help center</strong> (sidebar → Help, or
+                More → Help center). Search articles written for total
+                beginners. Or replay this tutorial from Settings → More.
+              </div>
             </div>
             <div className="bg-surface-2/50 rounded-lg p-2.5">
               <div className="font-semibold">Lost data?</div>
-              <div className="text-fg-subtle">Settings → Backup & Import → Export JSON. Do this regularly.</div>
+              <div className="text-fg-subtle">Settings → Data → Export JSON. Do this regularly.</div>
             </div>
           </div>
           <button

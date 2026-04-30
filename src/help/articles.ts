@@ -1,0 +1,972 @@
+/**
+ * In-app help database (v0.6.2). One article per concept, written for
+ * users who have never used a budgeting app before. To add a new
+ * article, append an entry — no other code changes needed.
+ *
+ * Style guide:
+ *   - Plain English. No jargon without definitions.
+ *   - Short paragraphs. Bullet points where they help.
+ *   - Concrete examples with small numbers.
+ *   - Lead with the user's question, not the feature name.
+ */
+
+export type HelpArticle = {
+  id: string;
+  /** Short title, the way the user would search for it. */
+  title: string;
+  /** Section grouping for the table of contents. */
+  category: HelpCategory;
+  /** Searchable keywords (in addition to title + body). */
+  tags: string[];
+  /** Markdown-ish content. Headings start lines with ##; paragraphs are
+   *  separated by blank lines; bullets start with `- `. */
+  body: string;
+};
+
+export type HelpCategory =
+  | 'getting-started'
+  | 'budgeting-basics'
+  | 'transactions'
+  | 'accounts'
+  | 'goals'
+  | 'reports'
+  | 'sync-privacy'
+  | 'troubleshooting';
+
+export const HELP_CATEGORIES: Array<{ id: HelpCategory; label: string; description: string }> = [
+  { id: 'getting-started', label: 'Getting started', description: 'Brand new? Start here.' },
+  { id: 'budgeting-basics', label: 'Budgeting basics', description: 'How envelope budgeting works.' },
+  { id: 'transactions', label: 'Transactions', description: 'Adding, editing, importing, splitting.' },
+  { id: 'accounts', label: 'Accounts', description: 'Checking, savings, credit cards, loans.' },
+  { id: 'goals', label: 'Goals & savings', description: 'Save for things that matter.' },
+  { id: 'reports', label: 'Reports & insights', description: 'Find patterns in your money.' },
+  { id: 'sync-privacy', label: 'Sync & privacy', description: 'Multiple devices, no servers.' },
+  { id: 'troubleshooting', label: 'Troubleshooting', description: 'When things go sideways.' },
+];
+
+export const HELP_ARTICLES: HelpArticle[] = [
+  // ---------------- Getting started -----------------------------------
+  {
+    id: 'what-is-monii',
+    title: 'What is Monii Watch?',
+    category: 'getting-started',
+    tags: ['intro', 'overview', 'what', 'about'],
+    body: `
+Monii Watch is a budgeting app that helps you decide where every dollar
+goes BEFORE you spend it. It's based on the "envelope method" — you
+imagine your money living in labeled envelopes (Rent, Groceries, Fun
+Money), and you only spend from each envelope what's inside it.
+
+## What makes it different
+
+- **Your data lives on your device, not on a server.** Nothing is
+  uploaded anywhere by default.
+- **No accounts, no signup.** Open the app and start.
+- **Sync between your devices** is optional and end-to-end encrypted —
+  you pair them with a phrase only you know.
+- **No bank linking.** You enter transactions yourself (or paste / OCR
+  from receipts and statements). This is intentional: it keeps your
+  bank credentials private and forces you to actually look at where
+  your money goes.
+
+## What it's good for
+
+- Knowing exactly how much you can spend on dining this week
+- Saving for goals (vacation, new laptop, emergency fund)
+- Catching subscription creep before it adds up
+- Reviewing your spending at the end of each month
+`,
+  },
+  {
+    id: 'first-week',
+    title: 'Your first week with Monii',
+    category: 'getting-started',
+    tags: ['first time', 'getting started', 'tutorial', 'walkthrough', 'beginner'],
+    body: `
+The fastest way to get value from Monii is to do these five things in
+order. Don't skip ahead — each step builds on the last.
+
+## Day 1 — Add your accounts
+
+Tap **+ New account** in the sidebar (or More → All accounts on
+mobile). Add every account you actually use: checking, savings, credit
+cards, cash. The opening balance should match what's in your account
+RIGHT NOW. Don't worry about old transactions — you start fresh.
+
+## Day 1 — Set your monthly income
+
+Go to **Settings → General → Monthly income**. Enter your take-home
+pay (after taxes). If you're paid bi-weekly, also set Pay frequency
+and Last paycheck date — it makes everything else more accurate.
+
+## Day 2 — Plan your envelopes
+
+Open the **Budget** tab. You'll see categories grouped by type
+(Bills, Food, Transportation, etc.). For each one, type the dollar
+amount you want to spend this month. The big number at the top —
+**Ready to Assign** — is your unspent income. Your goal: get it to
+zero. Every dollar has a job.
+
+## Day 3-7 — Record what you spend
+
+Each time you spend money, add a transaction. The fastest way:
+tap the **Add transaction** floating button (mobile) or use **⌘K**
+(desktop) and type something like "Spent $12 at Chipotle on dining".
+Or use **Add receipt** to take a picture of a receipt and let the
+OCR fill the form.
+
+## End of week — Check the budget
+
+The Budget page now shows what you spent vs what you assigned. Green
+numbers mean you're under budget. Red means you overspent — pull
+money from another envelope to cover it.
+
+## End of month — Monthly review
+
+A modal automatically asks "How was the month?" on the 1st. Rate it
+1-5 and write a few words. Over time this becomes your money journal.
+`,
+  },
+  {
+    id: 'envelope-method',
+    title: 'What is "envelope budgeting"?',
+    category: 'budgeting-basics',
+    tags: ['envelope', 'method', 'ynab', 'concept'],
+    body: `
+Envelope budgeting is a 100-year-old idea: take your monthly income,
+divide it into labeled envelopes (Rent, Food, Gas), and only spend
+from each envelope what's inside. When the envelope is empty, you
+stop spending in that category.
+
+## Why it works
+
+Most budgeting failures come from the same trap: you spend money on
+small things you didn't plan for, and at the end of the month you
+wonder where it went. The envelope method forces you to plan first.
+You decide that Dining gets $200 this month. If you've already spent
+$180, you know dinner out tonight comes out of next month's pizza
+budget — or out of a different envelope you'd rather not raid.
+
+## How Monii implements it
+
+Three numbers per category, every month:
+
+- **Assigned** — how much you put in the envelope this month
+- **Activity** — how much you've spent (negative) or gotten back
+  (positive)
+- **Available** — what's left to spend
+
+When you add a transaction, the Activity number updates. When you
+edit Assigned, the Available follows. If Available goes negative
+(red), you've overspent — Monii nudges you to cover it from another
+envelope.
+
+## Rolling over
+
+Money you don't spend in an envelope rolls over to next month. Save
+$50 of your $200 dining budget in April? Then May starts with $250
+in dining (your rollover plus the new $200 you assign). This is why
+Monii tracks "Available" not "Assigned this month" — what matters is
+what's actually in the envelope right now.
+`,
+  },
+  // ---------------- Budgeting basics -----------------------------------
+  {
+    id: 'ready-to-assign',
+    title: 'What is "Ready to Assign"?',
+    category: 'budgeting-basics',
+    tags: ['rta', 'ready to assign', 'unassigned', 'budget'],
+    body: `
+**Ready to Assign** is the dollar amount you've earned but haven't
+told an envelope to hold yet. It's at the top of the Budget page.
+
+## Goal: get it to zero
+
+Every dollar should have a job. If your Ready to Assign is $1,500,
+that's $1,500 floating around with no plan — usually it gets spent on
+random things you don't notice.
+
+The fix: tap any category and add to its Assigned amount until Ready
+to Assign drops to zero. Common categories to load up first:
+
+- **Rent / mortgage** — your biggest fixed bill
+- **Bills** (utilities, internet, phone)
+- **Groceries**
+- **Transportation** (gas, transit)
+- **Savings goals** — emergency fund, vacation
+
+## Negative Ready to Assign
+
+If it goes negative (red), you've over-assigned — you've told your
+envelopes to hold more money than you actually have. Pull some back
+from a low-priority category until it's at zero or above.
+`,
+  },
+  {
+    id: 'overspending',
+    title: 'I overspent. What now?',
+    category: 'budgeting-basics',
+    tags: ['overspent', 'overspending', 'red', 'negative', 'cover'],
+    body: `
+Don't panic. Overspending happens. Monii has a one-tap fix.
+
+## The "Cover overspending" banner
+
+When any category goes red (negative Available), Monii shows an
+**Overspending alert** above the budget table. Tap **Cover from
+Ready to Assign** and it pulls just enough money from your unspent
+RTA to bring every red category back to zero.
+
+## What if Ready to Assign is also empty?
+
+Then you have to move money between envelopes. Decide which envelope
+can give some up. Common candidates: the "fun money" / "discretionary"
+envelope, or whatever non-essential goal you're saving for.
+
+To move money: on desktop, **drag the green pill** from one row onto
+another. On mobile, tap the pill and pick a destination. Or go to
+the **chat panel** (⌘J) and type "move $50 from dining to groceries".
+
+## Why it matters
+
+Letting overspending sit means the next month starts with a deficit.
+Cover it now and you start each month clean.
+`,
+  },
+  {
+    id: 'safe-to-spend',
+    title: 'What does "safe to spend" mean?',
+    category: 'budgeting-basics',
+    tags: ['safe', 'daily', 'paycheck', 'days', 'banner'],
+    body: `
+The blue banner above the Budget table shows three numbers:
+
+1. **Days until your next paycheck** — based on the pay schedule you
+   set in Settings.
+2. **Cash on hand** — total liquid money in your checking, savings,
+   and cash accounts (NOT credit card limits).
+3. **Safe to spend per day** — how much you can spend each day without
+   running out before payday.
+
+The math: cash on hand minus upcoming scheduled bills, divided by
+days until payday. So if you have $1,000 and $400 in scheduled bills
+before payday in 10 days, your safe daily spend is $60.
+
+## When it's hidden
+
+If you haven't set a pay frequency yet, the banner doesn't show
+because the math is meaningless. Set Pay frequency in **Settings →
+General**.
+`,
+  },
+  // ---------------- Transactions ---------------------------------------
+  {
+    id: 'add-transaction',
+    title: 'How do I add a transaction?',
+    category: 'transactions',
+    tags: ['add', 'create', 'new', 'transaction', 'expense', 'income'],
+    body: `
+Three ways, fastest first:
+
+## 1. Chat panel (⌘J or tap the chat icon)
+
+Type natural English: "Spent $12 at Chipotle on dining" or "$45.20
+for gas yesterday". The chat parses the amount, vendor, category,
+and date, then asks for any missing info.
+
+## 2. The floating + button (mobile) / QuickAdd bar (desktop)
+
+A small form at the bottom of the Account page or floating action
+button on Budget page. Pick payee, amount, category — done.
+
+## 3. Receipt OCR
+
+Tap **Add receipt** in the chat panel or Command Palette (⌘K) →
+Upload receipt. Take a photo or pick a file; Monii reads the vendor
++ amount + date and pre-fills the form. Works on PDFs too. The
+receipt image is stored alongside the transaction.
+
+## Inflows vs outflows
+
+Outflows (spending) are negative numbers. Inflows (paychecks,
+refunds) are positive. Don't think about signs — Monii infers them
+from words like "spent" / "got paid" / "received".
+
+## Categories vs Ready-to-Assign
+
+For expenses, pick a category. For income (paychecks, etc.), leave
+the category blank — the money lands in Ready to Assign so you can
+distribute it.
+`,
+  },
+  {
+    id: 'split-transaction',
+    title: 'How do I split a transaction across categories?',
+    category: 'transactions',
+    tags: ['split', 'multiple', 'categories'],
+    body: `
+A split transaction divides one charge across multiple categories.
+Useful when you buy groceries AND household items at the same store.
+
+## How to split
+
+1. Open the transaction (click the row in the transaction table)
+2. Tap the **Split** button
+3. Add a row for each category. Adjust the amounts so they sum to
+   the original total.
+4. Save.
+
+The transaction shows up as one row in the table, but the budget
+page subtracts the right amount from each envelope.
+
+## Example
+
+A $87 Costco trip might be:
+- Groceries: $62
+- Household: $20
+- Pet food: $5
+`,
+  },
+  {
+    id: 'one-time-flag',
+    title: 'What is "Mark as one-time"?',
+    category: 'transactions',
+    tags: ['one-time', 'outlier', 'mark', 'one time', 'unusual'],
+    body: `
+A one-time flag tells Monii "this transaction is a fluke — don't use
+it to predict my normal spending."
+
+## When to use it
+
+- A big couch you bought once. Without the flag, Furniture would
+  look like a $1,200/month category in your trends.
+- Wedding gift, surgery copay, plane ticket for a one-off trip.
+- Anything that would mislead the trend lines.
+
+## How
+
+Right-click the transaction (long-press on mobile) → **Mark as
+one-time**. The transaction stays where it is and counts toward
+your overall budget — but it's excluded from:
+
+- Category trailing averages ("you usually spend X")
+- Cash flow forecast variable spending baseline
+- What-if scenario projections
+- The right-sized emergency fund recommendation
+
+You can unmark anytime if you change your mind.
+`,
+  },
+  {
+    id: 'cost-per-use',
+    title: 'How does "Cost per use" work?',
+    category: 'transactions',
+    tags: ['cost per use', 'usage', 'tracker'],
+    body: `
+Some purchases are worth tracking by how often you actually use them.
+Bought a $200 bike helmet? Worn it once = $200 per use. Worn it 100
+times = $2.
+
+## Setup
+
+1. Right-click the purchase transaction → **Track usage — +1**
+2. Each time you use the thing, hit the same menu item again
+
+Monii adds up your taps over time. Eventually you can ask the chat
+panel "what's my cost per use on the bike helmet" or look at the
+linked goal tile if it's tied to a category.
+
+## Why bother
+
+It changes your relationship with stuff. The $400 air fryer that
+makes dinner three times a week is great. The $400 stand mixer
+that's used twice a year is not.
+`,
+  },
+  {
+    id: 'import-statement',
+    title: 'How do I import a bank statement?',
+    category: 'transactions',
+    tags: ['import', 'csv', 'statement', 'ofx', 'qfx', 'paste'],
+    body: `
+Two paths. Both end at a review screen where you can deselect rows
+and tweak categories before saving.
+
+## File upload
+
+1. Open Settings → Backup & Import (or use ⌘K → Upload receipt)
+2. Pick a CSV, OFX, QFX, or PDF statement
+3. Monii parses the rows and shows a review table
+4. Uncheck duplicates, set categories, hit Save
+
+## Copy-paste
+
+If your bank doesn't export but you can SELECT all rows on the
+website, copy them to your clipboard and paste into the
+**Bulk paste** modal (⌘K → Bulk paste). Same review flow.
+
+## Duplicates
+
+Monii auto-detects rows that look like they're already in your
+account (same date, amount, payee within ±2 days) and **deselects
+them with a warning**. You can re-check them if they're legit.
+`,
+  },
+  {
+    id: 'receipt-attach',
+    title: 'How do I attach a receipt?',
+    category: 'transactions',
+    tags: ['receipt', 'photo', 'image', 'pdf', 'attach', 'gallery', 'ocr'],
+    body: `
+Receipts can come in several ways:
+
+## When you add the transaction via OCR
+
+Upload the photo / PDF in the **Add receipt** flow (⌘K → Upload
+receipt). The image is stored with the transaction automatically.
+
+## After the fact
+
+1. Open the transaction
+2. Tap the receipt slot → upload an image or PDF
+3. The image is resized to keep the database small (long edge ≤
+   600px for images; PDFs get the first page rasterized to a JPEG)
+
+## Search by content
+
+The OCR'd text from a receipt is searchable. On the Search page or
+Receipts gallery (More → Receipts), type "wood stain" or "ground
+beef" and Monii finds the receipt that contained those words.
+`,
+  },
+  // ---------------- Accounts -------------------------------------------
+  {
+    id: 'add-account',
+    title: 'How do I add an account?',
+    category: 'accounts',
+    tags: ['add', 'new', 'account', 'checking', 'savings'],
+    body: `
+1. Sidebar → **+ New account** (or More → All accounts → New)
+2. Pick a type. The most common: Checking, Savings, Credit Card, Cash
+3. Set the opening balance to what's in the account RIGHT NOW
+4. (Optional) Set currency or pin to top of the sidebar
+
+For credit cards, also fill in:
+- **Credit limit** — enables utilization tracking
+- **APR** — drives debt-payoff projections
+- **Statement closing day** + **Payment due day** — drives reminders
+
+You can edit any of this later via Edit on the account.
+`,
+  },
+  {
+    id: 'reconcile',
+    title: 'What does "reconcile" do?',
+    category: 'accounts',
+    tags: ['reconcile', 'reconciliation', 'matching', 'cleared'],
+    body: `
+Reconciling means "tell Monii my real bank balance, and it'll catch
+up by inserting an adjustment if needed."
+
+## When to reconcile
+
+Monthly, when your bank statement arrives. Open the account → tap
+**Reconcile**. Enter the cleared balance from the statement.
+
+If the number matches what Monii thinks the cleared balance should
+be, you're done. If they differ, Monii adds a "Reconciliation
+adjustment" transaction so they match.
+
+## Cleared vs uncleared
+
+Each transaction has a state:
+- **Uncleared** — entered, but the bank hasn't posted it yet
+- **Cleared** — the bank confirmed the charge
+- **Reconciled** — locked in by a reconciliation event
+
+Mark transactions cleared when they show up on your bank's online
+view. Reconciliation locks all currently-cleared transactions.
+`,
+  },
+  {
+    id: 'credit-cards',
+    title: 'How do credit cards work in Monii?',
+    category: 'accounts',
+    tags: ['credit card', 'credit', 'utilization', 'apr', 'visa', 'mastercard'],
+    body: `
+Credit cards work a little differently than checking accounts.
+
+## Balance is negative
+
+When you charge $50 on a card, your card balance is **-$50** (you
+owe $50). Paying it down brings the balance back toward zero.
+
+## Auto-created payment category
+
+Monii makes a "Credit Card Payments" group with one category per
+card. Each month you assign money to that category — that's the
+money set aside to pay the card off. When you pay the card (a
+transfer from checking to the card), it pulls from the assigned
+amount.
+
+## Credit Cards page
+
+The dedicated page (More → Credit cards) shows for each card:
+- Current balance
+- Utilization (% of limit used) with a color band
+- Days until statement closes
+- Days until payment due
+- Monthly interest if you carry the balance
+
+## Pre-statement utilization alerts
+
+If utilization is over 30% AND statement closes within 3 days,
+Monii surfaces a banner urging you to pay down to under 30% before
+reporting. This is a free credit-score win.
+`,
+  },
+  // ---------------- Goals ----------------------------------------------
+  {
+    id: 'goals-types',
+    title: 'What kinds of goals can I set?',
+    category: 'goals',
+    tags: ['goal', 'goals', 'target', 'savings', 'monthly funding', 'annual'],
+    body: `
+Four flavors of goals. Pick the one that fits your situation.
+
+## Monthly funding (recurring bill)
+
+"Put $300 toward Rent every month." Use this for fixed bills that
+need to be funded fresh each month.
+
+## Target balance (one-off save-up)
+
+"Save $2,000 for a new laptop." No deadline. Monii projects when
+you'll get there at your current saving rate.
+
+## Target by date (deadline-bound save-up)
+
+"Save $4,000 for a vacation by July 15." Monii calculates the
+monthly contribution you need and tells you if you're ahead or
+behind.
+
+## Annual (birthday / anniversary fund)
+
+"Save $600 for family birthdays by December 15." Auto-rolls forward
+to next year on the trigger date.
+
+## Where to set goals
+
+Two options:
+- **Add Goal modal** (Goals page → New goal): full setup including
+  photo, link, notes
+- **Edit Category modal**: simpler if the category already exists
+`,
+  },
+  {
+    id: 'emergency-fund',
+    title: 'How do I build an emergency fund?',
+    category: 'goals',
+    tags: ['emergency', 'fund', 'savings', '3 months', '6 months'],
+    body: `
+The classic advice: keep 3-6 months of expenses in savings, separate
+from your daily checking.
+
+## Right-size the target
+
+Settings → Emergency fund. Pick how many months you want (3 is
+basic, 6 is recommended). Monii looks at your actual trailing
+spending and tells you the target dollar amount.
+
+If you spend $4,000/month on average, a 6-month fund is $24,000.
+
+## Link a category
+
+Pick or create a category for the fund (e.g. "Emergency"). Link it
+in Settings. The Goals page now shows a pinned **Right-sized
+emergency fund** tile with progress.
+
+## Build it gradually
+
+Don't try to save it all in one month. Add it to your monthly
+budget — say $200 a month. Over time, the trailing-rate projection
+on the Goals page shows when you'll hit the target.
+
+When you reach the target, the tile hides itself.
+`,
+  },
+  {
+    id: 'goal-deal',
+    title: 'What is a "deal alert"?',
+    category: 'goals',
+    tags: ['deal', 'alert', 'price', 'goal', 'target item'],
+    body: `
+You're saving for a $1,500 laptop. You set the target item price to
+$1,500 in the goal. Then one day Apple drops the price to $1,300.
+You've already saved $1,300. Buy it now!
+
+That's a deal alert.
+
+## Setup
+
+1. Open the goal category → Edit
+2. Set **Target item price** (the original sticker price)
+3. Set **Current item price** (what it costs right now)
+4. Optionally add a **Link** to the store page
+
+## What you'll see
+
+When the **Available** in the envelope ≥ the **Current item price**,
+Monii surfaces a banner on the Budget page with a "Open store page"
+link. The alert can be silenced for 90 days per goal.
+
+A separate "you reached the original goal" alert fires when
+Available reaches the **Target item price** — that one can't be
+silenced.
+
+## Updating prices
+
+We don't fetch from store websites (that would leak data through a
+proxy server). You update prices manually. A future server-side
+price-checker plugin could fill this in.
+`,
+  },
+  // ---------------- Reports --------------------------------------------
+  {
+    id: 'reports-overview',
+    title: 'What reports does Monii have?',
+    category: 'reports',
+    tags: ['reports', 'insights', 'overview', 'analytics'],
+    body: `
+The Reports tab has many cards. Most are derived from your existing
+data — no setup needed beyond entering transactions. Highlights:
+
+- **Financial Health Scorecard** — six dimensions (savings rate,
+  emergency fund, debt-to-income, credit utilization, subscription
+  bloat, variable spend) with green/yellow/red and improvement
+  suggestions
+- **Cash Flow Forecast** — projects your balance forward 30/60/90
+  days using scheduled bills + recent spending averages
+- **Year over Year** — this YTD vs same range last year, by category
+- **Bills & Spending Trend** — multi-line chart showing how your
+  utilities + variable bills move month-to-month
+- **Day of week** — heatmap showing which days you spend most
+- **Sankey money flow** — income on the left, categories on the
+  right, all the rivers in between
+- **Tax Summary** — everything tax-deductible aggregated for the
+  year, exportable as CSV
+
+## Customize
+
+Hit **Customize** at the top of the Reports page to hide / reorder
+cards. Local to your device.
+`,
+  },
+  {
+    id: 'category-drill-down',
+    title: 'How do I see one category in detail?',
+    category: 'reports',
+    tags: ['category', 'detail', 'drill', 'electricity', 'utilities', 'breakdown'],
+    body: `
+Click the **Spent** number on any budget row. That opens the
+category detail page with:
+
+- 12-month bar chart with last-year overlay (great for variable
+  bills like electricity)
+- Average / median / highest / lowest months
+- Variability insight ("3.2× swing — peaks in July")
+- Top payees in this category
+- Last 30 transactions
+
+## Use cases
+
+- **Variable bills** — electricity, gas, water, internet. See the
+  seasonal pattern.
+- **Discretionary spending** — dining, entertainment. See if it's
+  drifting up over time.
+- **Travel** — total YTD vs last year.
+`,
+  },
+  {
+    id: 'unusual-transactions',
+    title: 'What does "unusual transaction" mean?',
+    category: 'reports',
+    tags: ['unusual', 'anomaly', 'surprise', 'alert', 'large'],
+    body: `
+Monii flags recent charges that are meaningfully larger than the
+payee's typical amount. It's a "are you sure that's right?" prompt,
+not an alarm.
+
+## How it works
+
+For each payee, Monii looks at the last 6 months of charges. It
+flags new charges that are:
+
+- More than 2 standard deviations above the payee's mean, OR
+- More than 2× the payee's median amount
+
+Plus the charge has to be over $20 (small-dollar noise stays quiet).
+
+## Where it shows up
+
+The Budget page banner: "3 unusual transactions this week — review."
+Tap to expand and see the list. Each row has:
+
+- The amount and what's typical
+- A **Review** button that jumps to the transaction
+- A dismiss for that row
+
+## Why dismiss
+
+Sometimes the charge is legit (you really did spend $300 at Target
+this once). Dismissing keeps the alert from re-firing on every page
+load.
+`,
+  },
+  // ---------------- Sync & privacy -------------------------------------
+  {
+    id: 'sync-overview',
+    title: 'How does sync work?',
+    category: 'sync-privacy',
+    tags: ['sync', 'pair', 'devices', 'webrtc', 'phrase'],
+    body: `
+Sync is OFF by default. You opt in.
+
+## How to pair devices
+
+1. On device A, open **Settings → Sync → Configure**
+2. Toggle Sync ON. Monii generates a 3-word **pairing phrase**
+   ("forest-lemon-spark", say)
+3. On device B, do the same — enter the SAME phrase
+4. Devices find each other and merge their data within seconds
+
+The pairing phrase is the encryption key. Anyone who knows it can
+sync to your data. Treat it like a password.
+
+## What sync uses
+
+- **WebRTC** — direct peer-to-peer, the default. Works as long as
+  both devices are online at some point.
+- **Self-hosted server** (advanced) — set a y-websocket URL in
+  Sync settings. Useful if you have a home server / Pi.
+- **Google Drive** (E2E encrypted) — opt-in. Stores an encrypted
+  snapshot in your own Drive. Google holds the bytes but can't
+  decrypt them.
+
+## Resetting the phrase
+
+Don't! The phrase is the key. If you lose all devices, the data is
+gone. Export a backup occasionally (Settings → Backup) to be safe.
+`,
+  },
+  {
+    id: 'privacy',
+    title: 'Where is my data stored?',
+    category: 'sync-privacy',
+    tags: ['privacy', 'data', 'where', 'security', 'storage'],
+    body: `
+On YOUR devices. Specifically:
+
+## Browser PWA
+
+In your browser's **IndexedDB**. A specific database named
+\`monii-watch-doc-v1\`. It stays there until you clear it or
+uninstall the app.
+
+## Tauri desktop apps (Mac, Windows, Linux)
+
+Same IndexedDB, scoped to the Tauri WebView's local storage. Lives
+in your OS user directory.
+
+## Sync transports (when enabled)
+
+- **WebRTC**: data is encrypted with your pairing phrase before
+  leaving your device. Public signaling servers help devices find
+  each other but never see your data.
+- **Self-hosted**: encrypted with the same phrase before sending.
+- **Google Drive**: encrypted with XChaCha20-Poly1305 + Argon2id
+  derived from the phrase before upload.
+
+## What we DON'T do
+
+- No analytics
+- No "anonymous usage data"
+- No third-party SDKs
+- No bank linking (Plaid etc.)
+- No AI / LLM services
+`,
+  },
+  {
+    id: 'backup',
+    title: 'How do I back up my data?',
+    category: 'sync-privacy',
+    tags: ['backup', 'export', 'restore', 'json', 'encrypted'],
+    body: `
+Monii has two export formats and two import paths.
+
+## Plain JSON export
+
+Settings → Backup & Import → **Export JSON**. Downloads a
+\`monii-watch-YYYY-MM-DD.json\` with everything: accounts,
+transactions, categories, settings.
+
+## Encrypted export (.cb-backup)
+
+Settings → Backup & Import → **Export encrypted**. Pick a
+passphrase. Same data but encrypted with XChaCha20-Poly1305 +
+Argon2id (military-grade). Use this if you're emailing the file
+to yourself or storing it in a less-trusted location.
+
+## Restore
+
+Settings → Backup & Import → **Import**. Two modes:
+- **Merge** — adds the contents alongside what's there
+- **Replace all** — wipes the current state and replaces (USE WITH
+  CARE)
+
+Encrypted backups auto-detect the magic header and prompt for the
+passphrase.
+
+## When to back up
+
+- Before any major change (cleaning up categories, deleting accounts)
+- Once a month, on a schedule
+- Before switching devices (in addition to syncing)
+`,
+  },
+  // ---------------- Troubleshooting ------------------------------------
+  {
+    id: 'reset-everything',
+    title: 'How do I start over from scratch?',
+    category: 'troubleshooting',
+    tags: ['reset', 'wipe', 'start over', 'delete'],
+    body: `
+Settings → Danger zone → **Reset everything**. This wipes:
+
+- All accounts, categories, transactions, assignments
+- Sync configuration (pairing phrase resets)
+- Local prefs (themes, density, sidebar order)
+- Service worker caches
+
+Then it reloads the app and you start fresh with the demo data.
+
+## Before you do this
+
+Export a backup first. Just in case.
+
+## When the button doesn't seem to work
+
+If it looks like the wipe didn't take, try uninstalling the app
+(or clearing browser data for the site) and reopening. The async
+deletion can be blocked if a sync provider is mid-flight.
+`,
+  },
+  {
+    id: 'sync-not-working',
+    title: 'Sync isn\'t working between my devices',
+    category: 'troubleshooting',
+    tags: ['sync', 'broken', 'not working', 'pairing', 'connection'],
+    body: `
+A checklist:
+
+## Both devices have the SAME pairing phrase?
+
+Settings → Sync → Configure. The phrase is case-sensitive and
+hyphenated. Even "forest lemon spark" and "Forest-Lemon-Spark" are
+different. Type carefully.
+
+## Both devices online?
+
+WebRTC needs both peers to be reachable on the network. If one is
+on a restrictive corporate network, P2P may fail.
+
+## Try the self-hosted server (advanced)
+
+If WebRTC isn't reaching your peers, you can run a tiny
+y-websocket server (the \`server/\` folder in the source has a
+Docker Compose drop-in). Set the URL in Sync → Self-hosted server.
+
+## Last resort: import / export
+
+If sync just won't connect, export from device A (Settings →
+Backup → Export JSON) and import on device B (Backup → Import).
+Not real-time but always works.
+`,
+  },
+  {
+    id: 'numbers-look-wrong',
+    title: 'My budget numbers look wrong',
+    category: 'troubleshooting',
+    tags: ['wrong', 'incorrect', 'broken', 'math', 'available'],
+    body: `
+Common causes, in order of likelihood:
+
+## You haven't set Ready to Assign to zero
+
+If RTA is huge and your envelopes look empty, you have unassigned
+income. Distribute it to envelopes.
+
+## Carry-over from previous months
+
+Available = assigned this month + activity this month + carry from
+prior months. If a category is in the red because of a previous
+overspend, the carry follows you.
+
+## Filter on the wrong month
+
+Make sure you're looking at the right month at the top of the
+Budget page. The picker is in the title bar.
+
+## Closed accounts
+
+Closed accounts don't contribute to the budget. Settings → All
+accounts → check if anything you expected to count is closed.
+
+## Tracking accounts
+
+Investment, loan, and mortgage accounts are NOT on-budget. Their
+balances show in Net Worth but don't enter the envelope math.
+
+## Try the chat panel
+
+Open the chat (⌘J) and ask "What is my net worth?" or "What's my
+PayPal balance?" — Monii reports the raw numbers without the
+budget math layered on top, so you can sanity-check.
+`,
+  },
+  {
+    id: 'app-frozen',
+    title: 'The app froze / a page is blank',
+    category: 'troubleshooting',
+    tags: ['frozen', 'crash', 'blank', 'broken', 'error', 'recover'],
+    body: `
+Monii has crash recovery built in.
+
+## If you see "Something went wrong"
+
+That's the error boundary doing its job. Tap **Retry** to try
+re-rendering, or **Go to budget** to navigate away. Tap **Copy
+report** to grab the technical details — paste them somewhere safe
+in case you want to report the bug.
+
+## If the app is just slow / unresponsive
+
+- Try refreshing (browser: F5; Tauri: ⌘R)
+- Check Settings → Debug logs for any errors
+- If it persists across refresh: try **Reset everything** (export
+  a backup first!)
+
+## If a specific report card is broken
+
+The Reports page wraps each card in its own error boundary. One
+broken card won't kill the page — others still render.
+`,
+  },
+];
+
+export const HELP_INDEX = HELP_ARTICLES.map((a) => ({
+  id: a.id,
+  title: a.title,
+  category: a.category,
+  tags: a.tags,
+}));

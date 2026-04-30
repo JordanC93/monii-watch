@@ -20,9 +20,11 @@ import { YearOverYear } from '../components/Reports/YearOverYear';
 import { TaxSummary } from '../components/Reports/TaxSummary';
 import { NetWorthAttribution } from '../components/Reports/NetWorthAttribution';
 import { BillNegotiation } from '../components/Reports/BillNegotiation';
+import { DayOfWeekHeatmap } from '../components/Reports/DayOfWeekHeatmap';
 import { Button } from '../components/ui/Button';
 import { MobilePageHeader } from '../components/Layout/MobilePageHeader';
-import { Hourglass, Receipt, Users, TrendingUp as TrendUpIcon, Settings as SettingsIcon, Activity, BarChart3, FileBarChart } from 'lucide-react';
+import { ErrorBoundary } from '../components/ErrorBoundary/ErrorBoundary';
+import { Hourglass, Receipt, Users, TrendingUp as TrendUpIcon, Settings as SettingsIcon, Activity, BarChart3, FileBarChart, CalendarDays } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { useUI } from '../store/ui';
 
@@ -206,6 +208,18 @@ export function ReportsPage() {
           Top vendors by spend over the selected window. Click through to filter Search by that payee.
         </div>
         <SpendingByPayee months={range} />
+      </div>
+
+      <div className="glass-panel p-4 sm:p-5" style={cardStyle('day-of-week')}>
+        <div className="text-[14px] font-semibold mb-1 flex items-center gap-1.5">
+          <CalendarDays size={14} className="text-accent" /> Day of week
+        </div>
+        <div className="text-[11.5px] text-fg-subtle mb-3">
+          Where the discretionary money goes — Friday/Saturday spikes are the typical culprit. No judgment, just awareness.
+        </div>
+        <ErrorBoundary variant="card" scope="day-of-week">
+          <DayOfWeekHeatmap />
+        </ErrorBoundary>
       </div>
 
       <div className="glass-panel p-4 sm:p-5" style={cardStyle('category-heatmap')}>

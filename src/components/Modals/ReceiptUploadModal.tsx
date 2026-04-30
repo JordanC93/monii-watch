@@ -109,9 +109,11 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
   const [rawText, setRawText] = useState<string>('');
   const [docKind, setDocKind] = useState<DocKind>('receipt');
   /** Holds the original image file so we can attach a resized copy to the
-   *  transaction after the user confirms. PDFs and statements don't get
-   *  attached (PDFs would balloon the doc; statements are bulk imports). */
+   *  transaction after the user confirms. */
   const [imageFile, setImageFile] = useState<File | null>(null);
+  /** Tier 7 — when the source is a PDF, hold it here so we can rasterize
+   *  page 1 to a JPEG and attach it as a viewable receipt. */
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   /** Whether to attach the resized image to the resulting transaction.
    *  User-toggleable in the receipt form so the privacy / disk cost is
    *  visible. Defaults to ON for receipts since that's the main use. */
@@ -126,6 +128,7 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
     setRawText('');
     setDocKind('receipt');
     setImageFile(null);
+    setPdfFile(null);
     setAttachReceipt(true);
     if (fileRef.current) fileRef.current.value = '';
   }
@@ -154,8 +157,15 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
     if (isImage) {
       setPreviewUrl((u) => { if (u) URL.revokeObjectURL(u); return URL.createObjectURL(file); });
       setImageFile(file);
+      setPdfFile(null);
+    } else if (isPdf) {
+      // Tier 7 — hold the PDF for rasterize-on-attach so the receipt is
+      // viewable later (the OCR'd text is also stored).
+      setImageFile(null);
+      setPdfFile(file);
     } else {
       setImageFile(null);
+      setPdfFile(null);
     }
     try {
       let text = '';
@@ -352,6 +362,20 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
           }
         })
         .catch((err) => console.warn('[upload] receipt image resize failed', err));
+    }
+    // Tier 7 — PDF receipts: rasterize the first page to a JPEG so it's
+    // viewable in the gallery + viewer, then attach it like any other
+    // receipt image. Asynchronous; non-blocking.
+    if (attachReceipt && pdfFile && !imageFile) {
+      void import('../../conversation/pdf')
+        .then((m) => m.rasterizePdfFirstPage(pdfFile))
+        .then((dataUrl) => {
+          if (dataUrl) {
+            attachReceiptImage(txn.id, dataUrl, rawText || undefined);
+            console.info(`[upload] rasterized PDF receipt → txn=${txn.id} (${Math.round(dataUrl.length / 1024)}KB${rawText ? `, ${rawText.length} OCR chars` : ''})`);
+          }
+        })
+        .catch((err) => console.warn('[upload] PDF rasterize failed', err));
     }
     close();
   }

@@ -33,6 +33,11 @@ export function Toaster() {
       // circles in the top-right and from the iPhone Dynamic Island.
       // The bottom anchor sits well above the BottomNav (~80 px) +
       // the home indicator inset.
+      // Live-region announce: aria-live="polite" lets screen readers
+      // read each new toast without interrupting the current speech.
+      role="status"
+      aria-live="polite"
+      aria-atomic="false"
       className="fixed left-1/2 -translate-x-1/2 z-[60] flex flex-col items-center gap-2 pointer-events-none top-3 md:top-3 max-md:top-auto max-md:bottom-[calc(80px+env(safe-area-inset-bottom,0))]"
       style={{ paddingTop: 'env(safe-area-inset-top, 0)' }}
     >

@@ -1,0 +1,35 @@
+name: CI
+
+# Runs on every push to main + every PR. Cheap — just typecheck + tests
+# + build, no Tauri / matrix. Catches regressions before they get tagged.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build (verifies vite + tsc work end-to-end)
+        run: npm run build

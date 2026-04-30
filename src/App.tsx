@@ -1,6 +1,7 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useEffect } from 'react';
 import { Layout } from './components/Layout/Layout';
+import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
 import { BudgetPage } from './pages/BudgetPage';
 import { AccountPage } from './pages/AccountPage';
 import { AllAccountsPage } from './pages/AllAccountsPage';
@@ -46,6 +47,8 @@ const ReceiptGalleryPage = lazy(() => import('./pages/ReceiptGalleryPage').then(
 const PayeesPage = lazy(() => import('./pages/PayeesPage').then((m) => ({ default: m.PayeesPage })));
 // Category drill-down (Tier 7 #4).
 const CategoryDetailPage = lazy(() => import('./pages/CategoryDetailPage').then((m) => ({ default: m.CategoryDetailPage })));
+// In-app help center (built v0.6.2).
+const HelpPage = lazy(() => import('./pages/HelpPage').then((m) => ({ default: m.HelpPage })));
 
 function PageFallback() {
   return (
@@ -59,6 +62,7 @@ function PageFallback() {
 export default function App() {
   useGlobalShortcuts();
   const nav = useNavigate();
+  const location = useLocation();
 
   // Tier 5 #1 — wire native menubar clicks to app actions.
   useEffect(() => {
@@ -297,32 +301,35 @@ export default function App() {
   return (
     <>
       <Layout>
-        <Suspense fallback={<PageFallback />}>
-          <Routes>
-            <Route path="/" element={<Navigate to="/budget" replace />} />
-            <Route path="/budget" element={<BudgetPage />} />
-            <Route path="/accounts" element={<AllAccountsPage />} />
-            <Route path="/accounts/:accountId" element={<AccountPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/scheduled" element={<ScheduledPage />} />
-            <Route path="/credit-cards" element={<CreditCardsPage />} />
-            <Route path="/goals" element={<GoalsPage />} />
-            <Route path="/trips" element={<TripsPage />} />
-            <Route path="/calendar" element={<CalendarPage />} />
-            <Route path="/investments" element={<InvestmentsPage />} />
-            <Route path="/auto-rules" element={<AutoRulesPage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/more" element={<MorePage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            {/* MAINTAINER MODE: REMOVE FOR v1 */}
-            <Route path="/help-maint" element={<MaintainerHelpPage />} />
-            <Route path="/share" element={<SharePage />} />
-            <Route path="/receipts" element={<ReceiptGalleryPage />} />
-            <Route path="/payees" element={<PayeesPage />} />
-            <Route path="/categories/:categoryId" element={<CategoryDetailPage />} />
-            <Route path="*" element={<Navigate to="/budget" replace />} />
-          </Routes>
-        </Suspense>
+        <ErrorBoundary variant="route" resetKey={location.pathname} scope="page">
+          <Suspense fallback={<PageFallback />}>
+            <Routes>
+              <Route path="/" element={<Navigate to="/budget" replace />} />
+              <Route path="/budget" element={<BudgetPage />} />
+              <Route path="/accounts" element={<AllAccountsPage />} />
+              <Route path="/accounts/:accountId" element={<AccountPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/scheduled" element={<ScheduledPage />} />
+              <Route path="/credit-cards" element={<CreditCardsPage />} />
+              <Route path="/goals" element={<GoalsPage />} />
+              <Route path="/trips" element={<TripsPage />} />
+              <Route path="/calendar" element={<CalendarPage />} />
+              <Route path="/investments" element={<InvestmentsPage />} />
+              <Route path="/auto-rules" element={<AutoRulesPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/more" element={<MorePage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              {/* MAINTAINER MODE: REMOVE FOR v1 */}
+              <Route path="/help-maint" element={<MaintainerHelpPage />} />
+              <Route path="/share" element={<SharePage />} />
+              <Route path="/receipts" element={<ReceiptGalleryPage />} />
+              <Route path="/payees" element={<PayeesPage />} />
+              <Route path="/categories/:categoryId" element={<CategoryDetailPage />} />
+              <Route path="/help" element={<HelpPage />} />
+              <Route path="*" element={<Navigate to="/budget" replace />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </Layout>
       <CommandPalette />
       <KeyboardHintsOverlay />

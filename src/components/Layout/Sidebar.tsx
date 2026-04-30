@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Wallet, BarChart3, Settings as SettingsIcon, Search, ListChecks, Plus, RefreshCw, RefreshCwOff, Loader2, CalendarClock, CreditCard, Target, Pin, Wrench, Plane, Calendar, TrendingUp, Wand2, Image as ImageIcon, ChevronDown, ChevronRight } from 'lucide-react';
+import { Wallet, BarChart3, Settings as SettingsIcon, Search, ListChecks, Plus, RefreshCw, RefreshCwOff, Loader2, CalendarClock, CreditCard, Target, Pin, Wrench, Plane, Calendar, TrendingUp, Wand2, Image as ImageIcon, ChevronDown, ChevronRight, BookOpen, Tag } from 'lucide-react';
 import { useBudget } from '../../store/budget';
 import { useUI } from '../../store/ui';
 import { cn } from '../../lib/cn';
@@ -225,7 +225,9 @@ function defaultNavEntries(): NavEntry[] {
     { key: 'calendar',     to: '/calendar',     icon: <Calendar size={15} />,      label: 'Calendar',         end: true },
     { key: 'auto-rules',   to: '/auto-rules',   icon: <Wand2 size={15} />,         label: 'Auto-rules',       end: true },
     { key: 'receipts',     to: '/receipts',     icon: <ImageIcon size={15} />,     label: 'Receipts',         end: true },
+    { key: 'payees',       to: '/payees',       icon: <Tag size={15} />,           label: 'Payees',           end: true },
     { key: 'search',       to: '/search',       icon: <Search size={15} />,        label: 'Search',           end: true },
+    { key: 'help',         to: '/help',         icon: <BookOpen size={15} />,      label: 'Help',             end: false },
     { key: 'settings',     to: '/settings',     icon: <SettingsIcon size={15} />,  label: 'Settings',         end: true },
   ];
 }

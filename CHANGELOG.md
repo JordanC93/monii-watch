@@ -2,6 +2,76 @@
 
 ## Unreleased
 
+### v0.6.2 — Foundation pass: tests · error boundaries · help center · search rebuild
+
+A "make the codebase tougher" release. Less new-feature spectacle,
+more durability. Plus a comprehensive Help center for end users.
+
+#### Quality / safety net
+- **Vitest unit-test suite.** 178 tests across 19 files covering
+  the entire pure-functional domain layer (money, calc, date,
+  budget, recurrence, allocation, anomaly, duplicates, credit
+  card math, pay schedule, safe-spend, year-over-year, financial
+  health, subscriptions, goals, insights, category detail, debt,
+  day-of-week). New `vitest.config.ts` + `npm test` script. New
+  GitHub Actions `ci.yml` runs typecheck + tests + build on every
+  push.
+- **React error boundaries.** New `ErrorBoundary` component with
+  two variants (route-level + card-level). Wrapped around the
+  Suspense Routes so any throwing page recovers gracefully. Every
+  Reports card can opt in via `<ErrorBoundary variant="card">`.
+  Includes "Copy crash report" → clipboard + integrated
+  in-app log capture.
+- **Performance pass.** `BudgetCategoryRow` wrapped in
+  `React.memo` with custom equality so 30+ rows don't re-render
+  on every observer fire when nothing they display changed.
+
+#### New / improved features
+- **Day-of-week spending heatmap.** New Reports card shows the
+  7-day spending pattern over 30/90/180/365 day windows.
+  Highlights the peak day. Pure derivation.
+- **PDF receipt attachment.** PDFs uploaded to the receipt flow
+  now get rasterized (page 1) to a JPEG and attached as a
+  viewable receipt image, alongside the OCR'd text. Searchable
+  via the existing Receipt gallery search.
+- **Search page rebuild.** Quick-filter chips (Last 7d, This
+  month, Last month, Uncategorized, Has flag, Has receipt),
+  type filter (income/expense/transfer), toggle filters
+  (Has flag, Has receipt, Uncategorized, Unusual), receipt OCR
+  text in the search haystack, **CSV export of filtered
+  results**, click-through to the source account.
+- **Settings tabs.** 14+ sections grouped under 4 tabs (General /
+  Display / Data / More) with URL-hash deep links
+  (`/settings#sync`). Sticky tab bar.
+
+#### A11y
+- Skip-to-content link (focus once on Tab to reveal).
+- Toast container is a `role="status"` aria-live region so
+  screen readers announce new toasts.
+- Modals trap Tab focus inside the dialog and return focus to
+  the trigger on close.
+- Modals get `role="dialog"` + `aria-modal` + `aria-labelledby`.
+- Skip-link, main-content landmark id, focus-visible styling.
+
+#### In-app help system
+- **`/help` route — searchable Help Center.** 25+ articles
+  covering: what is Monii, your first week, envelope budgeting,
+  Ready to Assign, overspending, safe-to-spend, adding
+  transactions, splits, one-time flag, cost-per-use, statement
+  import, receipts, accounts, reconciliation, credit cards, goal
+  types, emergency fund, deal alerts, reports overview, category
+  drill-down, anomaly alerts, sync, privacy / data location,
+  backup, reset, sync troubleshooting, "numbers look wrong",
+  crash recovery. Each article written for a complete beginner.
+  Search across titles, tags, and body. Category chips. URL-hash
+  deep links (`/help#sync-overview`).
+- Sidebar + More page get a Help entry. Settings tabs include a
+  Help center button.
+- **Onboarding (Welcome modal) updated** to reference the new
+  Tier 6/7 features (anomaly alerts, sandbox, payee merge,
+  category drill-down, financial health) and to point users to
+  the Help center for deeper docs.
+
 ### v0.6.1 — Tier 7 first wave: anomaly + dedup + drill-down + sandbox
 
 Five user-experience improvements that fill gaps the v0.6.0 batch

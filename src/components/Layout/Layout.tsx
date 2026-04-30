@@ -39,6 +39,14 @@ export function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="relative h-screen flex flex-col text-fg overflow-hidden">
+      {/* a11y: skip-link for keyboard users — Tab once on page load to
+          surface, Enter to jump past the chrome. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-3 focus:py-1.5 focus:rounded-md focus:bg-accent focus:text-accent-fg focus:text-[12px] focus:font-medium focus:shadow-glass"
+      >
+        Skip to main content
+      </a>
       <GlassBackdrop />
 
       {/*
@@ -108,8 +116,10 @@ export function Layout({ children }: { children: ReactNode }) {
         <main
           // Re-keying on path triggers the page-enter animation (CSS).
           key={location.pathname}
+          id="main-content"
+          tabIndex={-1}
           className={cn(
-            'flex-1 overflow-y-auto page-enter',
+            'flex-1 overflow-y-auto page-enter focus:outline-none',
             isCompact && 'pb-[calc(72px+env(safe-area-inset-bottom,0))]',
           )}
           style={{

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Plus, Target, GripVertical } from 'lucide-react';
 import { useBudget } from '../../store/budget';
@@ -305,7 +305,19 @@ function BudgetGroupRow({
   );
 }
 
-function BudgetCategoryRow({
+const BudgetCategoryRow = memo(BudgetCategoryRowImpl, (prev, next) => {
+  // Re-render only when something this row actually displays changes.
+  // Keeps 30+ rows from re-rendering on every unrelated observer fire.
+  return (
+    prev.category === next.category
+    && prev.assigned === next.assigned
+    && prev.activity === next.activity
+    && prev.available === next.available
+    && prev.drag === next.drag
+  );
+});
+
+function BudgetCategoryRowImpl({
   category, assigned, activity, available, drag, setDrag, onCategoryDrop,
 }: {
   category: Category;

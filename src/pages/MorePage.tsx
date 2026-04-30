@@ -14,6 +14,7 @@ import {
   CalendarClock, CreditCard, Search as SearchIcon, Settings as SettingsIcon,
   Cloud, Wallet, BarChart3, FileText, ChevronRight, HelpCircle, Wrench,
   Plane, Calendar, TrendingUp, Wand2, Sparkles, Bookmark, Star, Tag, Image as ImageIcon,
+  BookOpen,
 } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { useUI } from '../store/ui';
@@ -77,6 +78,7 @@ export function MorePage() {
       </Section>
 
       <Section title="Help">
+        <Row to="/help" icon={<BookOpen size={16} />} label="Help center" subtitle="Search articles · written for total beginners" />
         <ButtonRow onClick={() => openModal({ type: 'welcome' })} icon={<HelpCircle size={16} />} label="Welcome tour" subtitle="Re-watch the onboarding walkthrough" />
         <ButtonRow onClick={() => openModal({ type: 'yearInReview' })} icon={<Sparkles size={16} />} label="Year-in-review" subtitle="See your spending year wrapped up" />
         <ButtonRow onClick={() => openModal({ type: 'debugLogs' })} icon={<FileText size={16} />} label="Debug logs" subtitle="In-app log viewer" />
