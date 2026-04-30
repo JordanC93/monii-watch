@@ -74,7 +74,8 @@ export type ModalState =
   | { type: 'sidebarCustomize' }
   | { type: 'reportsCustomize' }
   | { type: 'savedLayouts' }
-  | { type: 'uninstall' };
+  | { type: 'uninstall' }
+  | { type: 'billSplit' };
 
 export const useUI = create<State>((set, get) => ({
   commandOpen: false,

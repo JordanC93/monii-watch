@@ -126,6 +126,8 @@ export function computeForecast(
     if (!onBudgetIds.has(t.accountId)) continue;
     if (t.transferAccountId) continue;
     if (t.date < lookbackStart || t.date > todayStr) continue;
+    // Tier 6 #9 — exclude one-time outliers from variable-spend baseline.
+    if (t.oneTime) continue;
     if (t.amount >= 0) {
       inflows += t.amount;
     } else {

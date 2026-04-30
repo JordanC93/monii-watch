@@ -43,6 +43,8 @@ export function computeCategoryInsight(
   for (const t of txns) {
     if (!onBudgetIds.has(t.accountId)) continue;
     if (t.transferAccountId) continue;
+    // Tier 6 #9 — exclude one-time outliers from category averages.
+    if (t.oneTime) continue;
     const m = t.date.slice(0, 7);
     if (m < cutoff || m > thisMonthIso) continue;
     for (const part of categoriesTouched(t)) {

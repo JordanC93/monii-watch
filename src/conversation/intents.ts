@@ -35,6 +35,8 @@ import { updateAccount } from '../db/repo';
 import { computeGoalProjection } from '../domain/goalProjection';
 import { perPaycheckAmount } from '../domain/paySchedule';
 import { getStateByCode, findStateByText } from '../domain/usaStateTax';
+import { computeSafeSpend } from '../domain/safeSpend';
+import { computeHealthScore } from '../domain/financialHealth';
 
 // -- Helpers shared by intents --------------------------------------------
 
@@ -838,6 +840,212 @@ const pauseScheduled: Intent<{ scheduledText: string; resume: boolean }> = {
   },
 };
 
+// -- Intent: spendInRange (Tier 6 #7) -----------------------------------
+
+const spendInCategoryRange: Intent<{ categoryText: string; scope: 'last' | 'this-year' | 'last-year' }> = {
+  name: 'spend-in-category-range',
+  examples: [
+    'how much did i spend on dining last month',
+    'how much have i given to charity this year',
+    'spending on groceries last year',
+  ],
+  priority: 95,
+  match(input) {
+    if (!/spend|spent|spending|gave|given/i.test(input)) return null;
+    const m = input.match(/(?:spend|spent|spending|gave|given|donat)[a-z ]*?\s+(?:on|to|for)\s+([a-z][\w& -]{1,40}?)\s+(this year|last year|last month|year to date|ytd)/i);
+    if (!m) return null;
+    const range = m[2].toLowerCase();
+    const scope: 'last' | 'this-year' | 'last-year' =
+      range === 'last month' ? 'last'
+      : range === 'last year' ? 'last-year'
+      : 'this-year';
+    return { categoryText: m[1].trim(), scope };
+  },
+  run({ categoryText, scope }, ctx): IntentResult {
+    const { accounts, categories, txns } = snapshot();
+    const cat = findCategoryByText(categoryText, categories);
+    if (!cat) return { reply: `No category matched "${categoryText}".`, needsClarification: true };
+    const onBudgetIds = new Set(
+      accounts.filter((a) => !a.closed).map((a) => a.id),
+    );
+    const today = new Date();
+    let from = '';
+    let to = '';
+    let label = '';
+    if (scope === 'last') {
+      const d = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      from = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      to = `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+      label = `${from.slice(0, 7)}`;
+    } else if (scope === 'this-year') {
+      from = `${today.getFullYear()}-01-01`;
+      to = today.toISOString().slice(0, 10);
+      label = `YTD ${today.getFullYear()}`;
+    } else {
+      from = `${today.getFullYear() - 1}-01-01`;
+      to = `${today.getFullYear() - 1}-12-31`;
+      label = String(today.getFullYear() - 1);
+    }
+    let total = 0;
+    for (const t of txns) {
+      if (!onBudgetIds.has(t.accountId)) continue;
+      if (t.transferAccountId) continue;
+      if (t.date < from || t.date > to) continue;
+      if (t.categoryId === cat.id && t.amount < 0) total += -t.amount;
+      for (const s of t.splits) {
+        if (s.categoryId === cat.id && s.amount < 0) total += -s.amount;
+      }
+    }
+    return {
+      reply: `${cat.name} (${label}): ${ctx.formatMoney(total)} spent.`,
+      effect: { kind: 'lookup', subject: `${cat.name} ${label}`, value: ctx.formatMoney(total) },
+    };
+  },
+};
+
+// -- Intent: transactionsAbove (Tier 6 #7) -------------------------------
+
+const transactionsAbove: Intent<{ threshold: number; monthLabel: string | null }> = {
+  name: 'transactions-above',
+  examples: [
+    'show me transactions over $100 in March',
+    'transactions over 200',
+    'transactions over $50 last month',
+  ],
+  priority: 90,
+  match(input) {
+    const m = input.match(/transactions?\s+(?:over|above|>|more than)\s+\$?(\d+(?:\.\d{1,2})?)\s*(?:in\s+(\w+))?/i);
+    if (!m) return null;
+    return { threshold: parseFloat(m[1]), monthLabel: m[2] ?? null };
+  },
+  run({ threshold, monthLabel }, ctx): IntentResult {
+    const { txns, payees, accounts } = snapshot();
+    const cents = Math.round(threshold * 100);
+    const today = new Date();
+    let monthFilter: string | null = null;
+    if (monthLabel) {
+      const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+      const idx = months.findIndex((m) => m.startsWith(monthLabel.toLowerCase()));
+      if (idx >= 0) {
+        monthFilter = `${today.getFullYear()}-${String(idx + 1).padStart(2, '0')}`;
+      }
+    }
+    const onBudgetIds = new Set(accounts.filter((a) => !a.closed).map((a) => a.id));
+    const matching = txns
+      .filter((t) => onBudgetIds.has(t.accountId))
+      .filter((t) => !t.transferAccountId)
+      .filter((t) => Math.abs(t.amount) >= cents)
+      .filter((t) => !monthFilter || t.date.startsWith(monthFilter))
+      .slice(0, 10);
+    if (matching.length === 0) {
+      return { reply: `No transactions over ${ctx.formatMoney(cents)}${monthFilter ? ` in ${monthFilter}` : ''}.` };
+    }
+    const lines = matching.map((t) => {
+      const payee = payees.find((p) => p.id === t.payeeId)?.name ?? 'Unknown';
+      return `• ${t.date} · ${payee} · ${ctx.formatMoney(t.amount)}`;
+    });
+    return {
+      reply: `Found ${matching.length} transaction${matching.length === 1 ? '' : 's'} over ${ctx.formatMoney(cents)}${monthFilter ? ` in ${monthFilter}` : ''}:\n${lines.join('\n')}`,
+      effect: { kind: 'lookup', subject: `txns over ${ctx.formatMoney(cents)}`, value: `${matching.length} found` },
+    };
+  },
+};
+
+// -- Intent: biggestPayee (Tier 6 #7) -----------------------------------
+
+const biggestPayee: Intent<{ scope: 'this-year' | 'this-month' }> = {
+  name: 'biggest-payee',
+  examples: [
+    'whats my biggest payee this year',
+    'who do i pay the most this month',
+    'biggest spend this year',
+  ],
+  priority: 88,
+  match(input) {
+    if (!/biggest|most|top/i.test(input)) return null;
+    if (!/payee|spend|merchant|vendor/i.test(input)) return null;
+    if (/this month|month to date/i.test(input)) return { scope: 'this-month' };
+    return { scope: 'this-year' };
+  },
+  run({ scope }, ctx): IntentResult {
+    const { txns, payees, accounts } = snapshot();
+    const today = new Date();
+    let from: string;
+    let to: string;
+    if (scope === 'this-month') {
+      from = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+      to = today.toISOString().slice(0, 10);
+    } else {
+      from = `${today.getFullYear()}-01-01`;
+      to = today.toISOString().slice(0, 10);
+    }
+    const onBudgetIds = new Set(accounts.filter((a) => !a.closed).map((a) => a.id));
+    const totals = new Map<string, number>();
+    for (const t of txns) {
+      if (!onBudgetIds.has(t.accountId)) continue;
+      if (t.transferAccountId) continue;
+      if (t.amount >= 0) continue;
+      if (t.date < from || t.date > to) continue;
+      if (!t.payeeId) continue;
+      totals.set(t.payeeId, (totals.get(t.payeeId) ?? 0) + (-t.amount));
+    }
+    if (totals.size === 0) return { reply: `No outflow data in this range yet.` };
+    const sorted = Array.from(totals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const lines = sorted.map(([id, cents]) => {
+      const p = payees.find((p) => p.id === id);
+      return `• ${p?.name ?? 'Unknown'} — ${ctx.formatMoney(cents)}`;
+    });
+    return {
+      reply: `Top payees ${scope === 'this-month' ? 'this month' : 'this year'}:\n${lines.join('\n')}`,
+      effect: { kind: 'lookup', subject: 'top payees', value: lines[0] },
+    };
+  },
+};
+
+// -- Intent: safeToSpend (Tier 6 #3) ------------------------------------
+
+const safeToSpend: Intent<{}> = {
+  name: 'safe-to-spend',
+  examples: ['safe to spend', 'how much can i spend this week', 'whats left until payday'],
+  priority: 80,
+  match(input) {
+    return /safe to spend|spend (?:this )?week|until pay(?:day|check)|left to spend/i.test(input) ? {} : null;
+  },
+  run(_, ctx): IntentResult {
+    const { accounts, txns, scheduled, settings } = snapshot();
+    const today = ctx.today;
+    const safe = computeSafeSpend(accounts, txns, scheduled, settings, today);
+    if (settings.payFrequency === 'unset' || !safe.nextPaycheckIso) {
+      return { reply: `Set your pay schedule in Settings → General first. Then I can tell you safe-to-spend per day.` };
+    }
+    return {
+      reply: `${safe.daysUntilPaycheck} day${safe.daysUntilPaycheck === 1 ? '' : 's'} until your next paycheck. Cash on hand ${ctx.formatMoney(safe.cashOnHand)} · upcoming bills ${ctx.formatMoney(safe.upcomingBills)} · safe to spend ${ctx.formatMoney(safe.perDay)}/day.`,
+      effect: { kind: 'lookup', subject: 'safe to spend', value: ctx.formatMoney(safe.perDay) },
+    };
+  },
+};
+
+// -- Intent: healthScore (Tier 6 #2) -----------------------------------
+
+const healthScore: Intent<{}> = {
+  name: 'health-score',
+  examples: ['financial health', 'how healthy is my budget', 'health score'],
+  priority: 80,
+  match(input) {
+    return /(?:financial|budget|money) health|health(?:y)? (?:score|budget|finances)/i.test(input) ? {} : null;
+  },
+  run(_, _ctx): IntentResult {
+    const { accounts, txns, payees, settings } = snapshot();
+    const sc = computeHealthScore(accounts, txns, payees, settings);
+    const lines = sc.indicators.map((i) => `• ${i.label} — ${i.value} (${i.band})`);
+    return {
+      reply: `Overall: ${sc.overall}/100 (${sc.band}).\n${lines.join('\n')}\n\nOpen Reports → Financial Health for the full breakdown with action suggestions.`,
+      effect: { kind: 'lookup', subject: 'health score', value: `${sc.overall}/100` },
+    };
+  },
+};
+
 // -- Intent: help -------------------------------------------------------
 
 const help: Intent<{}> = {
@@ -881,6 +1089,13 @@ export const ALL_INTENTS: Intent[] = [
   addIncome,
   addExpense,
   coverOverspendingIntent,
+  // Tier 6 #7 — read-side query intents.
+  spendInCategoryRange,
+  transactionsAbove,
+  biggestPayee,
+  // Tier 6 #2/#3 — safe-to-spend + financial health
+  safeToSpend,
+  healthScore,
 ].sort((a, b) => b.priority - a.priority) as Intent[];
 
 /** Run the input through the registry, returning the first matching intent's result. */
@@ -901,7 +1116,10 @@ export function runConversation(input: string, ctx: IntentContext): IntentResult
 export const HINT_CHIPS = [
   'What is my net worth?',
   'How much is ready to assign?',
+  'Safe to spend',
+  'How healthy is my budget?',
   'Spent $12 at Chipotle on dining',
   'Assign $200 to groceries',
+  'How much did I spend on dining last month',
   'My monthly income is $5,000',
 ];

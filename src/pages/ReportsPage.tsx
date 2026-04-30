@@ -15,9 +15,14 @@ import { PendingRefunds } from '../components/Reports/PendingRefunds';
 import { TaxPreparation } from '../components/Reports/TaxPreparation';
 import { IouLedger } from '../components/Reports/IouLedger';
 import { SubscriptionCreep } from '../components/Reports/SubscriptionCreep';
+import { FinancialHealth } from '../components/Reports/FinancialHealth';
+import { YearOverYear } from '../components/Reports/YearOverYear';
+import { TaxSummary } from '../components/Reports/TaxSummary';
+import { NetWorthAttribution } from '../components/Reports/NetWorthAttribution';
+import { BillNegotiation } from '../components/Reports/BillNegotiation';
 import { Button } from '../components/ui/Button';
 import { MobilePageHeader } from '../components/Layout/MobilePageHeader';
-import { Hourglass, Receipt, Users, TrendingUp as TrendUpIcon, Settings as SettingsIcon } from 'lucide-react';
+import { Hourglass, Receipt, Users, TrendingUp as TrendUpIcon, Settings as SettingsIcon, Activity, BarChart3, FileBarChart } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { useUI } from '../store/ui';
 
@@ -74,6 +79,16 @@ export function ReportsPage() {
           </button>
         </div>
 
+        <div className="glass-panel p-4 sm:p-5" style={cardStyle('financial-health')}>
+          <div className="text-[14px] font-semibold mb-1 flex items-center gap-1.5">
+            <Activity size={14} className="text-accent" /> Financial Health Scorecard
+          </div>
+          <div className="text-[11.5px] text-fg-subtle mb-3">
+            Six dimensions — savings rate, emergency fund, debt-to-income, credit utilization, subscription bloat, variable spend. Each indicator suggests one concrete next step.
+          </div>
+          <FinancialHealth />
+        </div>
+
         {hasPendingRefunds && (
           <div className="glass-panel p-4 sm:p-5" style={cardStyle('pending-refunds')}>
             <div className="text-[14px] font-semibold mb-1 flex items-center gap-1.5">
@@ -85,6 +100,26 @@ export function ReportsPage() {
             <PendingRefunds />
           </div>
         )}
+
+        <div className="glass-panel p-4 sm:p-5" style={cardStyle('year-over-year')}>
+          <div className="text-[14px] font-semibold mb-1 flex items-center gap-1.5">
+            <BarChart3 size={14} className="text-accent" /> Year over Year
+          </div>
+          <div className="text-[11.5px] text-fg-subtle mb-3">
+            This year vs last year, by category. Catches drift before it becomes a problem.
+          </div>
+          <YearOverYear />
+        </div>
+
+        <div className="glass-panel p-4 sm:p-5" style={cardStyle('tax-summary')}>
+          <div className="text-[14px] font-semibold mb-1 flex items-center gap-1.5">
+            <FileBarChart size={14} className="text-accent" /> End-of-year tax summary
+          </div>
+          <div className="text-[11.5px] text-fg-subtle mb-3">
+            Everything tax-relevant pulled together. Tag categories as deductible to populate. Export to CSV.
+          </div>
+          <TaxSummary />
+        </div>
 
         <div className="glass-panel p-4 sm:p-5" style={cardStyle('tax-prep')}>
           <div className="text-[14px] font-semibold mb-1 flex items-center gap-1.5">
@@ -192,6 +227,22 @@ export function ReportsPage() {
       <div className="glass-panel p-4 sm:p-5" style={cardStyle('net-worth')}>
         <div className="text-[14px] font-semibold mb-3">Net Worth</div>
         <NetWorth months={Math.max(range, 12)} />
+      </div>
+
+      <div className="glass-panel p-4 sm:p-5" style={cardStyle('net-worth-attribution')}>
+        <div className="text-[14px] font-semibold mb-1">What changed</div>
+        <div className="text-[11.5px] text-fg-subtle mb-3">
+          Decompose month-over-month net worth change into Saved · Investments · Debt · Other.
+        </div>
+        <NetWorthAttribution />
+      </div>
+
+      <div className="glass-panel p-4 sm:p-5" style={cardStyle('bill-negotiation')}>
+        <div className="text-[14px] font-semibold mb-1">Bill negotiation reminders</div>
+        <div className="text-[11.5px] text-fg-subtle mb-3">
+          Long-tenured recurring bills worth a 10-minute discount call. Surfaced once a year per payee.
+        </div>
+        <BillNegotiation />
       </div>
 
       <div className="glass-panel p-4 sm:p-5" style={cardStyle('subscriptions')}>

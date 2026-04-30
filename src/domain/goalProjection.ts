@@ -50,12 +50,19 @@ export function computeGoalProjection(
 ): GoalProjection | null {
   const goal = category.goal;
   if (!goal) return null;
-  if (goal.type !== 'targetBalance' && goal.type !== 'targetByDate') return null;
+  if (goal.type !== 'targetBalance' && goal.type !== 'targetByDate' && goal.type !== 'annual') return null;
 
   const target = goal.amount;
   const current = Math.max(0, available);
   const remaining = Math.max(0, target - current);
   const ratio = target > 0 ? available / target : 0;
+  // Tier 6 #16 — annual goals project against the next occurrence of the
+  // recurring date. Treat them like a targetByDate where the deadline is
+  // the next yearly hit of (annualMonth, annualDay).
+  let dueDate: string | undefined = goal.dueDate;
+  if (goal.type === 'annual' && goal.annualMonth && goal.annualDay) {
+    dueDate = nextAnnualDate(goal.annualMonth, goal.annualDay, now);
+  }
 
   // Average monthly contribution from assignments to this category over the
   // last 3 months (including the current month). If no history, use this
@@ -72,10 +79,11 @@ export function computeGoalProjection(
     ? Math.round(sumLastThree / Math.max(distinctMonthsWithData, 1))
     : (assignments.find((x) => x.month === now && x.categoryId === category.id)?.assigned ?? 0);
 
-  // For targetByDate: if user has a deadline but no contribution history,
-  // fall back to "what you'd need to contribute monthly to hit the deadline."
-  if (goal.type === 'targetByDate' && monthlyRate === 0 && goal.dueDate) {
-    const monthsToDeadline = monthsBetween(now, goal.dueDate.slice(0, 7));
+  // For targetByDate / annual: if user has a deadline but no contribution
+  // history, fall back to "what you'd need to contribute monthly to hit
+  // the deadline."
+  if ((goal.type === 'targetByDate' || goal.type === 'annual') && monthlyRate === 0 && dueDate) {
+    const monthsToDeadline = monthsBetween(now, dueDate.slice(0, 7));
     if (monthsToDeadline > 0) monthlyRate = Math.ceil(remaining / monthsToDeadline);
   }
 
@@ -91,10 +99,10 @@ export function computeGoalProjection(
   }
 
   let pace: GoalProjection['pace'] = null;
-  if (goal.type === 'targetByDate' && goal.dueDate && projectedDate) {
-    const target = parseISO(goal.dueDate).getTime();
+  if ((goal.type === 'targetByDate' || goal.type === 'annual') && dueDate && projectedDate) {
+    const targetMs = parseISO(dueDate).getTime();
     const projected = parseISO(projectedDate).getTime();
-    const diffDays = (projected - target) / 86400000;
+    const diffDays = (projected - targetMs) / 86400000;
     if (diffDays < -30) pace = 'ahead';
     else if (diffDays > 30) pace = 'behind';
     else pace = 'on-track';
@@ -116,4 +124,28 @@ function monthsBetween(a: string, b: string): number {
   const [ay, am] = a.split('-').map(Number);
   const [by, bm] = b.split('-').map(Number);
   return (by - ay) * 12 + (bm - am);
+}
+
+/**
+ * Compute the next annual date — same month/day, this year if it hasn't
+ * passed yet, else next year. Tier 6 #16.
+ */
+function nextAnnualDate(month: number, day: number, nowMonth: string): string {
+  const [y, m] = nowMonth.split('-').map(Number);
+  // First, try this year:
+  const lastDayThisYear = new Date(y, month, 0).getDate();
+  const safeDayThis = Math.min(day, lastDayThisYear);
+  const candidateThis = `${y}-${String(month).padStart(2, '0')}-${String(safeDayThis).padStart(2, '0')}`;
+  // If the candidate is past the current month, roll to next year.
+  if (candidateThis.slice(0, 7) >= nowMonth) {
+    return candidateThis;
+  }
+  if (m === month) {
+    // Same month — if day is in the future, this year. Else next year.
+    return candidateThis;
+  }
+  const nextY = y + 1;
+  const lastDayNext = new Date(nextY, month, 0).getDate();
+  const safeDayNext = Math.min(day, lastDayNext);
+  return `${nextY}-${String(month).padStart(2, '0')}-${String(safeDayNext).padStart(2, '0')}`;
 }

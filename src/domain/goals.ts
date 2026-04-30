@@ -82,6 +82,31 @@ export function computeGoalProgress(
         status: available >= goal.amount ? 'funded' : (covered >= needed ? 'funded' : 'underfunded'),
       };
     }
+    case 'annual': {
+      // Tier 6 #16 — birthday/anniversary fund. Treat as targetByDate
+      // with the next-occurring annualMonth/annualDay as the deadline.
+      if (!goal.annualMonth || !goal.annualDay) return NO_GOAL;
+      const [y, m] = month.split('-').map(Number);
+      // Pick this year's date if it hasn't passed yet, else next year.
+      const candidateThisYear = `${y}-${String(goal.annualMonth).padStart(2, '0')}-${String(Math.min(goal.annualDay, 28)).padStart(2, '0')}`;
+      const dueMonth = candidateThisYear.slice(0, 7) >= month
+        ? candidateThisYear.slice(0, 7)
+        : `${y + 1}-${String(goal.annualMonth).padStart(2, '0')}`;
+      const remainingMonths = Math.max(monthsBetween(month, dueMonth) + 1, 1);
+      const remainingDollars = Math.max(goal.amount - (available - assigned), 0);
+      const needed = Math.ceil(remainingDollars / remainingMonths);
+      const covered = assigned;
+      const ratio = needed === 0 ? 1 : covered / needed;
+      const dueLabel = format(parseMonth(dueMonth), 'MMM yyyy');
+      void m;
+      return {
+        type: 'annual' as any,
+        needed, covered,
+        label: `${formatCents(goal.amount)} by ${dueLabel} (annual)`,
+        ratio,
+        status: available >= goal.amount ? 'funded' : (covered >= needed ? 'funded' : 'underfunded'),
+      };
+    }
   }
 }
 

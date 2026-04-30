@@ -79,6 +79,12 @@ const initialSettings: Settings = {
   reportsOrder: [],
   savedLayouts: [],
   fxSnapshots: [],
+  allocationRules: [],
+  emergencyFundMonths: 3,
+  lastOpenedAt: 0,
+  billNegotiationPrompts: [],
+  subscriptionUsagePrompts: [],
+  overdraftBannerDismissedAt: 0,
 };
 
 export const useBudget = create<State>((set) => ({

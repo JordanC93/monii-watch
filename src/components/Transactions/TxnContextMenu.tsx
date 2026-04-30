@@ -11,9 +11,12 @@
 import { useEffect, useRef } from 'react';
 import { useBudget } from '../../store/budget';
 import { useUI } from '../../store/ui';
-import { setCleared, setFlag, deleteTransaction, updateTransaction } from '../../db/repo';
+import {
+  setCleared, setFlag, deleteTransaction, updateTransaction,
+  setTransactionOneTime, incrementTransactionUsage,
+} from '../../db/repo';
 import { useNavigate } from 'react-router-dom';
-import { Tag, Flag as FlagIcon, Trash2, Hourglass, Search, CheckCircle2 } from 'lucide-react';
+import { Tag, Flag as FlagIcon, Trash2, Hourglass, Search, CheckCircle2, Repeat, Activity } from 'lucide-react';
 
 type Props = {
   txnId: string;
@@ -114,6 +117,16 @@ export function TxnContextMenu({ txnId, x, y, onClose }: Props) {
           onClose();
         }}
         disabled={!payee}
+      />
+      <MenuItem
+        icon={<Repeat size={12} />}
+        label={txn.oneTime ? 'Unmark as one-time' : 'Mark as one-time'}
+        onClick={() => { setTransactionOneTime(txn.id, !txn.oneTime); onClose(); }}
+      />
+      <MenuItem
+        icon={<Activity size={12} />}
+        label={`Track usage${typeof txn.usageCount === 'number' ? ` (${txn.usageCount})` : ''} — +1`}
+        onClick={() => { incrementTransactionUsage(txn.id, 1); onClose(); }}
       />
       <div className="border-t border-border my-1" />
       <MenuItem

@@ -22,6 +22,7 @@
 
 import { useBudget } from '../store/budget';
 import { computeMonthBudget, computeMonthStats } from '../domain/budget';
+import { computeCreditCardSummary } from '../domain/creditCard';
 import { thisMonthIso, todayIso } from '../domain/date';
 import { toast } from './toast';
 
@@ -154,7 +155,28 @@ export function runNotificationChecks(): void {
     }
   }
 
-  // 4. Month-start summary — first run in a new month, summarize last month.
+  // 4. Pre-statement credit utilization warning (Tier 6 #4) — fires
+  //    when a card's statement is within 3 days AND utilization is >30%.
+  //    Per-card per-cycle dedup via tag.
+  {
+    const today = todayIso();
+    for (const a of s.accounts) {
+      if (a.type !== 'credit' || a.closed) continue;
+      const summary = computeCreditCardSummary(a, s.transactions, today);
+      if (!summary.creditLimit) continue;
+      if (summary.utilization === null || summary.utilization <= 0.30) continue;
+      const days = summary.daysUntilStatement;
+      if (days === null || days > 3) continue;
+      const target = Math.floor(0.30 * summary.creditLimit);
+      const payDown = Math.max(0, summary.balanceOwed - target);
+      void notify('Pay down before statement', {
+        body: `${a.name} closes in ${days}d at ${Math.round(summary.utilization * 100)}% util. Pay ${formatCents(payDown)} to drop under 30%.`,
+        tag: `cc-util:${a.id}:${days}`,
+      });
+    }
+  }
+
+  // 5. Month-start summary — first run in a new month, summarize last month.
   if (s.settings.notifyMonthStart) {
     const today = todayIso();
     const day = parseInt(today.slice(8, 10), 10);

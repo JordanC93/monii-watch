@@ -10,13 +10,16 @@
 import * as Y from 'yjs';
 import { getDoc, MAPS, tx } from '../sync/doc';
 import type {
-  Account, AccountType, AutoRule, BudgetTemplate, Category, CategoryGroup, ClearedState, FlagColor,
-  InvestmentPosition, IouEntry, MonthAssignment, Money, MonthlyReview, NwSnapshot, Payee, RecurrenceFrequency,
-  SavedSearch, SavingsBucket, ScheduledTransaction, Settings, Split, ThemeName, Transaction, TripBudget,
+  Account, AccountType, AllocationRule, AutoRule, BillNegotiationPrompt, BudgetTemplate, Category,
+  CategoryGroup, ClearedState, FlagColor, InvestmentPosition, IouEntry, MonthAssignment, Money,
+  MonthlyReview, NwSnapshot, Payee, RecurrenceFrequency, SavedSearch, SavingsBucket,
+  ScheduledTransaction, Settings, Split, SubscriptionUsagePrompt, ThemeName, Transaction, TripBudget,
 } from '../domain/types';
+import { ACCOUNT_TYPE_META } from '../domain/types';
 import { newId, newSyncRoom } from '../domain/id';
-import { todayIso } from '../domain/date';
+import { todayIso, thisMonthIso } from '../domain/date';
 import { advanceDate } from '../domain/recurrence';
+import { evaluateAllocationRules, type AllocationTrigger } from '../domain/allocation';
 import { seedIfEmpty } from './seed';
 
 // -- map accessors --------------------------------------------------------
@@ -83,6 +86,12 @@ const DEFAULT_SETTINGS: Settings = {
   reportsOrder: [],
   savedLayouts: [],
   fxSnapshots: [],
+  allocationRules: [],
+  emergencyFundMonths: 3,
+  lastOpenedAt: 0,
+  billNegotiationPrompts: [],
+  subscriptionUsagePrompts: [],
+  overdraftBannerDismissedAt: 0,
 };
 
 /** Internal tag we add to category names to identify auto-created credit-card payment categories. */
@@ -525,6 +534,22 @@ export function createTransaction(input: TxnInput): Transaction {
       txnsMap().set(id, baseTxn);
     }
   });
+  // Tier 6 #1 — fire auto-allocation rules on income inflows. Only on
+  // POSITIVE amounts to on-budget accounts that aren't transfers; that's
+  // what counts as a "paycheck" or "income-over" event for the rule
+  // engine. Rules-as-no-op when the user hasn't configured any.
+  if (
+    input.amount > 0
+    && !effectiveTransferAccountId
+    && ACCOUNT_TYPE_META[accountsMap().get(input.accountId)?.type ?? 'other']?.onBudget
+  ) {
+    const rules = listAllocationRules();
+    if (rules.some((r) => r.enabled)) {
+      const txnRef = { amount: input.amount, date: input.date };
+      applyAllocationRulesForTrigger('paycheck', { triggerTxn: txnRef, today: todayIso(), month: input.date.slice(0, 7) });
+      applyAllocationRulesForTrigger('income-over', { triggerTxn: txnRef, today: todayIso(), month: input.date.slice(0, 7) });
+    }
+  }
   return txnsMap().get(id)!;
 }
 
@@ -986,6 +1011,20 @@ function materializeOne(sched: ScheduledTransaction, date: string): void {
   } else {
     txnsMap().set(id, baseTxn);
   }
+  // Tier 6 #1 — paycheck rules fire when scheduled income materializes.
+  // Same gating as createTransaction: positive, on-budget, not a transfer.
+  if (
+    sched.amount > 0
+    && !sched.transferAccountId
+    && ACCOUNT_TYPE_META[accountsMap().get(sched.accountId)?.type ?? 'other']?.onBudget
+  ) {
+    const rules = listAllocationRules();
+    if (rules.some((r) => r.enabled)) {
+      const txnRef = { amount: sched.amount, date };
+      applyAllocationRulesForTrigger('paycheck', { triggerTxn: txnRef, today: todayIso(), month: date.slice(0, 7) });
+      applyAllocationRulesForTrigger('income-over', { triggerTxn: txnRef, today: todayIso(), month: date.slice(0, 7) });
+    }
+  }
 }
 
 // -- Bulk export / import -------------------------------------------------
@@ -1188,14 +1227,22 @@ export function deleteInvestmentPosition(accountId: string, posId: string): void
 
 // -- Receipt attachment -------------------------------------------------
 
-export function attachReceiptImage(txnId: string, dataUrl: string | null): void {
+export function attachReceiptImage(txnId: string, dataUrl: string | null, ocrText?: string): void {
   const t = txnsMap().get(txnId);
   if (!t) return;
-  tx(() => txnsMap().set(txnId, {
-    ...t,
-    receiptImageDataUrl: dataUrl ?? null,
-    updatedAt: Date.now(),
-  }));
+  tx(() => {
+    const next: Transaction = {
+      ...t,
+      receiptImageDataUrl: dataUrl ?? null,
+      updatedAt: Date.now(),
+    };
+    // Tier 6 #13 — store OCR text alongside the image for full-text search.
+    if (ocrText !== undefined) {
+      if (ocrText) next.receiptText = ocrText.slice(0, 8000); // cap @ 8KB to keep doc lean
+      else delete (next as any).receiptText;
+    }
+    txnsMap().set(txnId, next);
+  });
 }
 
 // -- Per-month assignment memo ------------------------------------------
@@ -1434,4 +1481,133 @@ export function setMonthlyReview(month: string, rating: number, note: string): v
     settingsMap().set('monthlyReviews', filtered);
     settingsMap().set('monthlyReviewLastShown', month);
   });
+}
+
+// -- Allocation rules (Tier 6 #1) ---------------------------------------
+
+export function listAllocationRules(): AllocationRule[] {
+  return ((settingsMap().get('allocationRules') as AllocationRule[] | undefined) ?? [])
+    .slice()
+    .sort((a, b) => a.priority - b.priority);
+}
+
+export function createAllocationRule(
+  input: Omit<AllocationRule, 'id' | 'createdAt' | 'priority'> & { priority?: number },
+): AllocationRule {
+  const cur = listAllocationRules();
+  const rule: AllocationRule = {
+    ...input,
+    id: newId(),
+    priority: input.priority ?? cur.length,
+    createdAt: Date.now(),
+  };
+  tx(() => settingsMap().set('allocationRules', [...cur, rule]));
+  return rule;
+}
+
+export function updateAllocationRule(id: string, patch: Partial<AllocationRule>): void {
+  const cur = (settingsMap().get('allocationRules') as AllocationRule[] | undefined) ?? [];
+  const next = cur.map((r) => r.id === id ? { ...r, ...patch } : r);
+  tx(() => settingsMap().set('allocationRules', next));
+}
+
+export function deleteAllocationRule(id: string): void {
+  const cur = (settingsMap().get('allocationRules') as AllocationRule[] | undefined) ?? [];
+  tx(() => settingsMap().set('allocationRules', cur.filter((r) => r.id !== id)));
+}
+
+/**
+ * Fire allocation rules for the given trigger. ADDS to existing
+ * assignments — never overwrites. Stamps `lastFiredOn` on every rule
+ * that fired so subsequent identical-day calls dedup.
+ *
+ * Returns the moves applied so callers can surface them (e.g. toast
+ * "Allocated $500 to Rent + $300 to Savings from your paycheck").
+ */
+export function applyAllocationRulesForTrigger(
+  trigger: AllocationTrigger,
+  options: { triggerTxn?: Pick<Transaction, 'amount' | 'date'>; today?: string; month?: string } = {},
+): Array<{ ruleId: string; targetCategoryId: string; cents: Money }> {
+  const today = options.today ?? todayIso();
+  const month = options.month ?? thisMonthIso();
+  const rules = listAllocationRules();
+  const moves = evaluateAllocationRules(rules, trigger, {
+    today, month, triggerTxn: options.triggerTxn,
+  });
+  if (moves.length === 0) return [];
+
+  // Sanity: skip rules whose target category no longer exists.
+  const validIds = new Set(listCategories().map((c) => c.id));
+  const valid = moves.filter((m) => validIds.has(m.targetCategoryId));
+  if (valid.length === 0) return [];
+
+  tx(() => {
+    for (const m of valid) {
+      adjustAssignment(month, m.targetCategoryId, m.cents);
+    }
+    // Stamp lastFiredOn on the rules that fired.
+    const cur = (settingsMap().get('allocationRules') as AllocationRule[] | undefined) ?? [];
+    const firedIds = new Set(valid.map((m) => m.ruleId));
+    const next = cur.map((r) => firedIds.has(r.id) ? { ...r, lastFiredOn: today } : r);
+    settingsMap().set('allocationRules', next);
+  });
+  return valid;
+}
+
+// -- One-time / outlier flag (Tier 6 #9) -------------------------------
+
+export function setTransactionOneTime(txnId: string, oneTime: boolean): void {
+  const t = txnsMap().get(txnId);
+  if (!t) return;
+  tx(() => {
+    const next: Transaction = { ...t, updatedAt: Date.now() };
+    if (oneTime) next.oneTime = true;
+    else delete (next as any).oneTime;
+    txnsMap().set(txnId, next);
+  });
+}
+
+// -- Cost-per-use tracker (Tier 6 #8) ----------------------------------
+
+export function incrementTransactionUsage(txnId: string, delta: number = 1): number {
+  const t = txnsMap().get(txnId);
+  if (!t) return 0;
+  const cur = t.usageCount ?? 0;
+  const next = Math.max(0, cur + delta);
+  tx(() => {
+    const updated: Transaction = { ...t, usageCount: next, updatedAt: Date.now() };
+    if (next === 0) delete (updated as any).usageCount;
+    txnsMap().set(txnId, updated);
+  });
+  return next;
+}
+
+// -- Subscription "did you use this?" prompts (Tier 6 #10) -------------
+
+export function recordSubscriptionUsageDecision(
+  payeeId: string,
+  predictedFor: string,
+  decision: 'used' | 'cancel',
+): void {
+  const cur = (settingsMap().get('subscriptionUsagePrompts') as SubscriptionUsagePrompt[] | undefined) ?? [];
+  const filtered = cur.filter((p) => !(p.payeeId === payeeId && p.predictedFor === predictedFor));
+  const next: SubscriptionUsagePrompt = {
+    payeeId, predictedFor, lastShownAt: Date.now(), decision,
+  };
+  filtered.push(next);
+  while (filtered.length > 50) filtered.shift();
+  tx(() => settingsMap().set('subscriptionUsagePrompts', filtered));
+}
+
+// -- Bill negotiation reminder dismissal (Tier 6 #19) -------------------
+
+export function recordBillNegotiationDismiss(payeeId: string, dismissed: boolean = true): void {
+  const cur = (settingsMap().get('billNegotiationPrompts') as BillNegotiationPrompt[] | undefined) ?? [];
+  const filtered = cur.filter((p) => p.payeeId !== payeeId);
+  const next: BillNegotiationPrompt = {
+    payeeId, lastPromptedAt: Date.now(), dismissed,
+  };
+  filtered.push(next);
+  while (filtered.length > 50) filtered.shift();
+  tx(() => settingsMap().set('billNegotiationPrompts', filtered));
 }

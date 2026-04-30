@@ -50,6 +50,15 @@ async function bootstrap() {
   } catch (err) {
     console.warn('[scheduled] materialization failed', err);
   }
+  // Tier 6 #1 — fire monthly-1st auto-allocation rules. The rule engine
+  // dedups by `lastFiredOn === today` so this is safe to call on every
+  // boot; only the first boot of day 01 actually moves money.
+  try {
+    const { applyAllocationRulesForTrigger } = await import('./db/repo');
+    applyAllocationRulesForTrigger('monthly-1st');
+  } catch (err) {
+    console.warn('[allocation] monthly-1st failed', err);
+  }
   // Backfill credit-card payment categories for users upgrading from v0.1.
   try { ensureCreditCardPaymentCategoriesExist(); } catch (err) {
     console.warn('[cc-payments] backfill failed', err);

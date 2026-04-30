@@ -2,6 +2,108 @@
 
 ## Unreleased
 
+### Tier 6 (v0.6.0) — depth on the budgeting workflow
+
+Nineteen features across three categories: workflow automation,
+analytical depth, and proactive nudges. All purely client-side, all
+respect the privacy-first model (no LLM, no third-party services).
+
+#### Automation
+- **#1 Recurring auto-allocation rules.** Trigger paycheck / income-over /
+  monthly-1st rules that ADD to category assignments on each fire. Manual
+  overrides win — rules never overwrite later changes. Settings → Income &
+  Deductions → "Auto-allocate paychecks" panel manages the list. Fires
+  via `createTransaction` (manual paycheck) and `materializeOne`
+  (scheduled paycheck) on the income side, and on app boot for
+  `monthly-1st`. New `domain/allocation.ts` for evaluation.
+- **#16 Annual / birthday-anniversary fund goal type.** Extends
+  `CategoryGoal.type` with `'annual'` + `annualMonth` + `annualDay`.
+  Goals page projects against the next-occurring date and auto-rolls
+  forward each year on the trigger date.
+
+#### Proactive nudges (Budget banners)
+- **#3 Safe-to-spend banner.** Days until next paycheck × cash on
+  hand × upcoming-bills math. Tap to expand the breakdown. Hidden
+  when pay schedule isn't set. Chat: "safe to spend".
+- **#4 Pre-statement credit-utilization alert.** 2-3 days before each
+  card's statement closes AND utilization >30%, surfaces the
+  pay-down to drop under 30% (credit-score win). Per-card per-cycle
+  dismiss. Plus a corresponding system notification under the
+  existing notify loop.
+- **#10 Subscription "did you use this?" prompt.** 5 days before a
+  detected recurring charge renews, asks if the user is still using
+  it. "Yes" suppresses for the cycle; "Cancel" opens the cancel page
+  in a new tab + suppresses. Per-payee × predicted-charge dismissal
+  ledger.
+- **#15 Last-session delta banner.** "Since you last opened: 3 new
+  transactions, +$120 net, 1 bill came due." Stamps `lastOpenedAt`
+  on mount. Auto-dismiss after 8s.
+- **#17 Overdraft predictor banner.** When the cash-flow forecast
+  detects a negative-balance day within 7 days, surfaces the date +
+  projected balance. Soft-dismiss for 6 hours.
+
+#### Analytical depth (Reports cards)
+- **#2 Financial Health Scorecard.** Six dimensions (savings rate,
+  emergency fund, debt-to-income, credit utilization, subscription
+  bloat, variable spend) with green/yellow/red and a one-line
+  improvement suggestion each. Pure derivation. New
+  `domain/financialHealth.ts`. Chat: "how healthy is my budget?".
+- **#5 Year-over-year comparison.** Per-category YTD this year vs
+  same range last year. Sorted by absolute change, top 12 movers.
+- **#6 End-of-year tax summary.** Aggregates per-deductible-bucket
+  totals + estimated mortgage interest (from loan amortization
+  fields). Year selector + CSV export + Print/PDF via OS print
+  dialog.
+- **#12 Net-worth attribution.** Decomposes month-over-month change
+  into Saved / Investments / Debt / Other. New
+  `domain/nwAttribution.ts`.
+- **#19 Bill negotiation reminders.** Long-tenured (≥12 months)
+  recurring bills surface annually with a "10-minute discount call"
+  CTA. Per-payee dismissal log; re-prompts after 365 days.
+
+#### Workflow tools
+- **#7 Plain-English chat queries.** Three new read-side intents:
+  "How much did I spend on dining last month / this year / last
+  year", "Show me transactions over $X (in March)", "What's my
+  biggest payee this year/month". Pure regex + repo lookups —
+  no LLM.
+- **#8 Cost-per-use tracker.** New `Transaction.usageCount` field;
+  context-menu → "Track usage — +1" increments. Reads visible in
+  the menu label.
+- **#9 One-time / outlier flag.** New `Transaction.oneTime` field;
+  context-menu → "Mark as one-time". Excluded from category
+  averages (`insights.ts`), cash-flow forecast variable spend
+  (`forecast.ts`), and emergency-fund recommendation. Spending
+  trend lines + sparklines see the truth, not a misleading bump.
+- **#11 Right-sized emergency-fund recommendation.** New
+  `Settings.emergencyFundCategoryId` + `emergencyFundMonths`
+  (3/6/9/12 selector). Goals page surfaces a pinned tile with
+  3-mo trailing outflow × target months, hidden once met.
+  Settings panel for designation + threshold tuning.
+- **#13 Smart receipt search.** New `Transaction.receiptText`
+  populated by the OCR pipeline at upload time. Receipt gallery
+  page gets a top-of-page text-search input that matches across
+  OCR text + memo + payee. Cap 8KB per receipt to keep doc lean.
+- **#14 Bill split calculator.** New modal accessible via Command
+  Palette (⌘K → "Bill split"). Items + tax % + tip % + per-person
+  assignment chips. Tax/tip allocated proportionally. "Log to IOU
+  ledger" writes one entry per non-self person atomically.
+- **#18 CSV-from-screenshot pipeline.** The existing receipt-upload
+  pipeline already routes screenshots through OCR → bank-statement
+  classifier → import review table. Tier 6 #18 is functionally
+  resolved by that path — drop a screenshot of a transaction
+  list / statement and the existing flow handles it.
+
+#### QoL polish
+- Chat hint chips include the new safe-to-spend + health + spend
+  query examples.
+- Command Palette gets "Bill split calculator…" entry.
+- Add Goal modal supports the new annual goal type with month +
+  day pickers.
+- Mobile pass: every new component uses responsive layouts (single
+  column on phones, multi-column from `sm:` breakpoint up). New
+  banners stack and only render when there's an actual signal.
+
 ### Bug fixes (v0.5.14)
 
 - **Theme switch no longer freezes the app.** The Yjs settings observer

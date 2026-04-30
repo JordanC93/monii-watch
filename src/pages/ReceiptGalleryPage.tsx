@@ -23,21 +23,35 @@ export function ReceiptGalleryPage() {
   const categories = useBudget((s) => s.categories);
   const fmt = useFormatMoney();
 
+  const [searchText, setSearchText] = useState('');
   const [payeeFilter, setPayeeFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [openTxnId, setOpenTxnId] = useState<string | null>(null);
 
+  // Tier 6 #13 — full-text smart search across OCR'd receipt text +
+  // payee + memo. Lazy: skipped when the searchText is empty.
   const withReceipts = useMemo(() => {
+    const needle = searchText.trim().toLowerCase();
     return txns
       .filter((t) => !!t.receiptImageDataUrl)
       .filter((t) => !payeeFilter || (t.payeeId && payees.find((p) => p.id === t.payeeId)?.name.toLowerCase().includes(payeeFilter.toLowerCase())))
       .filter((t) => !categoryFilter || t.categoryId === categoryFilter)
       .filter((t) => !from || t.date >= from)
       .filter((t) => !to || t.date <= to)
+      .filter((t) => {
+        if (!needle) return true;
+        const payeeName = t.payeeId ? (payees.find((p) => p.id === t.payeeId)?.name ?? '') : '';
+        const haystack = [
+          t.receiptText ?? '',
+          t.memo ?? '',
+          payeeName,
+        ].join(' ').toLowerCase();
+        return haystack.includes(needle);
+      })
       .sort((a, b) => (a.date < b.date ? 1 : -1));
-  }, [txns, payees, payeeFilter, categoryFilter, from, to]);
+  }, [txns, payees, searchText, payeeFilter, categoryFilter, from, to]);
 
   const openTxn = openTxnId ? txns.find((t) => t.id === openTxnId) : null;
 
@@ -52,6 +66,12 @@ export function ReceiptGalleryPage() {
           <ImageIcon size={15} className="text-accent" /> Receipt gallery
         </div>
 
+        <Input
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          placeholder='Search receipt text — e.g. "wood stain" or "ground beef"'
+          aria-label="Search across receipt OCR text, memo, and payee"
+        />
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
           <Input
             value={payeeFilter}

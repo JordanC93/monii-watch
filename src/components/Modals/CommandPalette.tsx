@@ -35,6 +35,7 @@ export function CommandPalette() {
       { id: 'add-scheduled', label: 'New scheduled transaction…', icon: <CalendarClock size={14} />, run: () => openModal({ type: 'scheduledNew' }) },
       { id: 'open-chat', label: 'Open chat', icon: <MessageSquare size={14} />, hint: '⌘J', run: () => setChatOpen(true) },
       { id: 'upload-receipt', label: 'Upload receipt (OCR)…', icon: <ImagePlus size={14} />, run: () => openModal({ type: 'receiptUpload' }) },
+      { id: 'bill-split', label: 'Bill split calculator…', icon: <Plus size={14} />, run: () => openModal({ type: 'billSplit' }) },
       { id: 'debug-logs', label: 'Debug logs', icon: <Bug size={14} />, run: () => openModal({ type: 'debugLogs' }) },
       { id: 'add-group',   label: 'New category group…', icon: <Plus size={14} />, run: () => openModal({ type: 'addGroup' }) },
       { id: 'sync',        label: 'Sync settings…',  icon: <Cloud size={14} />, run: () => openModal({ type: 'sync' }) },

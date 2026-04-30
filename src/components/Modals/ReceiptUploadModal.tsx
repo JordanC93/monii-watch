@@ -316,8 +316,9 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
       void resizeReceiptToDataUrl(imageFile)
         .then((dataUrl) => {
           if (dataUrl) {
-            attachReceiptImage(txn.id, dataUrl);
-            console.info(`[upload] attached receipt image to txn=${txn.id} (${Math.round(dataUrl.length / 1024)}KB)`);
+            // Tier 6 #13 — pass the OCR text through so smart-search works.
+            attachReceiptImage(txn.id, dataUrl, rawText || undefined);
+            console.info(`[upload] attached receipt image to txn=${txn.id} (${Math.round(dataUrl.length / 1024)}KB${rawText ? `, ${rawText.length} OCR chars` : ''})`);
           }
         })
         .catch((err) => console.warn('[upload] receipt image resize failed', err));

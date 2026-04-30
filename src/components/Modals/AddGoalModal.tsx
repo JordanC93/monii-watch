@@ -16,7 +16,7 @@ import type { CategoryGoal } from '../../domain/types';
 import { cn } from '../../lib/cn';
 import { toast } from '../../lib/toast';
 
-type GoalShape = 'targetBalance' | 'targetByDate';
+type GoalShape = 'targetBalance' | 'targetByDate' | 'annual';
 
 /**
  * Dedicated "create a new purchase goal" modal. Distinct from the generic
@@ -39,6 +39,8 @@ export function AddGoalModal({ open, onClose }: { open: boolean; onClose: () => 
   const [shape, setShape] = useState<GoalShape>('targetBalance');
   const [amountText, setAmountText] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [annualMonth, setAnnualMonth] = useState('');
+  const [annualDay, setAnnualDay] = useState('');
   const [link, setLink] = useState('');
   const [notes, setNotes] = useState('');
   const [groupId, setGroupId] = useState<string>('');
@@ -56,6 +58,7 @@ export function AddGoalModal({ open, onClose }: { open: boolean; onClose: () => 
   function reset() {
     setName(''); setIcon(null); setCustomImage(null);
     setShape('targetBalance'); setAmountText(''); setDueDate('');
+    setAnnualMonth(''); setAnnualDay('');
     setLink(''); setNotes(''); setGroupId(''); setShowIconPicker(false);
   }
 
@@ -83,6 +86,14 @@ export function AddGoalModal({ open, onClose }: { open: boolean; onClose: () => 
 
     const goal: CategoryGoal = { type: shape, amount: amountCents };
     if (shape === 'targetByDate' && dueDate) goal.dueDate = dueDate;
+    if (shape === 'annual') {
+      const m = parseInt(annualMonth, 10);
+      const d = parseInt(annualDay, 10);
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        goal.annualMonth = m;
+        goal.annualDay = d;
+      }
+    }
 
     const created = createCategory({
       groupId: targetGroupId,
@@ -178,26 +189,36 @@ export function AddGoalModal({ open, onClose }: { open: boolean; onClose: () => 
 
         {/* Goal type + amount + deadline */}
         <div className="border-t border-border pt-3 space-y-2">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
               onClick={() => setShape('targetBalance')}
               className={cn(
-                'h-9 rounded-md border text-[12.5px] font-medium flex items-center justify-center gap-1.5',
+                'h-9 rounded-md border text-[11.5px] font-medium flex items-center justify-center gap-1',
                 shape === 'targetBalance' ? 'border-accent bg-accent/15 text-accent' : 'border-border bg-surface-2 text-fg-muted',
               )}
             >
-              <Target size={13} /> Target amount
+              <Target size={13} /> Target
             </button>
             <button
               type="button"
               onClick={() => setShape('targetByDate')}
               className={cn(
-                'h-9 rounded-md border text-[12.5px] font-medium flex items-center justify-center gap-1.5',
+                'h-9 rounded-md border text-[11.5px] font-medium flex items-center justify-center gap-1',
                 shape === 'targetByDate' ? 'border-accent bg-accent/15 text-accent' : 'border-border bg-surface-2 text-fg-muted',
               )}
             >
-              <CalendarClock size={13} /> Target by date
+              <CalendarClock size={13} /> By date
+            </button>
+            <button
+              type="button"
+              onClick={() => setShape('annual')}
+              className={cn(
+                'h-9 rounded-md border text-[11.5px] font-medium flex items-center justify-center gap-1',
+                shape === 'annual' ? 'border-accent bg-accent/15 text-accent' : 'border-border bg-surface-2 text-fg-muted',
+              )}
+            >
+              <Sparkles size={13} /> Annual
             </button>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -223,6 +244,26 @@ export function AddGoalModal({ open, onClose }: { open: boolean; onClose: () => 
                   onChange={(e) => setDueDate(e.target.value)}
                   className="w-full mt-0.5"
                 />
+              </div>
+            )}
+            {shape === 'annual' && (
+              <div>
+                <label className="text-[11.5px] text-fg-subtle">Yearly date</label>
+                <div className="grid grid-cols-2 gap-1 mt-0.5">
+                  <Select value={annualMonth} onChange={(e) => setAnnualMonth(e.target.value)} className="text-[12px]">
+                    <option value="">Month</option>
+                    {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                      <option key={i} value={i + 1}>{m}</option>
+                    ))}
+                  </Select>
+                  <Input
+                    value={annualDay}
+                    onChange={(e) => setAnnualDay(e.target.value)}
+                    placeholder="Day"
+                    inputMode="numeric"
+                    className="text-center"
+                  />
+                </div>
               </div>
             )}
           </div>

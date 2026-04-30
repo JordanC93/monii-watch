@@ -20,6 +20,8 @@ import { paychecksPerYear } from '../domain/paySchedule';
 import { useUI } from '../store/ui';
 import { DesktopUpdates } from '../components/Settings/DesktopUpdates';
 import { GlassPalettePicker } from '../components/Settings/GlassPalettePicker';
+import { AllocationRules } from '../components/Settings/AllocationRules';
+import { EmergencyFundSettings } from '../components/Settings/EmergencyFundSettings';
 import { readLocalLayoutPreference, writeLocalLayoutPreference, shouldOfferLayoutToggle } from '../lib/layout';
 import { undo, redo } from '../store/undo';
 
@@ -372,6 +374,17 @@ export function SettingsPage() {
             <FileText size={13} /> Upload paystub
           </Button>
         </div>
+        <div className="border-t border-border pt-3 mt-2">
+          <div className="text-[12.5px] font-medium mb-1.5">Auto-allocate paychecks</div>
+          <AllocationRules />
+        </div>
+      </Section>
+
+      <Section
+        title="Emergency fund"
+        subtitle="Right-size a target based on your real spending. Pin a category as the emergency fund and we'll surface progress on Goals."
+      >
+        <EmergencyFundSettings />
       </Section>
 
       <Section title="Appearance">

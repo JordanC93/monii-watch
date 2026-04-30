@@ -21,6 +21,7 @@ import { toast } from '../lib/toast';
 import { Input } from '../components/ui/Input';
 import { MobilePageHeader } from '../components/Layout/MobilePageHeader';
 import { computeStreaks } from '../domain/streaks';
+import { EmergencyFundTile } from '../components/Goals/EmergencyFundTile';
 
 const PACE_TONES = {
   'on-track': { ring: 'ring-positive/40',  text: 'text-positive', bg: 'bg-positive/10',  bar: 'bg-positive', label: 'On track' },
@@ -65,7 +66,12 @@ export function GoalsPage() {
   const monthly  = categories.filter((c) => !c.hidden && c.goal && c.goal.type === 'monthlyFunding');
 
   if (purchase.length === 0 && monthly.length === 0) {
-    return <EmptyState onAdd={() => openModal({ type: 'addGoal' })} />;
+    return (
+      <div className="max-w-3xl mx-auto p-3 sm:p-5 space-y-4">
+        <EmergencyFundTile />
+        <EmptyState onAdd={() => openModal({ type: 'addGoal' })} />
+      </div>
+    );
   }
 
   const subtitleParts: string[] = [];
@@ -105,6 +111,8 @@ export function GoalsPage() {
           <Plus size={13} /> New goal
         </Button>
       </div>
+
+      <EmergencyFundTile />
 
       {purchase.length > 0 && (
         <>

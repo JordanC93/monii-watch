@@ -231,18 +231,28 @@ export type Category = {
 };
 
 /**
- * Category goal — three flavors borrowed from YNAB and similar apps.
+ * Category goal — four flavors borrowed from YNAB and similar apps,
+ * plus one custom (annual).
  *
  *  - monthlyFunding: assign at least `amount` cents this month, every month.
  *  - targetBalance:  reach a cumulative `amount` available — no deadline.
  *  - targetByDate:   reach `amount` available by `dueDate`. The required
  *                    monthly assignment is calculated based on remaining months.
+ *  - annual:         birthday/anniversary fund (Tier 6 #16). Reach `amount`
+ *                    by an annually-recurring date (`annualMonth` 1-12 +
+ *                    `annualDay` 1-31). The goal auto-rolls forward each
+ *                    year on the trigger date — a fresh full year of
+ *                    contributions starts after each cycle.
  */
 export type CategoryGoal = {
-  type: 'monthlyFunding' | 'targetBalance' | 'targetByDate';
+  type: 'monthlyFunding' | 'targetBalance' | 'targetByDate' | 'annual';
   amount: Money;
   /** ISO yyyy-mm-dd, only for targetByDate */
   dueDate?: string;
+  /** Month 1-12 for `annual` goals. */
+  annualMonth?: number;
+  /** Day-of-month 1-31 for `annual` goals. */
+  annualDay?: number;
 };
 
 /** A single payee. Created on-the-fly when a name is typed and not found. */
@@ -314,6 +324,29 @@ export type Transaction = {
    *                  inflow/refund lands as a separate transaction)
    */
   expectedRefund?: { amount: Money; expectedBy: string; received?: boolean };
+  /**
+   * Cost-per-use tracker (Tier 6 #8). User taps "Track usage" on a
+   * transaction (or on a goal-funded category's source purchase) and
+   * each tap increments this. The Goals page surfaces "$500 / 12 uses
+   * = $42 per use" once `usageCount > 0`. Optional — unset = not
+   * tracked.
+   */
+  usageCount?: number;
+  /**
+   * One-time / outlier flag (Tier 6 #9). When `true`, this transaction
+   * is excluded from category trailing averages, sparklines, cash-flow
+   * forecast variable-spend, and what-if projections. Useful for
+   * "the couch" — a one-off $1200 outflow that shouldn't make
+   * Furniture look like a $1200/mo category.
+   */
+  oneTime?: boolean;
+  /**
+   * OCR'd text from the attached receipt (Tier 6 #13). Populated when
+   * the user uploads a receipt image — enables "that Home Depot
+   * receipt with wood stain" full-text search. Optional; unset = no
+   * OCR run yet.
+   */
+  receiptText?: string;
 };
 
 export type Split = {
@@ -577,6 +610,71 @@ export type PaycheckDeduction = {
   label: string;
   amountPerCheck: Money;
   kind: 'tax_federal' | 'tax_state' | 'tax_local' | 'tax_fica' | 'health' | 'retirement' | 'transit' | 'other';
+};
+
+/**
+ * Recurring auto-allocation rule (Tier 6 #1). On a trigger event the
+ * engine pre-fills `assignments` for the selected month for the
+ * configured target category.
+ *
+ * Triggers:
+ *   - `paycheck`     fires every time an income inflow lands on an
+ *                    on-budget account
+ *   - `income-over`  fires for inflows that meet or exceed `threshold`
+ *   - `monthly-1st`  fires once per month on the first day
+ *
+ * The rule fires once per trigger occurrence and only ADDS to the
+ * existing assignment — it never overwrites a manual change. The
+ * `lastFiredOn` field is the ISO yyyy-mm-dd of the most recent fire,
+ * used to deduplicate (one paycheck shouldn't fire the same rule
+ * twice; the 1st-of-month rule shouldn't fire on the 2nd).
+ */
+export type AllocationRule = {
+  id: string;
+  trigger: 'paycheck' | 'income-over' | 'monthly-1st';
+  /** Cents threshold for `income-over`. Ignored otherwise. */
+  threshold?: Money;
+  /** Cents to add to the target on each fire. Always positive. */
+  amount: Money;
+  targetCategoryId: string;
+  /** Lower number fires first. Used when multiple rules share a trigger. */
+  priority: number;
+  /** Last fire date, ISO yyyy-mm-dd. */
+  lastFiredOn?: string;
+  enabled: boolean;
+  createdAt: number;
+};
+
+/**
+ * Bill negotiation reminder dismissal record (Tier 6 #19). One entry
+ * per payee that has been continuously paid for ≥12 months. Stores the
+ * unix-ms timestamp of the last prompt so we don't nag again for ≥365
+ * days. Empty array = no payees prompted yet.
+ */
+export type BillNegotiationPrompt = {
+  payeeId: string;
+  /** Unix ms of the last time we surfaced the reminder. */
+  lastPromptedAt: number;
+  /** When true, the user clicked "I called" or "Done" — we won't
+   *  re-prompt for ≥1 year. */
+  dismissed?: boolean;
+};
+
+/**
+ * Subscription "did you use this?" dismissal record (Tier 6 #10).
+ * One entry per subscription's predicted-next charge cycle. Keys
+ * a payeeId × ISO predictedNext date so a single dismissal doesn't
+ * silence the whole month — just this one occurrence.
+ */
+export type SubscriptionUsagePrompt = {
+  payeeId: string;
+  /** ISO yyyy-mm-dd of the predicted next charge. */
+  predictedFor: string;
+  /** Unix ms when last shown. */
+  lastShownAt: number;
+  /** 'used' = user said they're still using it. 'cancel' = they want to
+   *  cancel. Both suppress further prompts for this cycle. */
+  decision?: 'used' | 'cancel';
 };
 
 /** App-wide settings (one row). */
@@ -849,6 +947,50 @@ export type Settings = {
    * this off.
    */
   useNwSnapshots: boolean;
+  /**
+   * Recurring auto-allocation rules (Tier 6 #1). On a trigger event,
+   * each enabled rule (sorted by priority asc) ADDS its `amount` to
+   * the configured `targetCategoryId` for the current month. Manual
+   * overrides win — the rule never overwrites later changes.
+   */
+  allocationRules: AllocationRule[];
+  /**
+   * Linked emergency-fund category (Tier 6 #11). When set, the
+   * Goals page surfaces a "right-sized emergency fund" recommendation
+   * pinned to the top until reached. The recommended target is
+   * 3-6 months of trailing average outflow. Empty = not linked.
+   */
+  emergencyFundCategoryId?: string;
+  /**
+   * Tier 6 #11 — number of months of expenses the user wants to keep
+   * as an emergency fund. Defaults to 3. Bumped to 6 by the Settings
+   * panel for users who want more cushion.
+   */
+  emergencyFundMonths: number;
+  /**
+   * Tier 6 #15 — `lastOpenedAt` unix ms. The "since you last opened"
+   * banner reads this on app focus and computes the delta. Updated
+   * each session.
+   */
+  lastOpenedAt: number;
+  /**
+   * Tier 6 #19 — bill negotiation reminder dismissal log. One entry
+   * per payee, capped at ~50 (FIFO eviction). The reminder appears
+   * once per year per payee, after which `lastPromptedAt` is updated
+   * to suppress the next 365 days.
+   */
+  billNegotiationPrompts: BillNegotiationPrompt[];
+  /**
+   * Tier 6 #10 — per-occurrence "did you use this?" dismissal log.
+   * Keyed by payeeId × predictedFor (ISO date), capped at ~50
+   * (FIFO eviction).
+   */
+  subscriptionUsagePrompts: SubscriptionUsagePrompt[];
+  /**
+   * Tier 6 #17 — last unix-ms time the user dismissed the overdraft
+   * predictor banner. Re-shows on the next session even if dismissed.
+   */
+  overdraftBannerDismissedAt: number;
 };
 
 export type ThemeName = 'light' | 'dark' | 'oled' | 'glass' | 'auto';
