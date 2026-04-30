@@ -224,43 +224,68 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Drafts are hidden from `gh api repos/.../releases/tags/<tag>`,
-          # so we use `gh release view` which respects draft state.
+          # Get the asset name list. Drafts are hidden from `gh api
+          # repos/.../releases/tags/<tag>` so we use `gh release view`
+          # which respects draft state.
           ASSETS_JSON="$(gh release view "$TAG" --repo "$OWNER_REPO" --json assets --jq '.assets')"
           echo "--- Found assets ---"
           echo "$ASSETS_JSON" | jq -r '.[].name'
 
-          # Build canonical tag-based URLs for latest.json. The `url`
-          # field from `gh release view` returns a temporary "untagged-"
-          # URL while the release is a draft — those 404 once the
-          # release is published. Canonical URLs are stable across
-          # draft → published transitions.
+          # Build canonical tag-based URLs for latest.json. These URLs
+          # work for ALL public releases regardless of when the file
+          # was uploaded, and they survive draft→published state
+          # transitions cleanly.
           asset_canonical_url() {
             local pattern="$1"
             local name; name="$(echo "$ASSETS_JSON" | jq -r ".[] | select(.name | test(\"$pattern\")) | .name" | head -1)"
             if [ -z "$name" ] || [ "$name" = "null" ]; then return; fi
-            # URL-encode spaces (the only character GitHub URL-escapes
-            # in asset filenames). + → %20.
             local encoded; encoded="$(printf '%s' "$name" | sed 's/ /%20/g')"
             printf 'https://github.com/%s/releases/download/%s/%s' "$OWNER_REPO" "$TAG" "$encoded"
           }
-          asset_id() {
+
+          # Download a .sig file's content via authenticated `gh release
+          # download`. This bypasses the previous flaky path of
+          # `gh api releases/assets/<id>` (which had asset-ID lookup
+          # bugs that ended up storing GitHub's 404 error JSON as the
+          # signature). `gh release download` works for drafts and
+          # uses the canonical asset path.
+          read_sig_by_name() {
             local pattern="$1"
-            echo "$ASSETS_JSON" | jq -r ".[] | select(.name | test(\"$pattern\")) | .id" | head -1
+            local name; name="$(echo "$ASSETS_JSON" | jq -r ".[] | select(.name | test(\"$pattern\")) | .name" | head -1)"
+            if [ -z "$name" ] || [ "$name" = "null" ]; then return; fi
+            local tmpdir; tmpdir="$(mktemp -d)"
+            (cd "$tmpdir" && gh release download "$TAG" --repo "$OWNER_REPO" --pattern "$name" --clobber 2>/dev/null) || return
+            if [ -f "$tmpdir/$name" ]; then
+              cat "$tmpdir/$name"
+            fi
+            rm -rf "$tmpdir"
           }
-          read_sig_content() {
-            local pattern="$1"
-            local id; id="$(asset_id "$pattern")"
-            if [ -z "$id" ] || [ "$id" = "null" ]; then return; fi
-            gh api "repos/$OWNER_REPO/releases/assets/$id" -H "Accept: application/octet-stream" 2>/dev/null || true
+
+          # Sanity check: signatures are minisign-format, base64-text,
+          # ~400 bytes. If we got a JSON error response instead, refuse.
+          validate_sig() {
+            local content="$1"
+            if [ -z "$content" ]; then return 1; fi
+            # Reject anything that starts with `{` or `<` (HTML/JSON errors)
+            local first="${content:0:1}"
+            if [ "$first" = "{" ] || [ "$first" = "<" ]; then return 1; fi
+            # Reject anything implausibly long (> 4 KB indicates we got
+            # a metadata blob, not a signature)
+            if [ "${#content}" -gt 4096 ]; then return 1; fi
+            return 0
           }
 
           MAC_BUNDLE="$(asset_canonical_url '\\.app\\.tar\\.gz$' || true)"
-          MAC_SIG="$(read_sig_content '\\.app\\.tar\\.gz\\.sig$')"
+          MAC_SIG_RAW="$(read_sig_by_name '\\.app\\.tar\\.gz\\.sig$' || true)"
+          if validate_sig "$MAC_SIG_RAW"; then MAC_SIG="$MAC_SIG_RAW"; else MAC_SIG=""; fi
+
           WIN_BUNDLE="$(asset_canonical_url 'x64-setup\\.nsis\\.zip$|x64-setup\\.exe$' || true)"
-          WIN_SIG="$(read_sig_content 'x64-setup\\.nsis\\.zip\\.sig$|x64-setup\\.exe\\.sig$')"
+          WIN_SIG_RAW="$(read_sig_by_name 'x64-setup\\.nsis\\.zip\\.sig$|x64-setup\\.exe\\.sig$' || true)"
+          if validate_sig "$WIN_SIG_RAW"; then WIN_SIG="$WIN_SIG_RAW"; else WIN_SIG=""; fi
+
           LIN_BUNDLE="$(asset_canonical_url '\\.AppImage\\.tar\\.gz$|\\.AppImage$' || true)"
-          LIN_SIG="$(read_sig_content '\\.AppImage\\.tar\\.gz\\.sig$|\\.AppImage\\.sig$')"
+          LIN_SIG_RAW="$(read_sig_by_name '\\.AppImage\\.tar\\.gz\\.sig$|\\.AppImage\\.sig$' || true)"
+          if validate_sig "$LIN_SIG_RAW"; then LIN_SIG="$LIN_SIG_RAW"; else LIN_SIG=""; fi
 
           echo "--- Resolved bundles + signatures ---"
           echo "mac bundle:    ${MAC_BUNDLE:-<none>}"
