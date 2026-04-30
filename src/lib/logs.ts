@@ -112,6 +112,19 @@ export function installLogCapture(): void {
 
   window.addEventListener('unhandledrejection', (ev: PromiseRejectionEvent) => {
     const reason = (ev.reason instanceof Error) ? ev.reason : String(ev.reason);
+    // Filter known-benign noise. The PWA service worker auto-registers
+    // via vite-plugin-pwa, but Tauri's `tauri://localhost` origin doesn't
+    // permit service-worker registration — the rejection is harmless
+    // (Tauri serves the dist/ assets natively, no SW cache needed),
+    // but it spams Settings → Debug logs on every launch. Drop it.
+    const reasonStr = String(reason);
+    if (
+      reasonStr.includes('registerSW') ||
+      reasonStr.includes('register@[native code]') ||
+      reasonStr.includes('virtual:pwa-register')
+    ) {
+      return;
+    }
     push('error', 'unhandled-rejection', [reason]);
   });
 }

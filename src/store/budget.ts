@@ -186,33 +186,53 @@ export function wireStoreToYjs() {
   refreshSavedSearches();
   refreshNwSnapshots();
 
-  // Subscribe to deep changes per map
+  // Subscribe to deep changes per map.
+  //
+  // The theme apply logic here ONLY runs when the value actually
+  // changed since the last observation — local clicks already applied
+  // the theme via setTheme() in store/theme.ts, so re-applying on
+  // every settings tick was redundant work that compounded under
+  // rapid changes (e.g. picking a glass palette color via the picker
+  // fires settings updates 60×/sec, each one asynchronously importing
+  // glassPalettes and writing to the DOM, which can starve the main
+  // thread enough to feel like a freeze).
+  //
+  // The observer only needs to do work in two cases:
+  //   1. Remote sync brought in a new theme/palette — local DOM
+  //      doesn't reflect it yet
+  //   2. Persisted state on boot doesn't match the current DOM
+  //
+  // Both are handled by tracking the last-applied values and skipping
+  // when they're unchanged.
+  let lastAppliedTheme: ThemeName | null = null;
+  let lastAppliedGlassPaletteJson: string | null = null;
   doc.getMap(MAPS.settings).observeDeep(() => {
     refreshSettings();
-    // Apply theme on change. The Auto theme is resolved at apply-time
-    // so the data-theme attribute is always one of the four concrete
-    // themes — see src/store/theme.ts.
-    const t = useBudget.getState().settings.theme as ThemeName;
-    // Glass palette is applied on every settings change so picking a
-    // new preset / custom colors updates the gradient live without
-    // needing a page reload.
-    const concrete = (t === 'auto' ? null : t) ?? document.documentElement.getAttribute('data-theme');
-    if (concrete === 'glass') {
-      // Lazy import to avoid a circular dep (glassPalettes uses no other
-      // app modules; theme.ts → budget.ts would be the cycle).
-      import('../lib/glassPalettes').then((m) => m.applyGlassPalette(useBudget.getState().settings.glassPalette));
+    const settings = useBudget.getState().settings;
+    const t = settings.theme as ThemeName;
+
+    if (t !== lastAppliedTheme) {
+      lastAppliedTheme = t;
+      if (t !== 'auto') {
+        document.documentElement.setAttribute('data-theme', t);
+        try { localStorage.setItem('monii:theme', t); } catch {}
+      } else {
+        try { localStorage.setItem('monii:theme', 'auto'); } catch {}
+        // Defer to the resolver in theme.ts, which listens to OS
+        // preference + this event.
+        window.dispatchEvent(new CustomEvent('monii:theme-change'));
+      }
     }
-    if (t !== 'auto') {
-      document.documentElement.setAttribute('data-theme', t);
-      try { localStorage.setItem('monii:theme', t); } catch {}
-    } else {
-      // Auto theme: defer to the resolver in theme.ts which listens to the
-      // OS preference. Just mark the stored preference so reload picks
-      // it up.
-      try { localStorage.setItem('monii:theme', 'auto'); } catch {}
-      // Trigger a re-resolve by dispatching a change event the resolver
-      // already subscribes to.
-      window.dispatchEvent(new CustomEvent('monii:theme-change'));
+
+    // Glass palette: apply only when the chosen preset / custom colors
+    // actually changed. JSON-serialize for cheap deep-equality.
+    const concrete = t === 'auto' ? document.documentElement.getAttribute('data-theme') : t;
+    if (concrete === 'glass') {
+      const paletteJson = JSON.stringify(settings.glassPalette ?? null);
+      if (paletteJson !== lastAppliedGlassPaletteJson) {
+        lastAppliedGlassPaletteJson = paletteJson;
+        import('../lib/glassPalettes').then((m) => m.applyGlassPalette(settings.glassPalette));
+      }
     }
   });
   doc.getMap(MAPS.accounts).observeDeep(refreshAccounts);

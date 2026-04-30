@@ -555,6 +555,65 @@ Rules to preserve:
   when `TAURI_SIGNING_PRIVATE_KEY` secret is set)
 - Code-splitting (Reports + Settings lazy; Recharts/Yjs/React vendor chunks)
 
+## Release pipeline (current state — Apr 2026)
+
+The desktop release pipeline is FULLY working as of v0.5.13. Long
+history of debugging condensed:
+
+- **Repo is PUBLIC** at `https://github.com/JordanC93/monii-watch`.
+  Auto-updater requires this — anonymous downloads of release assets
+  don't work on private repos.
+- **History was rewritten** to scrub `jordancaba@gmail.com` from every
+  commit; author info is now `JordanC93 <25555383+JordanC93@users.noreply.github.com>`.
+  CLAUDE.md no longer carries the real email or the Windows path with
+  the real local username.
+- **Updater signing keys** live in repo Secrets:
+  `TAURI_SIGNING_PRIVATE_KEY` (base64-encoded encrypted minisign key),
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` = `monii-watch-updater-2026`.
+  The pubkey is hardcoded in `tauri.conf.json` at boot. Local copies
+  of the keypair live at `~/.monii-watch/updater.key{,.pub}` on the
+  maintainer's machine.
+- **GitHub Actions workflow** (`.github/workflows/release.yml`) has
+  three quirks worth knowing about:
+   - `bundle.createUpdaterArtifacts: "v1Compatible"` in
+     `tauri.conf.json` is REQUIRED — without it, Linux + Windows
+     don't produce updater bundles (`.AppImage.tar.gz`, `.nsis.zip`).
+   - The `publish-updater-json` job uses `gh release download
+     --pattern <name>` to fetch `.sig` content (not `gh api
+     repos/.../releases/assets/<id>` which had asset-ID lookup bugs
+     that ended up storing GitHub's 404 JSON as the signature value).
+   - There's a `Sign updater bundles (explicit fallback)` step that
+     calls `tauri signer sign` directly because tauri-action's
+     auto-signing was silently skipped on some platforms.
+- **Updater endpoint** in `tauri.conf.json` points at
+  `https://github.com/JordanC93/monii-watch/releases/latest/download/latest.json`.
+  The `publish-updater-json` job writes that file with canonical URLs
+  + validated signatures.
+- **Tag-and-ship flow**: bump version in `package.json` +
+  `src-tauri/tauri.conf.json` + `src-tauri/Cargo.toml` (all three or
+  CI fails), commit, push, `git tag vX.Y.Z`, `git push origin vX.Y.Z`.
+  CI runs ~12 min. Then publish the release draft on GitHub. Existing
+  installs auto-detect within ~10 min via Settings → Updates.
+
+## Mac title-bar + capability gotchas
+
+- **Mac drag region** uses `-webkit-app-region: drag` on a 28px-tall
+  flex-col-first child in `Layout.tsx` (`<div data-tauri-drag-region
+  className="mac-titlebar-drag" />`). NOT position:fixed — that
+  doesn't actually catch drag events in WKWebView. The block pushes
+  all UI down 28px naturally, traffic lights sit in the top-left of
+  the strip.
+- **Capability split**: `src-tauri/capabilities/default.json` is
+  cross-platform (only `core:default` + `shell:allow-open`).
+  `desktop.json` is desktop-only via `"platforms": ["macOS",
+  "windows", "linux"]` and holds the updater/process plugin perms
+  PLUS `core:window:allow-start-dragging` +
+  `core:window:allow-internal-toggle-maximize` (these aren't in
+  `core:default` and gate the drag-region IPC call).
+- **Self-hosted server URL** in Settings → Sync is gated behind
+  `maintainerMode`. Friends-and-family installs see only WebRTC P2P
+  + Google Drive transports.
+
 ## Feature backlog
 
 A numbered, tier-organized list of next-up features lives in

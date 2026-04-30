@@ -58,3 +58,20 @@ export function tx<T>(fn: () => T): T {
   });
   return result;
 }
+
+/**
+ * Destroy the local Yjs document, releasing its IndexedDB connection.
+ * Used by the "Reset everything" path so `indexedDB.deleteDatabase()`
+ * can actually delete the underlying store (Y.IndexeddbPersistence
+ * holds an open connection that blocks deletion otherwise).
+ *
+ * After this, `getDoc()` returns a fresh empty document. Sync providers
+ * should be disconnected first or they'll re-attach to the new empty
+ * doc and immediately re-sync state from peers.
+ */
+export function destroyDoc(): void {
+  if (_doc) {
+    try { _doc.destroy(); } catch {}
+    _doc = null;
+  }
+}

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CreditCard, Pencil, AlertTriangle, CalendarClock, ArrowLeftRight, Plus } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { useUI } from '../store/ui';
@@ -93,6 +94,11 @@ export function CreditCardsPage() {
             </div>
           </div>
         )}
+        {/* "Add another card" affordance for the populated state. The empty
+            state has its own primary CTA further up; this is the same modal. */}
+        <Button variant="secondary" size="sm" onClick={() => openModal({ type: 'addAccount' })}>
+          <Plus size={13} /> Add card
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
@@ -106,11 +112,18 @@ function CardTile({ summary, fmt }: { summary: CreditCardSummary; fmt: (cents: n
   const openModal = useUI((s) => s.openModal);
   const setChatOpen = useUI((s) => s.setChatOpen);
   const accounts = useBudget((s) => s.accounts);
+  const navigate = useNavigate();
   const status = utilizationStatus(summary.utilization);
   const tone = TONE_COLORS[status.tone];
 
   const dueWarning = summary.daysUntilDue !== null && summary.daysUntilDue <= 3;
   const sourceCandidate = accounts.find((a) => !a.closed && (a.type === 'checking' || a.type === 'savings'));
+
+  // Click anywhere on the tile (except interactive buttons inside) to
+  // open the account page with its full transaction history.
+  function openAccount() {
+    navigate(`/accounts/${summary.account.id}`);
+  }
 
   function payNow() {
     // Opens the chat with a pre-typed transfer command. User taps Send to confirm.
@@ -130,7 +143,26 @@ function CardTile({ summary, fmt }: { summary: CreditCardSummary; fmt: (cents: n
   }
 
   return (
-    <div className={cn('glass-panel p-4 sm:p-5 ring-1', tone.ring)}>
+    <div
+      className={cn('glass-panel p-4 sm:p-5 ring-1 cursor-pointer transition hover:ring-2', tone.ring)}
+      role="link"
+      tabIndex={0}
+      onClick={(e) => {
+        // Only navigate when the click target isn't an interactive
+        // descendant (Edit pencil, Pay button). Those buttons set
+        // their own onClick + stopPropagation just below.
+        const t = e.target as HTMLElement;
+        if (t.closest('button, a, [role="button"]')) return;
+        openAccount();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openAccount();
+        }
+      }}
+      aria-label={`Open ${summary.account.name} transactions`}
+    >
       <div className="flex items-start gap-3 mb-3">
         <div className={cn('w-9 h-9 rounded-md grid place-items-center flex-shrink-0', tone.bg)}>
           <CreditCard size={16} className={tone.text} />
@@ -144,7 +176,7 @@ function CardTile({ summary, fmt }: { summary: CreditCardSummary; fmt: (cents: n
           )}
         </div>
         <button
-          onClick={() => openModal({ type: 'editAccount', accountId: summary.account.id })}
+          onClick={(e) => { e.stopPropagation(); openModal({ type: 'editAccount', accountId: summary.account.id }); }}
           className="text-fg-subtle hover:text-fg p-1.5 -mr-1 rounded"
           aria-label="Edit account"
           title="Edit"
@@ -232,7 +264,7 @@ function CardTile({ summary, fmt }: { summary: CreditCardSummary; fmt: (cents: n
 
       {summary.balanceOwed > 0 && (
         <button
-          onClick={payNow}
+          onClick={(e) => { e.stopPropagation(); payNow(); }}
           className="mt-3 w-full flex items-center justify-center gap-1.5 h-10 rounded-lg bg-accent text-accent-fg text-[13px] font-medium hover:brightness-110 active:scale-[0.99]"
         >
           <ArrowLeftRight size={13} /> Pay {fmt(summary.balanceOwed)}

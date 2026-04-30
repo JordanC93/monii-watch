@@ -23,6 +23,86 @@ import { GlassPalettePicker } from '../components/Settings/GlassPalettePicker';
 import { readLocalLayoutPreference, writeLocalLayoutPreference, shouldOfferLayoutToggle } from '../lib/layout';
 import { undo, redo } from '../store/undo';
 
+/**
+ * Full local wipe — fixes the "Reset everything left some data behind"
+ * bug. The previous one-liner only fired `indexedDB.deleteDatabase()`
+ * (which is async) and then immediately reloaded; the deletion got
+ * blocked by the still-open Yjs connection or didn't complete before
+ * the page reloaded. Plus localStorage / service-worker caches stayed
+ * intact, so prefs and PWA assets survived a "reset."
+ *
+ * This version:
+ *   1. Disconnects sync providers so they can't reconnect mid-wipe
+ *   2. Destroys the local Yjs document, closing its IndexedDB handle
+ *   3. AWAITS the IndexedDB delete (handles the `blocked` event with a
+ *      hard timeout fallback so we don't hang forever)
+ *   4. Clears ALL monii:* localStorage keys + sessionStorage
+ *   5. Unregisters service workers + clears Cache Storage
+ *   6. Reloads — by which point everything is genuinely gone
+ */
+async function resetEverything(): Promise<void> {
+  if (!confirm(
+    'This will delete ALL data on this device — accounts, transactions, ' +
+    'budgets, settings, paired-device sync state, everything.\n\n' +
+    'To restore later, import a backup JSON file.\n\nContinue?'
+  )) return;
+
+  // 1. Tear down sync providers + Yjs doc so the IndexedDB handle releases.
+  try {
+    const { disconnectWebrtc, disconnectWebsocket } = await import('../sync/provider');
+    disconnectWebrtc();
+    disconnectWebsocket();
+  } catch {}
+  try {
+    const { destroyDoc } = await import('../sync/doc');
+    destroyDoc();
+  } catch {}
+
+  // 2. Delete IndexedDB database. Wait for the actual completion event
+  //    rather than firing-and-forgetting. If something else still has
+  //    the DB open ('blocked'), give it 1.5s grace then proceed.
+  await new Promise<void>((resolve) => {
+    let done = false;
+    const finish = () => { if (!done) { done = true; resolve(); } };
+    try {
+      const req = indexedDB.deleteDatabase('monii-watch-doc-v1');
+      req.onsuccess = finish;
+      req.onerror = finish;
+      req.onblocked = () => setTimeout(finish, 1500);
+      // Hard timeout in case neither event fires (shouldn't happen).
+      setTimeout(finish, 3000);
+    } catch {
+      finish();
+    }
+  });
+
+  // 3. Wipe local-only state. Filter to the monii: namespace so we don't
+  //    accidentally clear unrelated keys from another app on the same origin.
+  try {
+    const ourKeys = Object.keys(localStorage).filter(
+      (k) => k.startsWith('monii:') || k.startsWith('monii-'),
+    );
+    for (const k of ourKeys) localStorage.removeItem(k);
+  } catch {}
+  try { sessionStorage.clear(); } catch {}
+
+  // 4. PWA caches + service worker registrations.
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch {}
+
+  // 5. Reload — the boot sequence in main.tsx will see empty state and
+  //    re-seed from db/seed.ts.
+  location.reload();
+}
+
 export function SettingsPage() {
   const settings = useBudget((s) => s.settings);
   const openModal = useUI((s) => s.openModal);
@@ -349,11 +429,7 @@ export function SettingsPage() {
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => undo()} variant="secondary"><RefreshCw size={14} /> Undo last change</Button>
           <Button onClick={() => redo()} variant="secondary"><RefreshCw size={14} className="-scale-x-100" /> Redo</Button>
-          <Button onClick={() => {
-            if (!confirm('This will delete ALL data on this device. To restore, import a backup. Continue?')) return;
-            indexedDB.deleteDatabase('monii-watch-doc-v1');
-            location.reload();
-          }} variant="danger"><AlertTriangle size={14} /> Reset everything</Button>
+          <Button onClick={resetEverything} variant="danger"><AlertTriangle size={14} /> Reset everything</Button>
         </div>
       </Section>
 

@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+### Bug fixes (v0.5.14)
+
+- **Theme switch no longer freezes the app.** The Yjs settings observer
+  in `store/budget.ts` was re-applying the theme + glass palette + DOM
+  attributes + localStorage writes + custom-event dispatches on every
+  settings change, redundantly with what `setTheme()` already did
+  locally. Under rapid setting updates (e.g. dragging a glass-palette
+  color picker), the async `import('../lib/glassPalettes')` calls
+  piled up and starved the main thread. Observer now tracks the
+  last-applied theme + palette (deep-equal via JSON) and skips when
+  unchanged.
+- **Credit Cards page now has an "Add card" button in the populated
+  state.** Previously the button only appeared in the empty state —
+  once you had one card, there was no path to add another from this
+  page. The new button sits in the page header next to the totals.
+- **Credit-card tile click opens the account.** Clicking anywhere on
+  a card tile (except the Edit pencil + Pay button) now navigates to
+  `/accounts/<id>` for the full transaction history. Keyboard
+  accessible (Enter / Space).
+- **Reset everything actually resets everything.** The previous
+  one-liner `indexedDB.deleteDatabase()` + `location.reload()` had
+  three bugs: (a) the deletion was async and the reload could race
+  it, (b) the open Yjs document held the IndexedDB connection so the
+  delete was silently blocked, (c) localStorage prefs (theme, density,
+  sidebar) and PWA service-worker caches survived. New
+  `resetEverything()` helper:
+    1. Disconnects sync providers
+    2. Destroys the Yjs document (releases IndexedDB handle) via new
+       `destroyDoc()` export in `sync/doc.ts`
+    3. Awaits `indexedDB.deleteDatabase()` properly (handles
+       `blocked` event with a 1.5s timeout fallback)
+    4. Clears all `monii:*` localStorage keys + sessionStorage
+    5. Unregisters service workers + clears Cache Storage
+    6. Reloads — empty state seeds cleanly via `db/seed.ts`
+- **PWA service-worker registration error suppressed in Tauri.**
+  Tauri's `tauri://localhost` origin doesn't permit SW registration;
+  the rejection is harmless (Tauri serves dist/ assets natively, no SW
+  cache needed) but it spammed Settings → Debug logs on every launch.
+  `lib/logs.ts` now filters those specific rejections.
+
 ### Tier 5 native polish + a11y + QoL
 
 This batch lands the remaining Tier 5 items the previous batch had
