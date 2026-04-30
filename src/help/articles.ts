@@ -31,7 +31,8 @@ export type HelpCategory =
   | 'goals'
   | 'reports'
   | 'sync-privacy'
-  | 'troubleshooting';
+  | 'troubleshooting'
+  | 'advanced';
 
 export const HELP_CATEGORIES: Array<{ id: HelpCategory; label: string; description: string }> = [
   { id: 'getting-started', label: 'Getting started', description: 'Brand new? Start here.' },
@@ -41,6 +42,7 @@ export const HELP_CATEGORIES: Array<{ id: HelpCategory; label: string; descripti
   { id: 'goals', label: 'Goals & savings', description: 'Save for things that matter.' },
   { id: 'reports', label: 'Reports & insights', description: 'Find patterns in your money.' },
   { id: 'sync-privacy', label: 'Sync & privacy', description: 'Multiple devices, no servers.' },
+  { id: 'advanced', label: 'Advanced features', description: 'FIRE planner, workspaces, multi-currency, hard limits.' },
   { id: 'troubleshooting', label: 'Troubleshooting', description: 'When things go sideways.' },
 ];
 
@@ -960,6 +962,428 @@ in case you want to report the bug.
 
 The Reports page wraps each card in its own error boundary. One
 broken card won't kill the page — others still render.
+`,
+  },
+
+  // ---------- Advanced (v0.6.3 / v0.6.4) ----------------------------
+  {
+    id: 'fire-planner',
+    title: 'How does the FIRE / retirement planner work?',
+    category: 'advanced',
+    tags: ['fire', 'retirement', 'monte carlo', 'retire', 'early retirement', 'withdrawal'],
+    body: `
+The FIRE planner (sidebar → "FIRE planner" or **/fire**) projects
+your retirement based on your current net worth, savings rate, and
+expected returns.
+
+## What you put in
+
+Open the page and tap **FIRE assumptions**. Fill in:
+
+- **Current age** + **Target retirement age** — when you want to
+  stop working
+- **Annual spending in retirement** — how much you'll need each
+  year (in today's dollars)
+- **Expected return** — typical 6-8% nominal for a stock-heavy
+  portfolio
+- **Return std deviation** — typical 12-18% for stocks
+- **Inflation** — typical 2-4%
+- **Life expectancy** — most people use 90-95
+- **Social Security** (optional) — start age + monthly benefit
+
+Your **current net worth** comes from your accounts. **Annual
+contribution** is auto-derived from your trailing 12-month net
+(income minus spending).
+
+## What you get
+
+Three FIRE numbers:
+
+- **Lean FIRE (33×)** — conservative, sustains 40+ year retirement
+- **FIRE (25×)** — Trinity Study standard
+- **Fat FIRE (20×)** — aggressive, shorter horizon
+
+Plus:
+
+- **Deterministic projection** — year-by-year NW assuming things
+  go as planned
+- **Monte Carlo simulation** (500 runs) — 10th / 50th / 90th
+  percentile bands. The 50th is the median outcome; the 10/90 show
+  worst- and best-case scenarios
+- **Success probability** — what fraction of the 500 simulations
+  ran out of money before life expectancy
+- **Withdrawal sequencing** — taxable → traditional → Roth, with
+  rationale for each step
+
+## Trust this how much?
+
+It's a model. The math is honest but the inputs are guesses. Use it
+to ask "am I in the ballpark?" not "exactly when can I retire."
+Re-run it whenever your situation changes.
+`,
+  },
+  {
+    id: 'workspaces',
+    title: 'How do workspaces (multiple budgets) work?',
+    category: 'advanced',
+    tags: ['workspace', 'workspaces', 'multiple', 'budgets', 'business', 'separate'],
+    body: `
+A **workspace** is a separate budget — separate accounts,
+transactions, categories, sync. Useful when you want to keep
+personal money apart from a business or shared household.
+
+## Creating a workspace
+
+Sidebar → tap the workspace footer (or "+ Add workspace" if you
+don't have one yet). Click **+ New workspace**. Pick a name like
+"Business" or "Household." The app reloads into the new workspace
+when you switch.
+
+## How they're isolated
+
+Each workspace is its own IndexedDB database on this device. Your
+"Personal" budget never sees "Business" data. Each workspace also
+has its own:
+
+- Pairing phrase + sync state
+- Google Drive config
+- Categories, accounts, transactions, goals — all separate
+
+## What's shared
+
+**Nothing automatic.** Workspaces are local-per-device. You can
+sync each one to its own paired phones / laptops, but switching
+the active workspace on one device doesn't propagate.
+
+## Switching
+
+Tap the workspace footer in the sidebar → tap **Switch** on the
+workspace you want. The app reloads.
+
+## Deleting
+
+Workspaces → trash icon next to a workspace. **Permanent.** Export
+a backup first if you might need it. The default "Personal"
+workspace can't be deleted.
+
+## Caveat: no cross-workspace transfers
+
+If you need to "move money from Personal to Business," you'll
+record that as TWO transactions — one outflow in Personal, one
+inflow in Business. Manually. Cross-workspace transfers are not
+yet supported.
+`,
+  },
+  {
+    id: 'multi-currency',
+    title: 'I have accounts in different currencies — how does that work?',
+    category: 'advanced',
+    tags: ['multi-currency', 'currency', 'foreign', 'eur', 'gbp', 'usd', 'fx', 'exchange', 'rate'],
+    body: `
+Each account can declare its own currency, separate from your
+budget's currency. Useful for travelers, cross-border workers,
+or anyone with foreign-currency holdings.
+
+## Setting it up
+
+Edit any account → scroll to **Currency override**. Pick a
+currency (USD, EUR, GBP, JPY, etc.). When you pick a non-budget
+currency, an **fxRate** field appears.
+
+The fxRate is "1 of THIS currency = how many of the budget
+currency." So a EUR account when your budget is USD with EUR/USD
+≈ 1.07 has **fxRate: 1.07**.
+
+## What that does
+
+- Account balances + transactions are stored and displayed in
+  the account's native currency.
+- Envelope math (Ready to Assign, category Available) converts
+  to your budget currency using the rate.
+- Net worth aggregates everything in the budget currency.
+
+## Why we don't auto-fetch rates
+
+Privacy-first. Browser CORS prevents fetching directly from the
+ECB or any FX feed without a proxy server, and we won't run a
+proxy that sees your data. Update the rate manually when it
+shifts.
+
+## Lock rates per month
+
+For stability, you can record a per-month FX snapshot via
+**Settings.fxSnapshots** (this is a power-user feature, no UI
+yet — coming soon). Locked rates mean re-entering an old
+transaction won't silently shift past months' assignments.
+`,
+  },
+  {
+    id: 'hard-limits',
+    title: 'What are hard spending limits?',
+    category: 'advanced',
+    tags: ['hard limit', 'limits', 'cap', 'block', 'velocity', 'overspend'],
+    body: `
+A **hard spending limit** is a per-category cap that's stricter
+than the envelope. The envelope says "this is what you set aside";
+the hard limit says "this is the absolute max for the month, no
+exceptions."
+
+## Setting one
+
+Edit any category → scroll down → **Hard spending limit**. Enter
+a dollar amount per month. Pick a behavior:
+
+- **Warn** — surface a banner on the Budget page when you're
+  approaching the limit
+- **Block** — show a confirmation prompt before saving any
+  transaction that would push you over
+
+## Velocity alerts
+
+Optional: tick **Velocity alert**. With this on, Monii watches
+your spending pace mid-month. If by day 10 you've already spent
+60% of the limit (well above the 33% pace), it surfaces an
+"on track to overshoot" warning even if you're not yet at the
+limit.
+
+## When to use this
+
+- A category you keep blowing through (Dining, Entertainment)
+- A funding category with a tight ceiling ("max $500/mo into
+  this side hustle")
+- Setting a cap that doesn't roll over — distinct from envelopes,
+  which can be re-funded month after month
+
+## Banner location
+
+Above the budget table on the Budget page. Categories at risk
+appear with their state: Velocity-warn / Near-limit / Over.
+`,
+  },
+  {
+    id: 'recurring-transfers',
+    title: 'How do I set up recurring transfers + auto-escalation?',
+    category: 'advanced',
+    tags: ['recurring', 'transfer', 'escalation', 'auto-increase', 'contribution', '401k'],
+    body: `
+A scheduled transfer moves money between two of YOUR accounts on
+a recurring basis — distinct from spending or income. Common use:
+"every month, move $500 from checking to savings."
+
+## Setup
+
+Sidebar → **Scheduled** → New scheduled transaction. Set the
+**Account** (where money LEAVES) + **Transfer to** (where it
+ARRIVES). Pick a frequency, start date, and end date (optional).
+
+When the materializer runs (on app boot, idempotent), it creates
+TWO transactions on the trigger date — an outflow on the source
+account and a paired inflow on the destination.
+
+## Auto-escalation (Tier 9 #5)
+
+The new field **Auto-escalate per year %** lets you compound the
+amount each anniversary. Example: a 401k contribution of $200/mo
+that you want to grow by 3% every year. Set:
+
+- Amount: $200
+- Frequency: Monthly
+- Start date: 2026-01-01
+- Auto-escalate: 3
+
+Every January 1, the materialized transactions become 3% larger.
+After 5 years: $231.85/mo. After 10: $268.78/mo.
+
+## Caveats
+
+The auto-escalation is multiplicative compounding from start date,
+NOT from "today." Pausing + resuming doesn't reset the year count.
+This is intentional — it gives a stable, deterministic value at
+any future point.
+
+To disable, set the % back to 0 (or blank) on the scheduled entry.
+`,
+  },
+  {
+    id: 'price-tracker',
+    title: 'How do I track when something I want goes on sale?',
+    category: 'advanced',
+    tags: ['price', 'sale', 'goal', 'tracker', 'paste', 'product'],
+    body: `
+For physical-item goals (a laptop, a bike, a vacation package),
+you can set a **target item price** and update the **current item
+price** as it changes. When the current price drops to what you
+have available in the envelope, Monii shows a "deal alert" banner
+on the Budget + Goals pages.
+
+## Setup
+
+Edit the goal category → set:
+
+- **Target item price** — the original sticker price
+- **Current item price** — what it costs right now
+- **Link** (optional) — the store page URL
+
+## Updating the price
+
+Two ways:
+
+### 1. Quick number entry
+Click the price on the goal tile → type the new amount → save.
+
+### 2. Paste page content
+Better for stores with sale + original side by side. From the
+goal tile, click "Update price" → paste the page text (Cmd+A,
+Cmd+C, Cmd+V from the store). Monii extracts the lowest plausible
+price and offers to use it.
+
+The parser filters "Save $200" callouts (anything < 25% of the
+max plausible value is treated as a discount amount, not the
+product price).
+
+## Chat shortcut
+
+Open chat (⌘J) and type: \`set laptop price to $1299\`. The chat
+finds the matching category and updates the price.
+
+## Auto-fetch (coming later)
+
+A future server-side plugin will poll product URLs on a schedule
+and update prices automatically. The notification + banner side
+already works — only the data pipeline is manual today.
+`,
+  },
+  {
+    id: 'calendar-grid',
+    title: 'What\'s the difference between Calendar and Calendar grid?',
+    category: 'reports',
+    tags: ['calendar', 'grid', 'day-by-day', 'view'],
+    body: `
+Two calendar views:
+
+## /calendar — Heatmap
+
+Color-shaded grid showing how much you spent on each day.
+Quickly spot heavy-spending weeks. Best for seeing patterns at a
+glance.
+
+## /calendar/grid — Day-by-day grid
+
+Google-Calendar-style month grid. Each day shows the inflow /
+outflow totals + transaction count. Click a day to expand a sheet
+with every transaction on that date.
+
+Best for: "what did I do on April 15?" or "show me every
+transaction in January."
+
+## Switching
+
+Each view has a toggle button to flip to the other.
+
+## Coming later
+
+Drag a transaction between days to re-date it (Tier 10 #6).
+`,
+  },
+
+  // ---------- Updated reports articles for v0.6.3 features --------
+  {
+    id: 'runway',
+    title: 'What is "runway"?',
+    category: 'reports',
+    tags: ['runway', 'burn rate', 'fire', 'cash', 'months'],
+    body: `
+**Runway** = how many months of cash you have if income stops today.
+
+## Where to find it
+
+Reports → Runway card. Shows:
+
+- **Months runway** — color-coded (green ≥ 6, yellow ≥ 3, red below)
+- **Cash on hand** — sum of liquid balances (checking, savings,
+  cash). Excludes credit limits — those are debt, not runway.
+- **Avg monthly burn** — trailing 6-month average outflow,
+  excluding one-time-flagged transactions
+- **Avg monthly net** — for the "if you keep earning" lens
+
+## Why it matters
+
+A common piece of personal-finance advice is "have 3-6 months of
+expenses in liquid savings." Runway tells you exactly where you
+stand on that.
+
+## What gets excluded
+
+- One-time transactions (couches, plane tickets) — flag them as
+  one-time so they don't inflate the burn rate
+- Credit card limits — those add to debt if used, not runway
+- Investments — only counted if you'd actually sell them
+`,
+  },
+  {
+    id: 'savings-rate-trend',
+    title: 'How is my savings rate calculated?',
+    category: 'reports',
+    tags: ['savings rate', 'trend', '20%', 'target'],
+    body: `
+**Savings rate = (income − spending) / income** for a given month.
+
+## Where to find it
+
+Reports → Savings rate trend. 12-month line chart with a green
+dashed reference line at 20% (the typical "good" threshold).
+
+## Targets
+
+- **20%+** — strong saver
+- **5-20%** — typical
+- **Under 5%** — you're spending most of what you earn; tight
+
+## What's counted
+
+- **Income** — positive transactions on on-budget accounts
+- **Spending** — negative transactions on on-budget accounts
+- Transfers between your own accounts are EXCLUDED (they're not
+  income or spending — same money, different place)
+- One-time-flagged transactions are excluded
+- Months with zero income render as null (the line skips that point)
+
+## Average
+
+The big number at the top is the 12-month average rate.
+`,
+  },
+  {
+    id: 'dashboard',
+    title: 'What is the Dashboard?',
+    category: 'getting-started',
+    tags: ['dashboard', 'home', 'widgets', 'customize'],
+    body: `
+The **Dashboard** at \`/dashboard\` is a customizable at-a-glance
+view of your finances. Pick which widgets to show and in what
+order.
+
+## Default widgets
+
+- Net worth
+- Ready to Assign
+- This month's cash flow (income / spent / net)
+- Health scorecard
+- Runway
+- Savings rate
+- Recent transactions
+- Active goals
+
+## Customize
+
+Tap **Customize** at the top. Add new widgets, remove ones you
+don't care about, reorder via the up/down arrows. Reset-to-default
+if you change your mind.
+
+## Where it lives
+
+Sidebar → Dashboard (top entry). The customization is synced
+across your devices via the standard sync.
 `,
   },
 ];

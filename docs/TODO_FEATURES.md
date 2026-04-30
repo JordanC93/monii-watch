@@ -648,6 +648,16 @@ is empty.
 Big-effort items that need active user demand AND/OR your physical
 device. Don't pull from here speculatively.
 
+**Status as of v0.6.4 (Apr 30 2026):**
+- ✅ #2 Goal price tracker (user-paste workflow shipped; auto-fetch deferred)
+- ✅ #3 FIRE / retirement planner — full impl
+- ✅ #4 Multiple budgets / workspaces
+- ✅ #5 Recurring transfers (auto-escalation field added)
+- ✅ #7 Hard spending limits
+- ✅ #8 Calendar grid view
+- ⏸ #1 iOS / Android via Capacitor — needs your physical device
+- ⏸ #6 Lot-level investment tracking — explicitly deferred ("don't care about stocks")
+
 ### #1 Native iOS / Android app via Capacitor
 - The PWA works on iOS but it's awkward — no real notifications, no
   home-screen widgets, no Siri shortcuts, no App Store distribution.
@@ -664,7 +674,7 @@ device. Don't pull from here speculatively.
   unlock, share sheet integration with the receipt OCR flow,
   background fetch for sync.
 
-### #2 Auto-notify when a goal item goes on sale
+### #2 Auto-notify when a goal item goes on sale ✅ (v1 shipped v0.6.4 — auto-fetcher pending)
 **The big idea:** the user is saving for a $1,500 laptop. The app
 already shows their available balance. If the laptop drops to
 $1,300 on Apple's site and the user has $1,300 saved — ping them
@@ -727,7 +737,7 @@ the data pipeline to update prices automatically.
 - Configurable threshold: 0% (any sale), 5%, 10% off the user's
   saved amount
 
-### #3 Real retirement / FIRE planner
+### #3 Real retirement / FIRE planner ✅ (shipped v0.6.4)
 The biggest gap vs Personal Capital / Empower. Goes well beyond our
 basic Tax Estimator:
 
@@ -750,7 +760,7 @@ basic Tax Estimator:
 Pure compute over the existing data + a few new Settings fields.
 Heavy lift but Personal-Capital-killer.
 
-### #4 Multiple budgets (separate documents)
+### #4 Multiple budgets (separate documents) ✅ (shipped v0.6.4)
 Recurring complaint from small-business owners and people with
 "personal vs LLC vs household-shared" splits. Currently every
 install has ONE Yjs doc.
@@ -762,7 +772,7 @@ install has ONE Yjs doc.
   business out of personal funds, transfer between budgets").
 - Backup / restore per workspace.
 
-### #5 Recurring transfers / contribution scheduling
+### #5 Recurring transfers / contribution scheduling ✅ (shipped v0.6.4)
 Distinct from envelope assignment — actual SCHEDULED money movement.
 - "Move $500 from Checking to Savings on the 1st of each month"
 - Automatically logs both halves of the transfer pair on the
@@ -782,7 +792,7 @@ gains reporting.
 - "Tax-loss harvesting candidates" surfaced when a lot is
   underwater AND the wash-sale 30-day rule allows the harvest
 
-### #7 Hard spending limits (vs soft envelope tracking)
+### #7 Hard spending limits (vs soft envelope tracking) ✅ (shipped v0.6.4)
 - Per-category "block" or "warn" thresholds
 - "When I'm at 75% of my Dining budget for the month, send me a
   push notification"
@@ -791,12 +801,114 @@ gains reporting.
 - Velocity-based alerts: "by day 10 you've spent 60% of dining —
   at this pace you'll overspend by $80"
 
-### #8 Calendar of transactions (literal day-by-day view)
+### #8 Calendar of transactions (literal day-by-day view) ✅ (shipped v0.6.4)
 - Beyond the existing `/calendar` heatmap
 - Google-Calendar-style grid where each day shows the transactions
   that happened on that day
 - Click a date to add a new transaction with that date pre-filled
 - Drag a transaction between days to re-date it
+
+---
+
+## Tier 10 — Polish + pain points (post-v0.6.4 surface)
+
+Smaller, mostly-UX items that fall out of having shipped Tier 6/7/9.
+Pure "make the existing features feel finished" work.
+
+### #1 "What's new" modal after upgrade
+Auto-show a modal once after `__APP_VERSION__` changes, listing the
+relevant CHANGELOG section. So users actually discover the new
+features without reading docs. Persisted via
+`Settings.lastSeenVersion`.
+
+### #2 Help articles for v0.6.3/v0.6.4 features
+The Help center has 30+ articles but the FIRE planner, workspaces,
+hard limits, calendar grid, recurring transfer escalation, and
+price-paste tracker landed AFTER the help system was last updated.
+Add 6 articles. Half a day.
+
+### #3 Reports page tabs
+`/reports` is now 20+ cards. The Customize modal lets users
+hide/reorder, but a default group-by-purpose tabbing
+(Spending / Wealth / Time / Tax) would help discovery — same
+pattern Settings now uses. ~2 hours.
+
+### #4 Sandbox-mode visual polish
+When sandbox is active, the budget table numbers re-render with
+overlays applied — but it's not super obvious which numbers are
+sandboxed vs. real. A subtle yellow tint on overridden cells +
+"sandbox" badge on changed assignments would help.
+
+### #5 Onboarding for v0.6.4 features
+Welcome modal mentions the early v0.6 features but doesn't yet
+cover FIRE / workspaces / hard limits. Tighten the tour.
+
+### #6 Cross-workspace summary
+A small "All workspaces total" sidebar widget that sums net worth
+across every workspace registered on this device. Currently you
+have to switch + remember.
+
+### #7 Bulk-recategorize via search results
+Search page has filters; selecting all results + bulk
+recategorizing them is a missing power-user move. Half a day.
+
+### #8 Audit log for ALL mutations (not just chat)
+Chat-driven changes log to `Settings.chatAuditLog`. Direct edits
+(category renames, account closures, scheduled changes) don't.
+A unified audit log with filterable history would help recovery
++ debugging. ~3 hours.
+
+### #9 Auto-backup to local file every N days
+Set-and-forget backups. `Settings.autoBackupDays` triggers a
+JSON download every N days when the app boots. Sub-feature: a
+"Backup history" panel showing the last 5 backup files.
+
+### #10 Mobile audit pass for new pages
+FIRE setup form has 9 inputs — needs a tighter mobile layout.
+Calendar grid cells are tiny on phones. Dashboard widget grid
+should reflow more aggressively.
+
+### #11 Goal contribution auto-deposit
+Distinct from envelope assignment: actually move money. "On the
+1st, transfer $200 from Checking to Savings AND assign it to the
+Vacation envelope." Half-step toward the joint household idea.
+
+### #12 Print-friendly FIRE plan
+Format the FIRE page for printing (no chart, just the numbers +
+projection table) so users can save a one-pager.
+
+---
+
+## Tier 11 — Recovery + safety (when something breaks)
+
+Things you don't think about until you NEED them. A11y + tests
+covered the "I don't want to lose features" axis; this tier is
+"I don't want to lose data."
+
+### #1 Soft-delete trash
+Currently delete is permanent (modulo the in-session undo). A
+"Trash" zone where deleted accounts/categories/transactions live
+for 30 days before purge. New `deleted_at` field + filter.
+
+### #2 Sync-conflict visualization
+Yjs CRDT merges conflicts silently. If two devices edit the same
+amount simultaneously, the user has no way to see what happened.
+A timeline of recent merges with "what changed" context.
+
+### #3 Backup integrity check
+On import: verify the JSON is well-formed, every reference
+(categoryId, accountId, payeeId) resolves, and totals add up
+before applying. Surface broken refs as a review step.
+
+### #4 Disaster recovery flow
+Step-by-step page accessible at `/recover` that walks the user
+through: did your data go missing? did a sync go wrong? Here's
+how to roll back from a backup.
+
+### #5 Export verification
+After `Export JSON`, automatically re-parse + validate the file
++ surface "Backup verified ✓" so the user knows it's not
+corrupted before they trust it.
 
 ---
 

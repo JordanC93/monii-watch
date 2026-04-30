@@ -60,6 +60,41 @@ Built so you can share it with family without explaining a budgeting service.
 - **Mobile-first UI** — bottom-tab nav, card layouts, safe-area aware
 - **Offline** — IndexedDB persistence + service worker
 
+## v0.6 — production-quality release
+
+The 0.6.x line hardened the foundation and added power-user
+features. Highlights since v0.5:
+
+- **In-app Help center** at `/help` — 30+ articles across 9
+  categories, written for total beginners
+- **Custom dashboard** at `/dashboard` — pick widgets, reorder,
+  reset
+- **Multi-currency for ON-budget accounts** — any account can
+  declare its own currency with month-locked FX snapshots
+- **FIRE / retirement planner** at `/fire` — Monte Carlo
+  simulation, 25/33/20× FIRE numbers, withdrawal sequencing
+- **Multiple budgets / workspaces** — keep personal vs business
+  separate, each with its own data + sync
+- **Hard spending limits** — per-category caps with velocity
+  alerts (distinct from envelope tracking)
+- **Calendar grid view** — true day-by-day grid (separate from the
+  spending heatmap)
+- **Goal price-drop tracker** — paste a product page, app extracts
+  the current price; banner fires when affordable
+- **Recurring transfer auto-escalation** — 401k-style "raise my
+  contribution X% per year" baked into scheduled transfers
+- **Smarter auto-categorize rules** — regex patterns + amount-range
+  conditions
+- **Bulk move months** — re-date every transaction in one month
+  to another, atomic
+- **Runway report** — months of cash if income stops today
+- **Savings rate trend** — 12-month line chart with 20% target
+- **Account balance history** — per-account 12-month line chart
+- **Inline tooltip glossary** — "?" buttons next to budget terms
+  with curated definitions, linked to Help articles
+- **Foundation: 210 unit tests** + GitHub Actions CI + React error
+  boundaries with copy-crash-report
+
 ## Documentation
 
 - **[docs/USAGE.md](docs/USAGE.md)** — end-user guide: envelope method, goals, splits, transfers, chat panel, drag-drop, multi-currency, reports.

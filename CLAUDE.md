@@ -293,6 +293,18 @@ server/                  Self-hosted y-websocket sync server (Docker Compose
     lifecycle break unpredictably. The chat-panel paste flow uses
     the same convention — keep them aligned.
 
+22. **Workspaces are local-per-device, never synced.** The
+    workspace registry lives in localStorage (`monii:workspaces`),
+    NOT in Yjs. Same for the active workspace
+    (`monii:active-workspace`). Different devices can be on
+    different workspaces and that's by design. Don't ever store
+    workspace info in `Settings` — that would couple workspace
+    identity to a single Yjs doc and break the model.
+
+    Switching a workspace `location.reload()`s the app. Don't try to
+    re-init providers + Yjs in-place; it's fragile. Reload is the
+    boring-and-correct path.
+
 21. **Never derive arrays inside Zustand selectors.** Patterns like
     `useBudget((s) => s.categories.filter((c) => !c.hidden))` or
     `useBudget((s) => s.someField ?? [])` return a NEW reference on
@@ -604,6 +616,67 @@ Rules to preserve:
   when `TAURI_SIGNING_PRIVATE_KEY` secret is set)
 - Code-splitting (Reports + Settings lazy; Recharts/Yjs/React vendor chunks)
 
+## What's done (v0.6.x)
+
+These shipped after the long Tier-6/7 wave. v0.6 is "Monii at production
+quality" — the foundation hardened, multi-currency works for everyone,
+and several power-user features are in.
+
+### Foundation (v0.6.2)
+- **Vitest unit-test suite** — 210 tests across 23 modules covering
+  the entire `src/domain/` pure-functional layer. CI workflow
+  (`.github/workflows/ci.yml`) runs typecheck + tests + build on
+  every push.
+- **React error boundaries** — route-level + card-level. "Copy crash
+  report" + retry/home buttons. Pipes into `lib/logs.ts`.
+- **Performance** — `BudgetCategoryRow` wrapped in `React.memo` with
+  custom equality so 30+ rows don't re-render on unrelated observer
+  fires.
+- **A11y** — skip-to-content link, aria-live toasts, modal focus
+  trap + return-focus, role/aria-modal.
+- **In-app Help center** at `/help` — 30+ articles across 8
+  categories, written for total beginners. Hash-deep-linked.
+
+### v0.6.3
+- **Multi-currency on-budget accounts**. Any account can declare a
+  non-budget `currency` + `fxRate`. New `domain/fx.ts` resolves
+  the rate (snapshot first, then `Account.fxRate`). All envelope
+  math (`computeMonthBudget`, `computeReadyToAssign`, etc.) takes
+  budgetCurrency + fxSnapshots and converts.
+- **Smarter auto-categorize rules** — `AutoRule.patternMode`
+  (`substring | regex`) + `amountMinAbs` / `amountMaxAbs` filters.
+- **Inline tooltip glossary** — `<GlossaryHint term="…">` with
+  curated definitions for 18 budgeting terms, linked to Help.
+- **Account balance history** — 12/6/24-month line chart on every
+  Account page.
+- **Bulk move months** — `bulkMoveTransactionsBetweenMonths()`.
+- **Runway / burn-rate report** — "X months of runway if income
+  stops today."
+- **Savings rate trend** — 12-month line with 20% target line.
+- **Custom dashboards** at `/dashboard` — 9 widget types,
+  reorderable. Stored in `Settings.dashboardWidgets`.
+
+### v0.6.4
+- **FIRE / retirement planner** at `/fire`. 25/33/20× targets.
+  Deterministic projection. Monte Carlo (500 trials) with
+  10/50/90 percentile bands. Withdrawal sequencing (taxable →
+  traditional → Roth). New `domain/fire.ts` (pure compute).
+- **Recurring transfer auto-escalation** — `ScheduledTransaction.
+  escalationPctPerYear` field. Materializer applies multiplicative
+  compounding from start date. UI exposed in `ScheduledModal`.
+- **Multiple budgets / workspaces** at `/workspaces` modal — each
+  workspace is a separate IndexedDB database. Switching reloads.
+  New `lib/workspaces.ts` registry. Local-per-device, NOT synced.
+- **Hard spending limits** — `Settings.hardSpendingLimits` map per
+  category (cents + warn/block + velocity-alert flag). New
+  `domain/hardLimits.ts`. `HardLimitsBanner` on Budget page.
+- **Calendar grid view** at `/calendar/grid` — true day-by-day
+  grid (different from `/calendar` heatmap).
+- **Goal price-drop tracker v1** — paste page content, new
+  `domain/priceParse.ts` extracts the lowest plausible price
+  (filters "Save $X" callouts). New chat intent
+  `set [category] price to $X`.
+
 ## Release pipeline (current state — Apr 2026)
 
 The desktop release pipeline is FULLY working as of v0.5.13. Long
@@ -672,29 +745,64 @@ reference a tier/number.
 
 ## Known gaps / future work
 
-In rough priority order:
+In rough priority order (after v0.6.4):
 
-1. **Multi-currency on-budget accounts (v0.6.3)** — DONE. Any account
-   type can declare a non-budget `currency` + `fxRate`. Budget math
-   (`computeMonthBudget`, `computeReadyToAssign`, `computeMonthStats`)
-   converts to the budget currency using `lookupRate()` from
-   `domain/fx.ts` — checks `Settings.fxSnapshots` first (month-locked),
-   falls back to `Account.fxRate`. Open question: per-currency RTA
-   pools (you'd see "Ready to Assign: $1,200 USD + €300 EUR")
-   for users with substantial foreign-currency cash flow. Defer until
-   asked — current implementation works for travelers / cross-border
-   workers via the conversion approach.
+1. **Native iOS / Android via Capacitor (Tier 9 #1)** — biggest
+   remaining platform gap. PWA works on iOS but no real notifications,
+   widgets, Siri shortcuts, or App Store distribution. Capacitor
+   wraps the existing Vite build into a native shell with WKWebView.
+   Estimated 1-2 days for first build + TestFlight. Tauri-iOS was
+   tried earlier and shelved due to build issues.
 
-2. **Server-side price-checker** plugin for the goal item price tracker.
-   Currently the user enters `currentItemPrice` manually (the browser
-   can't fetch arbitrary store pages due to CORS, and a privacy-leaking
-   proxy was rejected). A future server-side fetcher would fill the
-   same fields automatically — the UI shape doesn't need to change.
+2. **Server-side price-checker** for the goal item price tracker
+   (v0.6.4 shipped the user-paste workflow as v1). Three architectures
+   spec'd in [docs/TODO_FEATURES.md](docs/TODO_FEATURES.md) Tier 9 #2:
+   self-hosted plugin (cleanest), browser extension (medium),
+   user-paste (already shipped). Notification side already wired —
+   the Goal Deal Banner picks up `currentItemPrice` updates
+   automatically.
 
-3. **Real bank linking via Plaid** — explicitly post-MVP. Requires user to
-   pay for Plaid; user has not asked for this.
+3. **Lot-level investment tracking (Tier 9 #6)** — for users who
+   care about tax-loss harvesting + accurate cap-gains. Project
+   owner explicitly said "I don't care about stocks" so DEFERRED.
 
-4. **Native iOS via Capacitor** — only if PWA hits a wall.
+4. **Joint household mode (Tier 99 #1)** — partners sharing one
+   budget. Major design surface — payees, categories, goals, IOU
+   ledger all need re-thinking. Existing IOU + WebRTC pairing
+   covers ~80% of what most couples actually need. Defer until
+   someone asks.
+
+5. **Real bank linking via Plaid** — explicitly rejected. No Plaid,
+   no Mint-style aggregation services. Privacy-first.
+
+6. **Multi-currency RTA pools** — currently we convert foreign-currency
+   transactions to budget currency via `domain/fx.ts`. A user with
+   substantial EUR + USD cash flow might want SEPARATE Ready-to-Assign
+   pools per currency rather than one converted pool. Defer until
+   requested.
+
+## Workspaces (multi-budget) architecture
+
+v0.6.4 added per-device workspaces — each is its own IndexedDB
+database + sync room. Key facts:
+
+- **Workspace registry lives in localStorage** (`monii:workspaces`)
+  NOT in Yjs. Each device has its own workspace list. This is by
+  design — different devices can be on different workspaces, and
+  switching shouldn't propagate.
+- **Active workspace** is the `monii:active-workspace` localStorage
+  key, holding the IndexedDB database name (`monii-watch-doc-{slug}`).
+- **Switching reloads the app.** This is intentional — tearing down
+  the Yjs doc + sync providers + IndexedDBPersistence in-place is
+  fragile. Reload is reliable.
+- **Each workspace has its own pairing phrase**, sync settings,
+  Drive config. They do NOT share state.
+- **The default workspace** (id `default`, dbName `monii-watch-doc-v1`)
+  cannot be deleted or renamed — it's the legacy DB existing users
+  already have data in.
+- **Cross-workspace transfers are NOT supported.** If you need to
+  move money "from personal to LLC budget," do it as two manual
+  transactions — one in each workspace.
 
 ## Common tasks
 

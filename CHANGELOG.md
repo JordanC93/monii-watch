@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+### v0.6.5 — Documentation update + 9 new Help articles
+
+Pure docs/help release. No new code features. Updates the Help
+center to cover everything that landed in v0.6.3 and v0.6.4 +
+syncs CLAUDE.md / README.md / TODO_FEATURES.md with the current
+state.
+
+#### New Help articles
+- `fire-planner` — full FIRE planner walkthrough (assumptions,
+  Monte Carlo, withdrawal sequencing)
+- `workspaces` — multiple budgets / workspace switcher
+- `multi-currency` — non-budget currency on accounts
+- `hard-limits` — per-category caps with velocity alerts
+- `recurring-transfers` — auto-escalation for retirement
+  contributions
+- `price-tracker` — paste page content + chat intent
+- `calendar-grid` — heatmap vs grid views
+- `runway` — runway / burn-rate report
+- `savings-rate-trend` — savings-rate trend chart
+- `dashboard` — custom dashboard
+
+New Help category: **Advanced features** for the v0.6+ power-user
+items.
+
+#### Documentation
+- CLAUDE.md adds a "What's done (v0.6.x)" section, updates
+  Known Gaps, adds a "Workspaces architecture" subsection, and
+  iron rule #22 about workspaces being local-only.
+- TODO_FEATURES.md marks Tier 9 #2/#3/#4/#5/#7/#8 as DONE,
+  adds Tier 10 (post-v0.6.4 polish) and Tier 11 (recovery +
+  safety) with 17 new ideas.
+- README.md gets a "v0.6 — production-quality release" section
+  summarizing the foundation pass + new features.
+
 ### v0.6.4 — FIRE · recurring transfers · workspaces · hard limits · calendar grid · price tracker
 
 A big swing batch — six features from Tier 9 plus the recurring-transfer
