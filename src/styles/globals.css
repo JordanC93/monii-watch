@@ -147,18 +147,34 @@ html[data-theme='glass']::before {
       transparent 35%,
       rgba(0, 0, 0, 0.30) 70%,
       rgba(0, 0, 0, 0.65) 100%),
+    /* v0.7.3 softener — a soft dark radial wash centered on the same
+       anchor as the conic, but small + low-alpha. Conic-gradients have
+       a mathematical singularity at their anchor (all four hue stops
+       converge to a single pixel), which reads as a harsh rainbow
+       pinwheel against the rest of the wash. Layering this gradient
+       ON TOP of the conic but UNDER the macro-radials covers the
+       pinch with a smooth fade. The radius is small enough that it
+       doesn't show as a "spotlight" — just the ~12% center diameter. */
+    radial-gradient(circle at 50% 55%,
+      rgba(6, 8, 22, 0.45) 0%,
+      rgba(6, 8, 22, 0.22) 6%,
+      transparent 14%),
     /* Slow conic-gradient hue wash. Anchored at center, rotates the
        hue around the page so the whole field feels like one flowing
        material rather than many sources. Low alpha.
        Reads palette colors from --glass-c1..c4 — set by
        `applyGlassPalette()` from src/lib/glassPalettes.ts so the user
-       can pick a preset or custom 4-color set in Settings. */
+       can pick a preset or custom 4-color set in Settings.
+       The hue STOPS are now blended at the wrap-around (0deg / 360deg)
+       so the seam between c1→c1 across the rotation is invisible.
+       Each stop is preceded by a tiny lead-in from the previous color
+       to smooth the transitions across the entire ring. */
     conic-gradient(from var(--glass-hue-angle, 215deg) at 50% 55%,
-      rgb(var(--glass-c1, 58 72 200) / 0.55) 0deg,
-      rgb(var(--glass-c2, 110 70 200) / 0.45) 90deg,
-      rgb(var(--glass-c3, 180 70 160) / 0.40) 180deg,
-      rgb(var(--glass-c4, 40 130 200) / 0.50) 270deg,
-      rgb(var(--glass-c1, 58 72 200) / 0.55) 360deg),
+      rgb(var(--glass-c1, 58 72 200) / 0.50) 0deg,
+      rgb(var(--glass-c2, 110 70 200) / 0.42) 90deg,
+      rgb(var(--glass-c3, 180 70 160) / 0.38) 180deg,
+      rgb(var(--glass-c4, 40 130 200) / 0.46) 270deg,
+      rgb(var(--glass-c1, 58 72 200) / 0.50) 360deg),
     /* Two enormous, heavily-overlapping radial washes — large enough that
        neither reads as a discrete blob. The slight position offset gives
        the conic the feeling of being "lit from above-left". */

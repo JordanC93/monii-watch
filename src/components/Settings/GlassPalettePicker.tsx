@@ -11,7 +11,7 @@
  * is dragged.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { setSettingsField } from '../../db/repo';
 import { useBudget } from '../../store/budget';
 import {
@@ -21,13 +21,25 @@ import {
 import { cn } from '../../lib/cn';
 
 export function GlassPalettePicker() {
-  const settings = useBudget((s) => s.settings);
-  // Only render when the user has the Liquid Glass theme active.
-  if (settings.theme !== 'glass') return null;
+  // Pull the two raw fields we need (theme + palette) instead of the
+  // whole settings object — avoids re-renders on unrelated settings
+  // changes (e.g. someone editing a transaction memo).
+  const theme = useBudget((s) => s.settings.theme);
+  const glassPalette = useBudget((s) => s.settings.glassPalette);
 
-  const setting = settings.glassPalette ?? { id: 'aurora' as GlassPaletteId };
-  const active = getGlassPalette(setting);
+  // Iron Rule (Rules of Hooks): every hook must run on every render.
+  // The early-return for non-glass themes lives BELOW this block.
+  // If we returned early before useState, the hook count would change
+  // when the user switches in/out of glass — React errors #310/#300.
+  const setting = useMemo(
+    () => glassPalette ?? { id: 'aurora' as GlassPaletteId },
+    [glassPalette],
+  );
+  const active = useMemo(() => getGlassPalette(setting), [setting]);
   const [showCustom, setShowCustom] = useState(setting.id === 'custom');
+
+  // Only render the actual picker UI when the user is on Liquid Glass.
+  if (theme !== 'glass') return null;
 
   function pick(id: GlassPaletteId) {
     if (id === 'custom') {

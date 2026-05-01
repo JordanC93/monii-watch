@@ -2,6 +2,38 @@
 
 ## Released
 
+### v0.7.3 — Glass theme fixes
+
+#### Theme switching no longer crashes
+
+Pre-existing Rules of Hooks violation in
+`<GlassPalettePicker />`: it called `useBudget` first, then
+`return null` if theme wasn't glass, then `useState` AFTER the
+return. Switching INTO glass added a hook → React error #310
+("rendered more hooks than previous render"). Switching OUT
+removed it → React error #300 ("rendered fewer hooks").
+
+Fixed by hoisting all hooks above the early return — the canonical
+Rules of Hooks layout. Also narrowed the selector from
+`s.settings` to just the two fields we read (`theme`,
+`glassPalette`) so the picker doesn't re-render on every
+unrelated settings change. Audited the rest of the codebase
+for the same pattern; no other instances.
+
+#### Soft glass-backdrop center
+
+The conic-gradient hue wash that drives the Liquid Glass
+backdrop has a mathematical singularity at its anchor — all
+four hue stops converge to a single pixel and read as a harsh
+rainbow pinwheel. v0.7.3 layers a small, soft, low-alpha radial
+gradient (~14% center diameter, dark-warming the pinch) on top
+of the conic to cover the convergence with a smooth fade. The
+overall wash still flows the same; the harsh center is gone.
+
+Also slightly lowered the conic stop alphas (0.50 / 0.42 / 0.38
+/ 0.46 vs. 0.55 / 0.45 / 0.40 / 0.50) for a softer overall
+feel.
+
 ### v0.7.2 — v0.7.1 reissue (lock file fix)
 
 CI build fix only. v0.7.1's tag was created without committing
