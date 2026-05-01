@@ -265,18 +265,18 @@ export default function App() {
 
   // What's new (Tier 10 #1) — auto-fire after onboarding finishes
   // when the build version has advanced past `lastSeenVersion`.
-  // Empty `lastSeenVersion` means first-ever boot — suppress so the
-  // welcome tour wins; we'll stamp the current version below for
-  // the next upgrade.
+  //
+  // Three cases:
+  //   1. New user, onboardingCompleted=false: welcome tour wins.
+  //      We stamp the version when the welcome flow finishes (handled
+  //      separately) so the modal stays quiet on subsequent boots.
+  //   2. Existing user upgrading from a pre-v0.6.7 install:
+  //      `lastSeenVersion` is empty (the field didn't exist). Treat
+  //      as "upgrade" — show the modal. This matches user expectation:
+  //      they DID upgrade, just from a build that didn't track it.
+  //   3. Existing user, version matches: no-op.
   useEffect(() => {
     if (!onboardingCompleted || currentModal !== null) return;
-    if (!lastSeenVersion) {
-      // Stamp once so the next upgrade triggers the modal.
-      void import('./components/Modals/WhatsNewModal').then(() => {
-        setSettingsField('lastSeenVersion', __APP_VERSION__);
-      });
-      return;
-    }
     if (lastSeenVersion === __APP_VERSION__) return;
     void import('./components/Modals/WhatsNewModal').then((m) => {
       if (m.pickReleaseEntry(__APP_VERSION__) !== null) {

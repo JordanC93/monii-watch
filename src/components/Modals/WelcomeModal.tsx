@@ -64,6 +64,11 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
 
   function complete() {
     setSettingsField('onboardingCompleted', true);
+    // Stamp the current build version so the "What's new" modal
+    // doesn't immediately pop up after a brand-new user finishes
+    // the tour. The modal only fires for genuine upgrades, not
+    // for first-time setup.
+    setSettingsField('lastSeenVersion', __APP_VERSION__);
     onClose();
     setStep(0);
   }

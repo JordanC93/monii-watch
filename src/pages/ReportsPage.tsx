@@ -156,9 +156,12 @@ export function ReportsPage() {
 
         {/* Tab strip — Tier 10 #3. Sits beneath the range chips. The
             "All" tab unscopes (everything visible); the others narrow
-            to a conceptual grouping. */}
+            to a conceptual grouping. Padding tightens on phones to
+            keep all 5 tabs visible without horizontal scroll on
+            ~360 px viewports; horizontal scroll is allowed as a
+            graceful fallback if labels grow. */}
         <div
-          className="flex items-center gap-1 -mx-1 px-1 overflow-x-auto no-scrollbar border-b border-border"
+          className="flex items-center gap-0 -mx-1 px-1 overflow-x-auto no-scrollbar border-b border-border"
           style={{ order: -1 }}
           role="tablist"
           aria-label="Report categories"
@@ -170,7 +173,7 @@ export function ReportsPage() {
               aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
               className={
-                'px-3 py-2 text-[12.5px] font-medium border-b-2 transition whitespace-nowrap '
+                'px-2 sm:px-3 py-2 text-[12px] sm:text-[12.5px] font-medium border-b-2 transition whitespace-nowrap '
                 + (tab === t.id
                   ? 'border-accent text-fg'
                   : 'border-transparent text-fg-subtle hover:text-fg')

@@ -1176,8 +1176,10 @@ function materializeOne(sched: ScheduledTransaction, date: string): void {
   // assignment for the target category by the absolute amount in
   // the month of the materialization. Additive, never overwrites.
   if (sched.autoAssignCategoryId) {
-    const targetCat = categoriesMap().get(sched.autoAssignCategoryId);
-    if (targetCat) {
+    // Guard: only fire if the category still exists. Stale references
+    // from a deleted category would otherwise create a phantom
+    // assignment that shows up as "Uncategorized" in the budget.
+    if (categoriesMap().has(sched.autoAssignCategoryId)) {
       adjustAssignment(date.slice(0, 7), sched.autoAssignCategoryId, Math.abs(escalatedAmount));
     }
   }
