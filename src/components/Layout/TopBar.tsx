@@ -156,7 +156,13 @@ export function TopBar({
           allowed). */}
       <div
         data-material="regular"
-        className="glass-panel rounded-xl bg-surface/85 backdrop-blur max-w-7xl mx-auto px-3 flex items-center gap-1.5"
+        // `topbar-chrome-pill` is a stable hook class for theme-scoped
+        // padding overrides in globals.css. On the Liquid Glass theme
+        // the pill carries a specular meniscus ring at its rounded
+        // edge, which eats visual real estate and makes the page title
+        // feel crammed; that scoped rule bumps the left padding only
+        // for glass. Other themes look balanced at `px-3`.
+        className="topbar-chrome-pill glass-panel rounded-xl bg-surface/85 backdrop-blur max-w-7xl mx-auto px-3 flex items-center gap-1.5"
       >
       {/* REVERTED in v0.7.0 — drag-region integration didn't fix the
           alignment complaint. h-12 was the original; back to that

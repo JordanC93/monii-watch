@@ -619,6 +619,23 @@ a:focus-visible,
   border-radius: 6px;
 }
 
+/* TopBar pill — Liquid Glass theme only.
+ *
+ * The chrome pill carries the glass-panel `::before` specular
+ * meniscus ring at its rounded edge. Visually, that bright ring
+ * eats ~6-8px of the leading area, so the page title (or back
+ * chevron + title pair) feels crammed against the edge.
+ *
+ * Other themes don't draw the meniscus, so they're balanced at
+ * the default `px-3`. Bumping left padding here is scoped to
+ * glass to keep the lighter themes from looking lopsided.
+ *
+ * Class hook (`topbar-chrome-pill`) is custom — never a Tailwind
+ * utility, per Iron Rule #18. */
+html[data-theme='glass'] .topbar-chrome-pill {
+  padding-left: 1.25rem;  /* equiv `pl-5` */
+}
+
 /* Money pill polish — the colorful pills (positive / negative /
  * zero) on the budget table get a tiny inner highlight to feel
  * like printed paper coupons rather than flat HTML. */
