@@ -13,7 +13,8 @@ import type {
   Account, AccountType, AllocationRule, AutoRule, BillNegotiationPrompt, BudgetTemplate, Category,
   CategoryGroup, ClearedState, FlagColor, InvestmentPosition, IouEntry, MonthAssignment, Money,
   MonthlyReview, NwSnapshot, Payee, RecurrenceFrequency, SavedSearch, SavingsBucket,
-  ScheduledTransaction, Settings, Split, SubscriptionUsagePrompt, ThemeName, Transaction, TripBudget,
+  ScheduledTransaction, Settings, Split, SubscriptionUsagePrompt, ThemeName, Transaction,
+  TrashEntry, TripBudget,
 } from '../domain/types';
 import { ACCOUNT_TYPE_META } from '../domain/types';
 import { newId, newSyncRoom } from '../domain/id';
@@ -37,6 +38,7 @@ function autoRulesMap(): Y.Map<AutoRule> { return getDoc().getMap(MAPS.autoRules
 function budgetTemplatesMap(): Y.Map<BudgetTemplate> { return getDoc().getMap(MAPS.budgetTemplates); }
 function savedSearchesMap(): Y.Map<SavedSearch> { return getDoc().getMap(MAPS.savedSearches); }
 function nwSnapshotsMap(): Y.Map<NwSnapshot> { return getDoc().getMap(MAPS.nwSnapshots); }
+function trashMap(): Y.Map<TrashEntry> { return getDoc().getMap(MAPS.trash); }
 
 // -- defaults & init ------------------------------------------------------
 
@@ -97,6 +99,9 @@ const DEFAULT_SETTINGS: Settings = {
   autoBackupDays: 0,
   lastAutoBackupAt: 0,
   autoBackupHistory: [],
+  icloudEnabled: false,
+  icloudFolderPath: '',
+  icloudLastSyncedAt: 0,
 };
 
 /** Internal tag we add to category names to identify auto-created credit-card payment categories. */
@@ -267,11 +272,14 @@ export function reopenAccount(id: string): void { updateAccount(id, { closed: fa
 export function deleteAccount(id: string): void {
   const acct = accountsMap().get(id);
   tx(() => {
-    // Delete all transactions in this account
+    // Collect all transactions in this account (to either soft-delete
+    // alongside the account or to orphan their transfer counterparts).
     const toDelete: string[] = [];
+    const relatedTxns: Transaction[] = [];
     txnsMap().forEach((t, tid) => { if (t.accountId === id) toDelete.push(tid); });
     for (const tid of toDelete) {
       const t = txnsMap().get(tid);
+      if (t) relatedTxns.push(t);
       // For transfers, the counterpart in another account becomes orphaned —
       // turn it back into a regular transaction with no category to make it visible.
       if (t?.transferTransactionId) {
@@ -281,6 +289,16 @@ export function deleteAccount(id: string): void {
         }
       }
       txnsMap().delete(tid);
+    }
+    if (acct) {
+      // Tier 11 #1 — move into trash before removing. Restore brings
+      // the account AND its transactions back atomically.
+      pushToTrash({
+        kind: 'account',
+        payload: acct,
+        relatedTxns,
+        description: `Account: ${acct.name} (${relatedTxns.length} txn${relatedTxns.length === 1 ? '' : 's'})`,
+      });
     }
     accountsMap().delete(id);
     if (acct) {
@@ -393,11 +411,26 @@ export function deleteCategory(id: string): void {
       }
       if (changed) txnsMap().set(tid, next);
     });
-    // Remove any month assignments for this category.
+    // Collect month assignments before deleting so restore can put
+    // them back.
     const aMap = assignmentsMap();
     const toDel: string[] = [];
-    aMap.forEach((a, k) => { if (a.categoryId === id) toDel.push(k); });
+    const relatedAssignments: MonthAssignment[] = [];
+    aMap.forEach((a, k) => {
+      if (a.categoryId === id) {
+        toDel.push(k);
+        relatedAssignments.push(a);
+      }
+    });
     for (const k of toDel) aMap.delete(k);
+    if (cat) {
+      pushToTrash({
+        kind: 'category',
+        payload: cat,
+        relatedAssignments,
+        description: `Category: ${cat.name}`,
+      });
+    }
     categoriesMap().delete(id);
     if (cat) appendAudit(`Deleted category ${cat.name}`, 'delete', id);
   });
@@ -690,11 +723,20 @@ export function deleteTransaction(id: string): void {
   tx(() => {
     const t = txnsMap().get(id);
     if (!t) return;
+    const partner = t.transferTransactionId ? txnsMap().get(t.transferTransactionId) : null;
     if (t.transferTransactionId) {
       txnsMap().delete(t.transferTransactionId);
     }
     txnsMap().delete(id);
     const payee = t.payeeId ? payeesMap().get(t.payeeId) : null;
+    // Tier 11 #1 — push to trash. For transfers, both halves travel
+    // together so restoring brings the pair back.
+    pushToTrash({
+      kind: 'transaction',
+      payload: t,
+      relatedTxns: partner ? [partner] : undefined,
+      description: `Transaction: ${payee?.name ?? '—'} on ${t.date}`,
+    });
     appendAudit(
       `Deleted transaction ${payee?.name ?? '—'} ${t.date}`,
       'delete',
@@ -744,18 +786,171 @@ export function bulkCreateTransactions(inputs: TxnInput[]): { created: number; i
 export function bulkDeleteTransactions(ids: string[]): { deleted: number } {
   let deleted = 0;
   tx(() => {
+    // Tier 11 #1 — bundle the bulk delete into a single trash entry
+    // so restoring undoes the whole batch at once. (Per-transaction
+    // entries would explode the trash UI.)
+    const collected: Transaction[] = [];
     for (const id of ids) {
       const t = txnsMap().get(id);
       if (!t) continue;
-      if (t.transferTransactionId) txnsMap().delete(t.transferTransactionId);
+      collected.push(t);
+      if (t.transferTransactionId) {
+        const partner = txnsMap().get(t.transferTransactionId);
+        if (partner) collected.push(partner);
+        txnsMap().delete(t.transferTransactionId);
+      }
       txnsMap().delete(id);
       deleted++;
     }
     if (deleted > 0) {
+      pushToTrash({
+        kind: 'transaction',
+        payload: null,
+        relatedTxns: collected,
+        description: `Bulk: ${deleted} transaction${deleted === 1 ? '' : 's'}`,
+      });
       appendAudit(`Bulk-deleted ${deleted} transaction${deleted === 1 ? '' : 's'}`, 'delete');
     }
   });
   return { deleted };
+}
+
+// -- Trash (Tier 11 #1) ---------------------------------------------------
+
+export function listTrash(): TrashEntry[] {
+  return Array.from(trashMap().values()).sort((a, b) => b.deletedAt - a.deletedAt);
+}
+
+/** Move a record into the trash. Caller must already be inside `tx()`. */
+function pushToTrash(input: {
+  kind: TrashEntry['kind'];
+  payload: unknown;
+  relatedTxns?: Transaction[];
+  relatedAssignments?: MonthAssignment[];
+  description: string;
+}): TrashEntry {
+  const entry: TrashEntry = {
+    id: newId(),
+    kind: input.kind,
+    deletedAt: Date.now(),
+    payload: input.payload,
+    relatedTxns: input.relatedTxns,
+    relatedAssignments: input.relatedAssignments,
+    description: input.description,
+  };
+  trashMap().set(entry.id, entry);
+  return entry;
+}
+
+/**
+ * Restore a trashed entry. Re-inserts the original record(s) into
+ * their source maps and removes the trash entry. Returns true on
+ * success, false if the entry is gone or restoration fails (e.g.
+ * a transaction whose account was permanently deleted).
+ */
+export function restoreFromTrash(trashId: string): boolean {
+  const entry = trashMap().get(trashId);
+  if (!entry) return false;
+  let ok = true;
+  tx(() => {
+    switch (entry.kind) {
+      case 'account': {
+        const acct = entry.payload as Account;
+        // Skip if an account with the same ID already exists (avoid
+        // overwriting a fresh account created since the delete).
+        if (accountsMap().has(acct.id)) { ok = false; return; }
+        accountsMap().set(acct.id, acct);
+        for (const t of entry.relatedTxns ?? []) {
+          if (!txnsMap().has(t.id)) txnsMap().set(t.id, t);
+        }
+        appendAudit(`Restored account ${acct.name}`, 'create', acct.id);
+        break;
+      }
+      case 'category': {
+        const cat = entry.payload as Category;
+        if (categoriesMap().has(cat.id)) { ok = false; return; }
+        // Verify the group still exists; otherwise place into the
+        // first available group (or skip).
+        if (!groupsMap().has(cat.groupId)) {
+          const fallback = listGroups()[0];
+          if (!fallback) { ok = false; return; }
+          categoriesMap().set(cat.id, { ...cat, groupId: fallback.id });
+        } else {
+          categoriesMap().set(cat.id, cat);
+        }
+        for (const a of entry.relatedAssignments ?? []) {
+          if (!assignmentsMap().has(a.id)) assignmentsMap().set(a.id, a);
+        }
+        appendAudit(`Restored category ${cat.name}`, 'create', cat.id);
+        break;
+      }
+      case 'transaction': {
+        for (const t of entry.relatedTxns ?? []) {
+          // Skip if the destination account is gone — would create a
+          // dangling reference. Better to surface as a partial restore
+          // (the user gets a toast).
+          if (!accountsMap().has(t.accountId)) { ok = false; continue; }
+          if (!txnsMap().has(t.id)) txnsMap().set(t.id, t);
+        }
+        if (entry.payload && typeof entry.payload === 'object') {
+          const t = entry.payload as Transaction;
+          if (accountsMap().has(t.accountId) && !txnsMap().has(t.id)) {
+            txnsMap().set(t.id, t);
+          }
+        }
+        appendAudit(`Restored transaction(s)`, 'create', trashId);
+        break;
+      }
+      case 'scheduled': {
+        const s = entry.payload as ScheduledTransaction;
+        if (scheduledMap().has(s.id)) { ok = false; return; }
+        if (!accountsMap().has(s.accountId)) { ok = false; return; }
+        scheduledMap().set(s.id, s);
+        appendAudit(`Restored scheduled transaction`, 'create', s.id);
+        break;
+      }
+      case 'group': {
+        const g = entry.payload as CategoryGroup;
+        if (groupsMap().has(g.id)) { ok = false; return; }
+        groupsMap().set(g.id, g);
+        appendAudit(`Restored group ${g.name}`, 'create', g.id);
+        break;
+      }
+    }
+    if (ok) trashMap().delete(trashId);
+  });
+  return ok;
+}
+
+/** Permanently remove a single trash entry (no restore possible after). */
+export function purgeTrashEntry(trashId: string): void {
+  tx(() => trashMap().delete(trashId));
+}
+
+/** Empty the trash entirely. */
+export function emptyTrash(): void {
+  tx(() => {
+    const ids = Array.from(trashMap().keys());
+    for (const id of ids) trashMap().delete(id);
+  });
+}
+
+/**
+ * Auto-purge any trash entry older than `maxAgeMs` (default 30 days).
+ * Runs once per app boot from main.tsx.
+ */
+export function autoPurgeOldTrash(maxAgeMs = 30 * 86400 * 1000): number {
+  const cutoff = Date.now() - maxAgeMs;
+  let purged = 0;
+  tx(() => {
+    const toDel: string[] = [];
+    trashMap().forEach((e, k) => { if (e.deletedAt < cutoff) toDel.push(k); });
+    for (const k of toDel) {
+      trashMap().delete(k);
+      purged++;
+    }
+  });
+  return purged;
 }
 
 export function bulkSetCategory(ids: string[], categoryId: string | null): { updated: number; skippedTransfers: number } {
@@ -1076,6 +1271,11 @@ export function deleteScheduled(id: string): void {
     scheduledMap().delete(id);
     if (cur) {
       const payee = cur.payeeId ? payeesMap().get(cur.payeeId) : null;
+      pushToTrash({
+        kind: 'scheduled',
+        payload: cur,
+        description: `Scheduled: ${payee?.name ?? '(unnamed)'} every ${cur.frequency}`,
+      });
       appendAudit(`Deleted scheduled ${payee?.name ?? '(unnamed)'}`, 'delete', id);
     }
   });
@@ -1249,6 +1449,131 @@ export function exportSnapshot(): Snapshot {
     transactions: listTransactions(),
     assignments: listAssignments(),
     scheduled: listScheduled(),
+  };
+}
+
+/**
+ * Validate a snapshot before importing (Tier 11 #3). Returns a
+ * structured report so the UI can either green-light the import,
+ * surface broken refs as a review step, or block on critical issues.
+ *
+ * Categories of finding:
+ *   - `errors`: deal-breakers — file is malformed, wrong shape, totals
+ *     don't add up. Block the import.
+ *   - `warnings`: non-fatal — broken references (txn pointing at a
+ *     deleted account, split with missing category, etc.). Show
+ *     the user; let them proceed if they want to.
+ *   - `stats`: counts so the user can confirm "yes, this looks like
+ *     a backup of MY budget" before clicking through.
+ *
+ * Pure function — never mutates Yjs.
+ */
+export type SnapshotValidation = {
+  ok: boolean;
+  errors: string[];
+  warnings: string[];
+  stats: {
+    accounts: number;
+    categories: number;
+    transactions: number;
+    payees: number;
+    scheduled: number;
+    assignments: number;
+    txnTotalCents: number;
+    earliestDate?: string;
+    latestDate?: string;
+  };
+};
+
+export function validateSnapshot(raw: unknown): SnapshotValidation {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const stats = {
+    accounts: 0, categories: 0, transactions: 0,
+    payees: 0, scheduled: 0, assignments: 0,
+    txnTotalCents: 0,
+    earliestDate: undefined as string | undefined,
+    latestDate: undefined as string | undefined,
+  };
+
+  if (!raw || typeof raw !== 'object') {
+    errors.push('Backup file is empty or not a valid object.');
+    return { ok: false, errors, warnings, stats };
+  }
+  const snap = raw as Partial<Snapshot>;
+  if (snap.version !== 1) {
+    errors.push(`Unsupported backup version ${(snap as { version?: unknown }).version ?? 'unknown'}. Expected version 1.`);
+  }
+  if (!Array.isArray(snap.accounts)) {
+    errors.push('Backup is missing the accounts array.');
+  } else {
+    stats.accounts = snap.accounts.length;
+  }
+  if (!Array.isArray(snap.categories)) {
+    errors.push('Backup is missing the categories array.');
+  } else {
+    stats.categories = snap.categories.length;
+  }
+  if (!Array.isArray(snap.transactions)) {
+    errors.push('Backup is missing the transactions array.');
+  } else {
+    stats.transactions = snap.transactions.length;
+    for (const t of snap.transactions) {
+      stats.txnTotalCents += Math.abs(typeof t.amount === 'number' ? t.amount : 0);
+      if (typeof t.date === 'string') {
+        if (!stats.earliestDate || t.date < stats.earliestDate) stats.earliestDate = t.date;
+        if (!stats.latestDate || t.date > stats.latestDate) stats.latestDate = t.date;
+      }
+    }
+  }
+  if (Array.isArray(snap.payees)) stats.payees = snap.payees.length;
+  if (Array.isArray(snap.scheduled)) stats.scheduled = snap.scheduled.length;
+  if (Array.isArray(snap.assignments)) stats.assignments = snap.assignments.length;
+
+  // Reference integrity checks (warnings — not blockers).
+  if (errors.length === 0) {
+    const acctIds = new Set((snap.accounts ?? []).map((a) => a.id));
+    const catIds = new Set((snap.categories ?? []).map((c) => c.id));
+    const groupIds = new Set((snap.groups ?? []).map((g) => g.id));
+    const payeeIds = new Set((snap.payees ?? []).map((p) => p.id));
+
+    let missingAcctRefs = 0;
+    let missingCatRefs = 0;
+    let missingPayeeRefs = 0;
+    let missingTransferRefs = 0;
+    for (const t of snap.transactions ?? []) {
+      if (!acctIds.has(t.accountId)) missingAcctRefs++;
+      if (t.categoryId && !catIds.has(t.categoryId)) missingCatRefs++;
+      if (t.payeeId && !payeeIds.has(t.payeeId)) missingPayeeRefs++;
+      if (t.transferAccountId && !acctIds.has(t.transferAccountId)) missingTransferRefs++;
+      for (const s of t.splits ?? []) {
+        if (s.categoryId && !catIds.has(s.categoryId)) missingCatRefs++;
+      }
+    }
+    if (missingAcctRefs > 0) warnings.push(`${missingAcctRefs} transaction${missingAcctRefs === 1 ? '' : 's'} reference a missing account.`);
+    if (missingCatRefs > 0) warnings.push(`${missingCatRefs} transaction${missingCatRefs === 1 ? '' : 's'} reference a missing category.`);
+    if (missingPayeeRefs > 0) warnings.push(`${missingPayeeRefs} transaction${missingPayeeRefs === 1 ? '' : 's'} reference a missing payee.`);
+    if (missingTransferRefs > 0) warnings.push(`${missingTransferRefs} transfer${missingTransferRefs === 1 ? '' : 's'} reference a missing destination account.`);
+
+    let missingCatGroupRefs = 0;
+    for (const c of snap.categories ?? []) {
+      if (c.groupId && !groupIds.has(c.groupId)) missingCatGroupRefs++;
+    }
+    if (missingCatGroupRefs > 0) warnings.push(`${missingCatGroupRefs} categor${missingCatGroupRefs === 1 ? 'y' : 'ies'} reference a missing group.`);
+
+    // Assignment integrity
+    let missingAssignmentCat = 0;
+    for (const a of snap.assignments ?? []) {
+      if (!catIds.has(a.categoryId)) missingAssignmentCat++;
+    }
+    if (missingAssignmentCat > 0) warnings.push(`${missingAssignmentCat} monthly assignment${missingAssignmentCat === 1 ? '' : 's'} reference a missing category.`);
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors,
+    warnings,
+    stats,
   };
 }
 

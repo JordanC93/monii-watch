@@ -7,6 +7,7 @@ import { Plus, ArrowLeftRight } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { detectRecurringForPayee } from '../../domain/subscriptions';
 import { toast } from '../../lib/toast';
+import { PayeeSuggestions } from './PayeeSuggestions';
 
 type Props = {
   accountId?: string;
@@ -252,11 +253,24 @@ export function QuickAdd({ accountId }: Props) {
             <input
               list="payees-datalist"
               value={payee}
-              onChange={(e) => setPayee(e.target.value)}
+              onChange={(e) => onPayeeChange(e.target.value)}
               placeholder="Payee"
               className="h-9 w-full px-2 rounded bg-surface-3 border border-border text-[13px] text-fg"
               disabled={isTransfer}
             />
+            {!isTransfer && (
+              <PayeeSuggestions
+                query={payee}
+                date={date}
+                outflowText={outflow}
+                inflowText={inflow}
+                accountId={accountId ?? selectedAcct}
+                onPick={(name, defCat) => {
+                  setPayee(name);
+                  if (!categoryId && defCat) setCategoryId(defCat);
+                }}
+              />
+            )}
             <select
               value={isTransfer ? `__transfer__:${transferTo}` : categoryId}
               onChange={(e) => {

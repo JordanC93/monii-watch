@@ -37,6 +37,7 @@ import { WorkspacesModal } from './WorkspacesModal';
 import { GoalPriceUpdateModal } from './GoalPriceUpdateModal';
 import { WhatsNewModal } from './WhatsNewModal';
 import { AuditLogModal } from './AuditLogModal';
+import { TipJarModal } from './TipJarModal';
 
 export function ModalRoot() {
   const modal = useUI((s) => s.modal);
@@ -83,6 +84,7 @@ export function ModalRoot() {
     case 'goalPriceUpdate': return <GoalPriceUpdateModal open onClose={close} categoryId={modal.categoryId} />;
     case 'whatsNew':      return <WhatsNewModal open onClose={close} />;
     case 'auditLog':      return <AuditLogModal open onClose={close} />;
+    case 'tipJar':        return <TipJarModal open onClose={close} />;
     default: return null;
   }
 }

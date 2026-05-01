@@ -28,7 +28,14 @@ use tauri::menu::Menu;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init());
+        .plugin(tauri_plugin_shell::init())
+        // Tier 12 #7 — iCloud Drive sync transport reads/writes the
+        // encrypted snapshot to a user-picked folder via this plugin.
+        // Cross-platform; the iCloud Drive folder on macOS is
+        // `~/Library/Mobile Documents/com~apple~CloudDocs/` which the
+        // user picks once via the dialog.
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init());
 
     // Auto-updater + process restart + notifications + window-state:
     // desktop only. iOS distributes updates through the App Store /

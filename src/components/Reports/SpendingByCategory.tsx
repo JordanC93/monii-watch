@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { Share2 } from 'lucide-react';
 import { useBudget } from '../../store/budget';
 import { ACCOUNT_TYPE_META } from '../../domain/types';
 import { isoIsInMonth, parseMonth } from '../../domain/date';
@@ -6,6 +7,8 @@ import { Pie, PieChart, ResponsiveContainer, Cell, Tooltip } from 'recharts';
 import { useFormatMoney } from '../../lib/format';
 import { addMonths, format } from 'date-fns';
 import { categoriesTouched } from '../../domain/types';
+import { renderShareImage, shareOrDownloadImage, type ShareDetail } from '../../lib/shareImage';
+import { toast } from '../../lib/toast';
 
 const PALETTE = [
   '#22d3ee', '#a78bfa', '#34d399', '#fbbf24', '#fb7185',
@@ -17,7 +20,10 @@ export function SpendingByCategory({ months = 1 }: { months?: number }) {
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
   const categories = useBudget((s) => s.categories);
+  const settings = useBudget((s) => s.settings);
   const fmt = useFormatMoney();
+  const [privacy, setPrivacy] = useState<ShareDetail['privacy']>('detailed');
+  const [busy, setBusy] = useState(false);
 
   const data = useMemo(() => {
     const today = new Date();
@@ -49,7 +55,53 @@ export function SpendingByCategory({ months = 1 }: { months?: number }) {
     return <div className="p-6 text-fg-subtle text-[13px] text-center">No spending recorded for the selected period.</div>;
   }
 
+  async function handleShare() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const today = new Date();
+      const m0 = months === 1
+        ? format(today, 'MMMM yyyy')
+        : `${format(addMonths(today, -(months - 1)), 'MMM yyyy')} – ${format(today, 'MMM yyyy')}`;
+      const detail: ShareDetail = {
+        title: months === 1 ? `${m0} spending` : `Last ${months} months`,
+        subtitle: `${data.length} categor${data.length === 1 ? 'y' : 'ies'} · ${months === 1 ? 'one month' : `${months} months`}`,
+        rows: data.slice(0, 7).map((d) => ({ name: d.name, amount: d.value, share: d.value / total })),
+        total,
+        currency: settings.currency || 'USD',
+        privacy,
+      };
+      const url = renderShareImage(detail);
+      const result = await shareOrDownloadImage(url, `monii-${parseMonth(format(today, 'yyyy-MM')).toString().slice(0, 7)}.png`);
+      if (result === 'shared') toast.success('Shared.');
+      else if (result === 'downloaded') toast.success('Image downloaded.');
+      else if (result === 'failed') toast.error('Couldn\'t generate the image.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <select
+          value={privacy}
+          onChange={(e) => setPrivacy(e.target.value as ShareDetail['privacy'])}
+          className="text-[12px] bg-surface-2 border border-border rounded px-2 py-1"
+          aria-label="Share privacy mode"
+        >
+          <option value="detailed">Detailed (amounts visible)</option>
+          <option value="amounts-only">Percentages only</option>
+          <option value="blurred">Hide amounts (••••)</option>
+        </select>
+        <button
+          onClick={handleShare}
+          disabled={busy}
+          className="text-[12px] inline-flex items-center gap-1 px-2 py-1 rounded bg-accent/15 text-accent hover:bg-accent/25 disabled:opacity-50"
+        >
+          <Share2 size={12} /> {busy ? 'Generating…' : 'Share image'}
+        </button>
+      </div>
     <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4 items-center">
       <div className="h-64 relative">
         <ResponsiveContainer>
@@ -83,6 +135,7 @@ export function SpendingByCategory({ months = 1 }: { months?: number }) {
           <div className="text-[11px] text-fg-subtle px-2 py-1">+{data.length - 12} more categories</div>
         )}
       </div>
+    </div>
     </div>
   );
 }

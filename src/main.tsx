@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './styles/globals.css';
 import { initTheme } from './store/theme';
-import { initDb, materializeDueScheduled, ensureCreditCardPaymentCategoriesExist, getSettings } from './db/repo';
+import { initDb, materializeDueScheduled, ensureCreditCardPaymentCategoriesExist, getSettings, autoPurgeOldTrash } from './db/repo';
 import { initPersistence, initSync } from './sync/provider';
 import { wireStoreToYjs } from './store/budget';
 import { installLogCapture } from './lib/logs';
@@ -63,6 +63,13 @@ async function bootstrap() {
   try { ensureCreditCardPaymentCategoriesExist(); } catch (err) {
     console.warn('[cc-payments] backfill failed', err);
   }
+  // Tier 11 #1 — auto-purge any trash entry older than 30 days.
+  try {
+    const purged = autoPurgeOldTrash();
+    if (purged > 0) console.info(`[trash] auto-purged ${purged} old entries`);
+  } catch (err) {
+    console.warn('[trash] auto-purge failed', err);
+  }
   // Capture today's net-worth snapshot if we don't already have one.
   // Bounded by a 5-year prune; runs once per boot.
   try {
@@ -80,6 +87,14 @@ async function bootstrap() {
     import('./sync/driveProvider')
       .then((m) => m.startDriveSync())
       .catch((err) => console.warn('[drive] failed to start', err));
+  }
+
+  // Tier 12 #7 — optional iCloud Drive sync (lazy-imported, opt-in,
+  // Tauri-only). Reuses the pairing phrase as the encryption key.
+  if (getSettings().icloudEnabled && getSettings().icloudFolderPath && getSettings().syncRoom) {
+    import('./sync/icloudProvider')
+      .then((m) => m.startICloudSync())
+      .catch((err) => console.warn('[icloud] failed to start', err));
   }
 
   // Local notification trigger loop. Always starts; the `notify()` calls

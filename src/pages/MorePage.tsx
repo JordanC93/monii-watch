@@ -14,7 +14,7 @@ import {
   CalendarClock, CreditCard, Search as SearchIcon, Settings as SettingsIcon,
   Cloud, Wallet, BarChart3, FileText, ChevronRight, HelpCircle, Wrench,
   Plane, Calendar, TrendingUp, Wand2, Sparkles, Bookmark, Star, Tag, Image as ImageIcon,
-  BookOpen,
+  BookOpen, Trash2, Heart, LifeBuoy, ScrollText,
 } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { useUI } from '../store/ui';
@@ -77,6 +77,12 @@ export function MorePage() {
         }} icon={<Star size={16} />} label="Monthly review" subtitle="Rate + journal last month" />
       </Section>
 
+      <Section title="Recovery & safety">
+        <Row to="/trash" icon={<Trash2 size={16} />} label="Trash" subtitle="Soft-deleted items · 30-day retention" />
+        <Row to="/recover" icon={<LifeBuoy size={16} />} label="Recovery" subtitle="Step-by-step rescue for missing data" />
+        <ButtonRow onClick={() => openModal({ type: 'auditLog' })} icon={<ScrollText size={16} />} label="Audit log" subtitle="Every recent mutation, chat + direct" />
+      </Section>
+
       <Section title="Help">
         <Row to="/help" icon={<BookOpen size={16} />} label="Help center" subtitle="Search articles · written for total beginners" />
         <ButtonRow onClick={() => openModal({ type: 'welcome' })} icon={<HelpCircle size={16} />} label="Welcome tour" subtitle="Re-watch the onboarding walkthrough" />
@@ -85,6 +91,10 @@ export function MorePage() {
         {settings.maintainerMode && (
           <Row to="/help-maint" icon={<Wrench size={16} />} label="Maintainer help" subtitle="iOS build · Drive setup · server · release" />
         )}
+      </Section>
+
+      <Section title="Support the project">
+        <ButtonRow onClick={() => openModal({ type: 'tipJar' })} icon={<Heart size={16} />} label="Tip jar" subtitle="Voluntary support · no ads, no upsell" />
       </Section>
     </div>
   );

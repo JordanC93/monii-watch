@@ -56,6 +56,11 @@ const FirePage = lazy(() => import('./pages/FirePage').then((m) => ({ default: m
 // Calendar grid view (Tier 9 #8) — full month grid; the existing
 // /calendar is the heatmap, this adds a day-by-day view.
 const CalendarGridPage = lazy(() => import('./pages/CalendarGridPage').then((m) => ({ default: m.CalendarGridPage })));
+// Trash page (Tier 11 #1) — soft-deleted entries with restore /
+// permanent purge / 30-day auto-purge.
+const TrashPage = lazy(() => import('./pages/TrashPage').then((m) => ({ default: m.TrashPage })));
+// Disaster recovery flow (Tier 11 #4).
+const RecoverPage = lazy(() => import('./pages/RecoverPage').then((m) => ({ default: m.RecoverPage })));
 
 function PageFallback() {
   return (
@@ -362,6 +367,8 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/fire" element={<FirePage />} />
               <Route path="/calendar/grid" element={<CalendarGridPage />} />
+              <Route path="/trash" element={<TrashPage />} />
+              <Route path="/recover" element={<RecoverPage />} />
               <Route path="*" element={<Navigate to="/budget" replace />} />
             </Routes>
           </Suspense>

@@ -1,10 +1,10 @@
-import { useRef, useState, useMemo } from 'react';
+import { useRef, useState, useMemo, useEffect } from 'react';
 import { useBudget } from '../store/budget';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { THEMES, setTheme } from '../store/theme';
-import { setSettingsField, exportSnapshot, importSnapshot, type Snapshot } from '../db/repo';
+import { setSettingsField, exportSnapshot, importSnapshot, validateSnapshot, type Snapshot } from '../db/repo';
 import { SUPPORTED_CURRENCIES } from '../domain/money';
 import { parseAmountToCents } from '../domain/calc';
 import { useFormatMoney } from '../lib/format';
@@ -139,13 +139,28 @@ export function SettingsPage() {
 
   function exportJson() {
     const snap = exportSnapshot();
-    const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' });
+    // Tier 11 #5 — re-parse + validate the file we just generated, so
+    // the user knows their backup is good before they trust it. Catches
+    // serialization bugs we don't know about yet.
+    const json = JSON.stringify(snap, null, 2);
+    try {
+      const v = validateSnapshot(JSON.parse(json));
+      if (!v.ok) {
+        setImportMsg(`Backup verification FAILED — file not downloaded: ${v.errors.join(' · ')}`);
+        return;
+      }
+    } catch (err: any) {
+      setImportMsg(`Backup verification FAILED: ${err?.message ?? err}`);
+      return;
+    }
+    const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `monii-watch-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    setImportMsg('Backup verified ✓ and downloaded.');
   }
 
   /**
@@ -195,6 +210,8 @@ export function SettingsPage() {
     try {
       // Detect .cb-backup (CSHB magic) by reading the first bytes.
       const buf = new Uint8Array(await f.arrayBuffer());
+      let data: Snapshot;
+      let decryptedNote = '';
       if (buf.length >= 5 && buf[0] === 0x43 && buf[1] === 0x53 && buf[2] === 0x48 && buf[3] === 0x42) {
         const version = buf[4];
         if (version !== 1) throw new Error(`Unsupported backup version ${version}`);
@@ -204,17 +221,32 @@ export function SettingsPage() {
         const cipher = buf.slice(5);
         const plain = await decryptBytes(cipher, pass);
         const text = new TextDecoder().decode(plain);
-        const data = JSON.parse(text) as Snapshot;
-        if (data.version !== 1) throw new Error('Unsupported file version');
-        const { added } = importSnapshot(data, { mode });
-        setImportMsg(`Imported ${added} records (decrypted backup).`);
+        data = JSON.parse(text) as Snapshot;
+        decryptedNote = ' (decrypted backup)';
       } else {
         const text = new TextDecoder().decode(buf);
-        const data = JSON.parse(text) as Snapshot;
-        if (data.version !== 1) throw new Error('Unsupported file version');
-        const { added } = importSnapshot(data, { mode });
-        setImportMsg(`Imported ${added} records.`);
+        data = JSON.parse(text) as Snapshot;
       }
+
+      // Tier 11 #3 — validate before applying.
+      const v = validateSnapshot(data);
+      if (!v.ok) {
+        setImportMsg(`Import blocked: ${v.errors.join(' · ')}`);
+        return;
+      }
+      // Surface a confirmation prompt with stats + warnings so the
+      // user sees exactly what they're about to import.
+      const summary =
+        `${v.stats.accounts} accounts · ${v.stats.categories} categories · ${v.stats.transactions} transactions`
+        + (v.stats.earliestDate ? `\nDate range: ${v.stats.earliestDate} → ${v.stats.latestDate}` : '')
+        + (v.warnings.length > 0 ? `\n\nWarnings:\n• ${v.warnings.join('\n• ')}` : '')
+        + `\n\nMode: ${mode}.${mode === 'replace' ? ' This REPLACES all current data.' : ''}\n\nProceed?`;
+      if (!confirm(summary)) {
+        setImportMsg('Import cancelled.');
+        return;
+      }
+      const { added } = importSnapshot(data, { mode });
+      setImportMsg(`Imported ${added} records${decryptedNote}.${v.warnings.length > 0 ? ` ${v.warnings.length} warning(s) — see audit log.` : ''}`);
     } catch (err: any) {
       setImportMsg(`Import failed: ${err?.message ?? err}`);
     } finally {
@@ -450,6 +482,10 @@ export function SettingsPage() {
           </div>
           <Button onClick={() => openModal({ type: 'sync' })} variant="secondary"><Cloud size={14} /> Configure</Button>
         </div>
+      </Section>
+
+      <Section title="iCloud Drive sync" subtitle="Optional: write encrypted snapshots to a folder synced by iCloud Drive (or Dropbox / any cloud-synced folder). macOS desktop only; PWA users skip.">
+        <ICloudSettings />
       </Section>
 
       <Section title="Backup & Import" subtitle="Always-on safety net. Export downloads a file with everything; import restores from one.">
@@ -985,6 +1021,96 @@ function MoneyColorToggle() {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * iCloud Drive sync (Tier 12 #7). Lets the user pick the synced
+ * folder + flip the master switch. Hidden on PWA installs (no
+ * filesystem access).
+ */
+function ICloudSettings() {
+  const enabled = useBudget((s) => s.settings.icloudEnabled);
+  const folder = useBudget((s) => s.settings.icloudFolderPath);
+  const lastSyncedAt = useBudget((s) => s.settings.icloudLastSyncedAt);
+  const syncRoom = useBudget((s) => s.settings.syncRoom);
+  const [available, setAvailable] = useState(false);
+  useEffect(() => {
+    void import('../sync/icloudProvider').then((m) => setAvailable(m.isAvailable())).catch(() => {});
+  }, []);
+
+  if (!available) {
+    return (
+      <div className="text-[12px] text-fg-subtle">
+        iCloud sync requires the desktop app — it isn't available in the
+        browser PWA. Open Monii Watch from your Applications folder
+        (macOS) or installed location (Windows / Linux) to use it.
+      </div>
+    );
+  }
+
+  async function pickAndStart() {
+    const m = await import('../sync/icloudProvider');
+    const path = await m.pickFolder();
+    if (!path) return;
+    setSettingsField('icloudFolderPath', path);
+    setSettingsField('icloudEnabled', true);
+    await m.startICloudSync();
+  }
+  async function disable() {
+    const m = await import('../sync/icloudProvider');
+    m.stopICloudSync();
+    setSettingsField('icloudEnabled', false);
+  }
+  async function syncNow() {
+    const m = await import('../sync/icloudProvider');
+    await m.forcePush();
+    await m.forcePull();
+  }
+
+  return (
+    <div className="space-y-3">
+      {!enabled ? (
+        <div>
+          <div className="text-[12px] text-fg-subtle mb-2">
+            On macOS, the suggested folder is{' '}
+            <code className="text-[11px] bg-surface-3 px-1 rounded">~/Library/Mobile Documents/com~apple~CloudDocs/Monii</code>.
+            iCloud Drive auto-syncs that folder across your Apple devices.
+            On Windows / Linux, point at any cloud-synced folder.
+          </div>
+          {!syncRoom && (
+            <div className="text-[11.5px] text-warning bg-warning/10 px-3 py-2 rounded mb-2">
+              Set up your pairing phrase first (Sync section above) — iCloud sync uses it as the encryption key.
+            </div>
+          )}
+          <Button onClick={pickAndStart} disabled={!syncRoom}>
+            <Cloud size={14} /> Pick folder and enable
+          </Button>
+        </div>
+      ) : (
+        <div>
+          <div className="text-[12px] mb-1">
+            <strong>Enabled</strong> · folder: <code className="text-[11px] bg-surface-3 px-1 rounded break-all">{folder}</code>
+          </div>
+          <div className="text-[11.5px] text-fg-subtle mb-2">
+            {lastSyncedAt
+              ? `Last sync: ${new Date(lastSyncedAt).toLocaleString()}`
+              : 'No sync yet — first push will happen on the next change.'}
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Button size="sm" variant="secondary" onClick={syncNow}>
+              <RefreshCw size={13} /> Sync now
+            </Button>
+            <Button size="sm" variant="secondary" onClick={pickAndStart}>
+              <Cloud size={13} /> Change folder
+            </Button>
+            <Button size="sm" variant="danger" onClick={disable}>
+              Disable
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

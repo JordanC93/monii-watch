@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Flag, Trash2, ArrowLeftRight, Check, Circle, Paperclip, Hourglass } from 'lucide-react';
 import { ReceiptViewer } from './ReceiptViewer';
 import { TxnContextMenu } from './TxnContextMenu';
+import { TxnActionSheet } from './TxnActionSheet';
+import { useLongPress } from '../../lib/longPress';
 import type { Transaction, FlagColor, ClearedState } from '../../domain/types';
 import { useBudget } from '../../store/budget';
 import { Money } from '../ui/Money';
@@ -14,6 +16,12 @@ import { useUI } from '../../store/ui';
 type Props = {
   txn: Transaction;
   showAccount?: boolean;
+  /**
+   * Tier 12 #8 — running account balance after this transaction. Only
+   * meaningful in single-account views (the parent table only computes
+   * it when `accountId` is set). Undefined = don't render the column.
+   */
+  runningBalance?: number;
 };
 
 const FLAG_COLORS: Array<{ id: FlagColor; cls: string }> = [
@@ -32,7 +40,7 @@ const FLAG_COLORS: Array<{ id: FlagColor; cls: string }> = [
  *  - <md:  card layout: payee top-left, amount right; category + memo on a
  *          second line. Tap the row to open in edit mode.
  */
-export function TransactionRow({ txn, showAccount }: Props) {
+export function TransactionRow({ txn, showAccount, runningBalance }: Props) {
   const accounts = useBudget((s) => s.accounts);
   const categories = useBudget((s) => s.categories);
   const payees = useBudget((s) => s.payees);
@@ -49,6 +57,11 @@ export function TransactionRow({ txn, showAccount }: Props) {
   const [draft, setDraft] = useState(txn);
   const [showReceipt, setShowReceipt] = useState(false);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  // Tier 12 #4 — long-press on the mobile row opens an action sheet.
+  // Desktop right-click already had its own menu; this is the touch
+  // equivalent.
+  const [actionSheetOpen, setActionSheetOpen] = useState(false);
+  const longPress = useLongPress(() => setActionSheetOpen(true), 500);
 
   useEffect(() => { if (!editing) setDraft(txn); }, [txn, editing]);
 
@@ -296,7 +309,23 @@ export function TransactionRow({ txn, showAccount }: Props) {
           className="justify-self-center accent-accent w-3.5 h-3.5 cursor-pointer"
         />
         <FlagButton flag={txn.flag} onCycle={(f) => setFlag(txn.id, f)} />
-        <button onClick={() => setEditing(true)} className="text-[12.5px] text-fg-muted text-left truncate hover:text-fg">{formatDateShort(txn.date)}</button>
+        <button
+          onClick={() => setEditing(true)}
+          className="text-[12.5px] text-fg-muted text-left truncate hover:text-fg flex flex-col"
+          title={runningBalance !== undefined ? `Balance after this txn: ${(runningBalance / 100).toFixed(2)}` : undefined}
+        >
+          <span>{formatDateShort(txn.date)}</span>
+          {runningBalance !== undefined && (
+            <span
+              className={cn(
+                'text-[10px] tabular leading-none',
+                runningBalance < 0 ? 'text-negative/80' : 'text-fg-subtle/80',
+              )}
+            >
+              <RunningBalanceBadge cents={runningBalance} />
+            </span>
+          )}
+        </button>
         <button onClick={() => setEditing(true)} className="text-[13px] truncate text-left hover:text-fg flex items-center gap-1.5">
           {txn.transferAccountId && <ArrowLeftRight size={11} className="text-fg-subtle" />}
           <span className="truncate">{payee?.name ?? <span className="text-fg-subtle italic">No payee</span>}</span>
@@ -402,7 +431,14 @@ export function TransactionRow({ txn, showAccount }: Props) {
 
       {/* Mobile card */}
       <button
-        onClick={() => setEditing(true)}
+        onClick={(e) => {
+          // If the long-press fired, the action sheet is opening — don't
+          // also flip into edit mode.
+          if (actionSheetOpen) { e.preventDefault(); return; }
+          setEditing(true);
+        }}
+        {...longPress}
+        style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
         className={cn(
           'md:hidden w-full flex items-center gap-2.5 px-3 py-2.5 border-b border-border/60 active:bg-surface-2/60 text-left',
           txn.cleared === 'reconciled' && 'opacity-95',
@@ -448,6 +484,14 @@ export function TransactionRow({ txn, showAccount }: Props) {
                 : category?.name ?? '— Inflow —'}
             </span>
             {txn.memo && <><span>·</span><span className="truncate italic">{txn.memo}</span></>}
+            {runningBalance !== undefined && (
+              <>
+                <span>·</span>
+                <span className={cn('tabular', runningBalance < 0 && 'text-negative/80')}>
+                  bal <RunningBalanceBadge cents={runningBalance} />
+                </span>
+              </>
+            )}
           </div>
         </div>
         <div className="flex flex-col items-end gap-0.5">
@@ -455,12 +499,43 @@ export function TransactionRow({ txn, showAccount }: Props) {
           <ClearedToggle cleared={txn.cleared} onClick={(e) => { e.stopPropagation(); setCleared(txn.id, nextClearedState(txn.cleared)); }} />
         </div>
       </button>
+
+      {/* Mobile action sheet (long-press) */}
+      <TxnActionSheet
+        txn={txn}
+        payeeName={payee?.name}
+        open={actionSheetOpen}
+        onClose={() => setActionSheetOpen(false)}
+      />
     </>
   );
 }
 
 function nextClearedState(c: ClearedState): ClearedState {
   return c === 'uncleared' ? 'cleared' : c === 'cleared' ? 'reconciled' : 'uncleared';
+}
+
+/**
+ * Compact running-balance display. Inherits color from caller; uses
+ * `useFormatMoney` so currency formatting matches the budget. Pulled
+ * into a sub-component so privacy-mode redaction (`••••`) covers it
+ * the same way it covers the regular Money component.
+ */
+function RunningBalanceBadge({ cents }: { cents: number }) {
+  const settings = useBudget((s) => s.settings);
+  try {
+    return (
+      <span>
+        {new Intl.NumberFormat(undefined, {
+          style: 'currency',
+          currency: settings.currency || 'USD',
+          maximumFractionDigits: 0,
+        }).format(cents / 100)}
+      </span>
+    );
+  } catch {
+    return <span>{(cents / 100).toFixed(0)}</span>;
+  }
 }
 
 function payeeName(id: string | null, payees: { id: string; name: string }[]): string {

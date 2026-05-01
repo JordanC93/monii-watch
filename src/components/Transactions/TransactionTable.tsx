@@ -51,6 +51,29 @@ export function TransactionTable({ accountId, filter, showAccount }: Props) {
     return xs;
   }, [allTxns, accountId, filter, search, payees, categories, accounts]);
 
+  // Tier 12 #8 — running balance per transaction. Only meaningful in
+  // single-account view (otherwise the running balance would mix
+  // accounts). Computed from the FULL account history (not filtered)
+  // so the running balance reflects the account's actual state on
+  // each row, not the filter's state.
+  const runningBalances = useMemo<Map<string, number>>(() => {
+    if (!accountId) return new Map();
+    const accountTxns = allTxns.filter((t) => t.accountId === accountId);
+    // Ascending by date + createdAt so identical-date entries stay
+    // stable. Then accumulate.
+    const sorted = [...accountTxns].sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return a.createdAt - b.createdAt;
+    });
+    const map = new Map<string, number>();
+    let bal = 0;
+    for (const t of sorted) {
+      bal += t.amount;
+      map.set(t.id, bal);
+    }
+    return map;
+  }, [allTxns, accountId]);
+
   // Tier 4 #14 — TSV copy/paste. ⌘C copies selected rows as tab-separated
   // values that paste cleanly into Excel / Google Sheets / Numbers. ⌘V on
   // the table accepts TSV → creates transactions via the existing
@@ -176,7 +199,14 @@ export function TransactionTable({ accountId, filter, showAccount }: Props) {
         {payees.map((p) => <option key={p.id} value={p.name} />)}
       </datalist>
       <div className="max-h-[60vh] sm:max-h-[calc(100vh-280px)] overflow-y-auto">
-        {txns.map((t) => <TransactionRow key={t.id} txn={t} showAccount={showAccount} />)}
+        {txns.map((t) => (
+          <TransactionRow
+            key={t.id}
+            txn={t}
+            showAccount={showAccount}
+            runningBalance={runningBalances.get(t.id)}
+          />
+        ))}
         {txns.length === 0 && (
           <div className="px-4 py-10 text-center text-fg-subtle text-[13px]">
             No transactions yet. Use the row above to add one.

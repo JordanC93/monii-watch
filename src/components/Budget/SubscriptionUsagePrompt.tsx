@@ -9,12 +9,14 @@
  */
 
 import { useMemo } from 'react';
-import { Bell, Check, ExternalLink } from 'lucide-react';
+import { Bell, Check, ExternalLink, CalendarPlus } from 'lucide-react';
 import { useBudget } from '../../store/budget';
 import { detectSubscriptions } from '../../domain/subscriptions';
 import { recordSubscriptionUsageDecision } from '../../db/repo';
 import { useFormatMoney } from '../../lib/format';
 import { todayIso, formatDate } from '../../domain/date';
+import { downloadIcs } from '../../lib/icsCalendar';
+import { toast } from '../../lib/toast';
 
 const DAYS_AHEAD = 5;
 
@@ -74,6 +76,32 @@ export function SubscriptionUsagePrompt() {
             className="flex items-center gap-1 px-2 py-0.5 rounded bg-warning/10 text-warning hover:bg-warning/20"
           >
             <ExternalLink size={11} /> Cancel — open site
+          </button>
+          {/* Tier 12 #9 — add a one-day-before reminder to the user's
+              calendar so they don't blow past the next charge if they
+              don't get to it now. */}
+          <button
+            onClick={() => {
+              // Reminder fires the day BEFORE the next charge.
+              const reminder = new Date(sub.predictedNext + 'T00:00:00');
+              reminder.setDate(reminder.getDate() - 1);
+              const reminderIso = reminder.toISOString().slice(0, 10);
+              const url = inferWebsite(sub.payeeName);
+              downloadIcs({
+                title: `Cancel ${sub.payeeName} (~${fmt(sub.averageAmount)})`,
+                description:
+                  `Subscription renews ${sub.predictedNext} for ${fmt(sub.averageAmount)}. ` +
+                  `If you no longer use it, cancel before then to avoid the charge. ` +
+                  (url ? `\nCancel here: ${url}` : ''),
+                date: reminderIso,
+                url,
+                alarmMinutesBefore: 60 * 9, // 9 hours — good morning prompt
+              }, `cancel-${sub.payeeName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.ics`);
+              toast.success('Calendar reminder downloaded.');
+            }}
+            className="flex items-center gap-1 px-2 py-0.5 rounded bg-accent/15 text-accent hover:bg-accent/25"
+          >
+            <CalendarPlus size={11} /> Remind me
           </button>
         </div>
       </div>

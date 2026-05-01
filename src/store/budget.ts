@@ -90,6 +90,9 @@ const initialSettings: Settings = {
   autoBackupDays: 0,
   lastAutoBackupAt: 0,
   autoBackupHistory: [],
+  icloudEnabled: false,
+  icloudFolderPath: '',
+  icloudLastSyncedAt: 0,
 };
 
 export const useBudget = create<State>((set) => ({

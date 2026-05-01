@@ -44,6 +44,13 @@ export const MAPS = {
    * history every paint. See `domain/nwSnapshots.ts`.
    */
   nwSnapshots: 'nwSnapshots',
+  /**
+   * Soft-delete trash (Tier 11 #1). Each entry holds the original
+   * record + the kind + the timestamp it was deleted. Retained for
+   * 30 days, then auto-purged on app boot. Restoring re-inserts
+   * the original record back into its source map.
+   */
+  trash: 'trash',
 } as const;
 
 export type MapName = keyof typeof MAPS;

@@ -1,6 +1,6 @@
 [package]
 name = "monii-watch"
-version = "0.6.7"
+version = "0.6.8"
 description = "Envelope-method budgeting that syncs peer-to-peer."
 authors = ["Monii Watch"]
 license = ""
@@ -20,6 +20,12 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
+# Tier 12 #7 — iCloud sync transport on macOS reads/writes the
+# encrypted snapshot to the user's iCloud Drive folder via this
+# plugin. Cross-platform (works on Win + Linux too) but the iCloud
+# shape only makes sense on Apple platforms.
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

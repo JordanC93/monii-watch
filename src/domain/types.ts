@@ -1117,9 +1117,56 @@ export type Settings = {
    * backups" without polling the file system.
    */
   autoBackupHistory: Array<{ at: number; filename: string }>;
+  /**
+   * Tier 12 #7 — iCloud Drive sync transport. When enabled, the app
+   * writes an encrypted Yjs snapshot to a user-picked folder on
+   * disk. iCloud Drive auto-syncs the folder across the user's
+   * Apple devices. The same architecture works for any cloud-synced
+   * folder (Dropbox, etc.) — iCloud is just the default suggestion
+   * on macOS.
+   *
+   * Off by default; only meaningful when running under the Tauri
+   * desktop shell (browser PWAs have no filesystem access). When
+   * enabled, runs in parallel with WebRTC + Drive. Encryption uses
+   * the pairing phrase, same as Drive sync.
+   */
+  icloudEnabled: boolean;
+  /** Absolute path to the user-picked sync folder. Empty = not yet picked. */
+  icloudFolderPath: string;
+  /** Unix ms — last successful read or write. */
+  icloudLastSyncedAt: number;
 };
 
 export type ThemeName = 'light' | 'dark' | 'oled' | 'glass' | 'auto';
+
+/**
+ * Soft-delete trash entry (Tier 11 #1). When a user deletes an
+ * account / category / transaction / scheduled, we move it here
+ * instead of permanently dropping it. 30-day retention; auto-purged
+ * on app boot. Restoring re-inserts the original record into its
+ * source map (and any related records that traveled with it, e.g.
+ * a deleted account's transactions).
+ *
+ * `payload` carries the original record(s) verbatim so restore is
+ * lossless. Account deletes also carry their transactions in
+ * `relatedTxns`. Category deletes carry their assignments in
+ * `relatedAssignments`.
+ */
+export type TrashEntry = {
+  id: string;
+  /** What kind of record was deleted. */
+  kind: 'account' | 'category' | 'group' | 'transaction' | 'scheduled';
+  /** Unix ms when deleted — drives the 30-day retention. */
+  deletedAt: number;
+  /** Original record (Account / Category / Transaction / etc.). */
+  payload: unknown;
+  /** Transactions that were also deleted because their account was. */
+  relatedTxns?: Transaction[];
+  /** Per-month assignments deleted because their category was. */
+  relatedAssignments?: MonthAssignment[];
+  /** Free-text describing what was deleted, for the trash UI. */
+  description: string;
+};
 
 /** Helper: given a transaction, the list of categories it touches (for activity calc). */
 export function categoriesTouched(t: Transaction): Array<{ categoryId: string | null; amount: Money }> {

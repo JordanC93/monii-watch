@@ -519,6 +519,13 @@ html[data-theme='glass'] svg.lucide.text-accent {
   opacity: 1;
 }
 
+/* Bottom-sheet slide-up animation (Tier 12 #4 — TxnActionSheet).
+ * Used by mobile action sheets that appear on long-press. */
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
 /* Sandbox-mode visual polish (Tier 10 #4) — rows whose assignments
  * have been overridden in the sandbox slice get a subtle yellow
  * background tint + left border so the user can scan the table and

@@ -2,6 +2,124 @@
 
 ## Unreleased
 
+### v0.6.8 — Recovery, sharing, iCloud sync, mobile UX
+
+A bigger swing pass — focused on three themes: data safety net,
+mobile feature parity with desktop, and one new sync transport.
+
+#### Soft-delete trash (Tier 11 #1)
+- New `MAPS.trash` Yjs map. Deleted accounts / categories /
+  transactions / scheduled / groups go here first — original
+  records preserved verbatim, plus any related entities (an
+  account's transactions, a category's monthly assignments).
+- 30-day auto-purge on app boot. Restore is one click and
+  re-inserts the original records atomically.
+- New `/trash` route + sidebar entry on the More page.
+- The bulk-delete operation now bundles into a single trash
+  entry (so restore brings back the whole batch).
+
+#### Backup integrity check (Tier 11 #3 + #5)
+- New `validateSnapshot()` runs before any import. Categorizes
+  findings as errors (block) or warnings (allow but show).
+- Reference integrity: missing account / category / payee /
+  group / transfer references all surface in the warning list.
+- Export verification: `Export JSON` re-parses + validates the
+  generated file BEFORE downloading. "Backup verified ✓"
+  message confirms.
+- Import flow now shows a confirmation dialog with stats +
+  warnings before applying.
+
+#### Disaster recovery flow (Tier 11 #4)
+- New `/recover` route. Health-check stats + "What's wrong?"
+  picker → step-by-step rescue guides per symptom.
+- Six symptom categories: missing account, missing txns, wrong
+  balance, sync broken, everything broken, wrong workspace.
+- Always-visible "last-resort" actions at the bottom (export
+  current state before fixing, import a backup, sync with
+  another device, etc.).
+
+#### Long-press mobile action sheet (Tier 12 #4)
+- New `useLongPress` hook + `<TxnActionSheet />` slide-up sheet.
+- Press-and-hold a transaction row on mobile to open it: cleared
+  toggle, flag, edit splits, expected refund, find similar,
+  delete (now goes to trash).
+- Desktop right-click context menu unchanged.
+
+#### Shareable spending image (Tier 12 #5)
+- New `lib/shareImage.ts` renders a Canvas-based PNG of the
+  month's spending breakdown. No html-to-image dependency.
+- Privacy modes: Detailed (amounts), Percentages-only, Hide
+  amounts (••••).
+- Share button on the SpendingByCategory report card uses
+  `navigator.share()` on mobile (iOS + Android share sheet),
+  falls back to download on desktop.
+
+#### Predictive payee suggestions (Tier 12 #6)
+- New `domain/payeePredict.ts` ranks payees by substring match
+  + frequency + day-of-month proximity + day-of-week + amount
+  cluster.
+- New `<PayeeSuggestions />` chip strip above the QuickAdd
+  payee input. Tap a chip to fill (and pre-fill the default
+  category from history).
+- "~5th of each month" hints surface on chips that look
+  recurring.
+
+#### iCloud Drive sync transport (Tier 12 #7)
+- New `sync/icloudProvider.ts`. Writes encrypted Yjs snapshots
+  to a user-picked folder on disk. iCloud Drive auto-syncs the
+  folder across Apple devices — no API integration, no OAuth.
+- Same XChaCha20-Poly1305 + Argon2id encryption as the Drive
+  transport. Pairing phrase = encryption key.
+- Tauri-only (browser PWAs have no filesystem access). Suggested
+  default folder on macOS:
+  `~/Library/Mobile Documents/com~apple~CloudDocs/Monii`.
+- Works for any cloud-synced folder (Dropbox, OneDrive, etc.).
+  Just point at it.
+- New Tauri plugins: `tauri-plugin-fs`, `tauri-plugin-dialog`.
+
+#### Running balance column (Tier 12 #8)
+- Account pages now show a running balance under each transaction
+  date (desktop) or inline in the metadata line (mobile).
+- Computed from the FULL account history (sorted by date +
+  createdAt), not the filtered view, so the running balance
+  reflects the account state at that point in time.
+
+#### Subscription cancel reminders (Tier 12 #9)
+- New `lib/icsCalendar.ts` — pure RFC 5545 .ics file generator.
+- "Remind me" button on the subscription "did you use this?"
+  prompt downloads a calendar event for the day BEFORE the next
+  charge. iOS Safari opens directly in Calendar.app.
+
+#### Tip jar (new request)
+- New `<TipJarModal />` accessible from More → Support the
+  project. Three tiers ($1 / $5 / $20) — links to externally
+  hosted payment pages (GitHub Sponsors / Stripe / Buy Me a
+  Coffee), to be filled in by the project owner.
+- Project ethos preserved: free forever, no ads, no
+  upsell, no tracking of whether you tipped.
+
+#### Schema additions
+- `Settings.icloudEnabled` / `icloudFolderPath` /
+  `icloudLastSyncedAt` for the new sync transport.
+- `ScheduledTransaction.autoAssignCategoryId` carried over from
+  v0.6.7 (now wired into the materializer with a category-exists
+  guard).
+- New `TrashEntry` type and `MAPS.trash` Yjs map.
+
+#### Hotfixes carried in this release
+- v0.6.7 hotfix: "What's New" modal now correctly fires for
+  v0.6.6 → v0.6.x upgraders (the empty `lastSeenVersion` is
+  treated as upgrade, not first-ever-boot).
+- v0.6.7 hotfix: Welcome tour now stamps `lastSeenVersion` on
+  completion so brand-new users don't immediately see the
+  upgrade modal.
+- Reports tab strip tightens padding on phones (px-2 sm:px-3).
+- Materializer auto-deposit guards against deleted target
+  category.
+
+#### Tests + quality
+- 210 tests passing across 23 files. Typecheck + build clean.
+
 ### v0.6.7 — Tier 10 polish wave (12 items)
 
 A focused QoL pass off the back of v0.6.4. Twelve items, mostly

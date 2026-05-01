@@ -39,6 +39,22 @@ type ReleaseEntry = {
  */
 export const RELEASE_NOTES: ReleaseEntry[] = [
   {
+    version: '0.6.8',
+    title: 'Recovery + sharing + iCloud',
+    bullets: [
+      'New: Trash with 30-day retention. Deleted accounts / categories / transactions / scheduled go here first — restore with one click.',
+      'New: Disaster recovery page at /recover walks you through "data is missing" / "sync is broken" scenarios.',
+      'New: Backup integrity check — imports verify references resolve before applying; exports re-parse themselves to confirm they\'re good.',
+      'Mobile: long-press a transaction row → action sheet (the touch equivalent of right-click).',
+      'New: shareable spending image — pick a privacy mode (detailed / percentages / hide amounts), tap Share to post or save a clean PNG.',
+      'New: predictive payee suggestions on Quick Add. Picks based on frequency + day-of-month + amount cluster.',
+      'New: iCloud Drive sync transport (macOS desktop). Encrypted snapshots in your iCloud folder, auto-synced across your Apple devices.',
+      'Account pages now show a running balance under each transaction date.',
+      'Subscription cancel reminders: tap "Remind me" to download a calendar event for the day before the next charge.',
+      'Optional Tip jar in More → Support the project. Free always; voluntary support, no ads.',
+    ],
+  },
+  {
     version: '0.6.7',
     title: 'Polish + power-user pass',
     bullets: [

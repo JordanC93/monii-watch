@@ -79,7 +79,8 @@ export type ModalState =
   | { type: 'workspaces' }
   | { type: 'goalPriceUpdate'; categoryId: string }
   | { type: 'whatsNew' }
-  | { type: 'auditLog' };
+  | { type: 'auditLog' }
+  | { type: 'tipJar' };
 
 export const useUI = create<State>((set, get) => ({
   commandOpen: false,
