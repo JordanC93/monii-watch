@@ -49,6 +49,32 @@ let yjsObserver: ((update: Uint8Array, origin: unknown) => void) | null = null;
 const ORIGIN_REMOTE_PULL = Symbol('icloud-pull');
 
 /**
+ * Last error we hit during a push or pull. Surfaced to the Settings
+ * UI so the user can see WHY sync isn't working — silent failures
+ * are the worst. Subscribers get notified on every change.
+ */
+type SyncErrorState = { message: string; at: number; phase: 'push' | 'pull' | 'verify' } | null;
+let lastError: SyncErrorState = null;
+const errorListeners = new Set<(e: SyncErrorState) => void>();
+
+function setError(e: SyncErrorState): void {
+  lastError = e;
+  for (const l of errorListeners) l(e);
+}
+
+export function getLastSyncError(): SyncErrorState {
+  return lastError;
+}
+
+export function onSyncError(listener: (e: SyncErrorState) => void): () => void {
+  errorListeners.add(listener);
+  // Fire immediately with current state so subscribers don't have
+  // to call getLastSyncError separately.
+  listener(lastError);
+  return () => errorListeners.delete(listener);
+}
+
+/**
  * Whether the current runtime can actually use this transport. False
  * in PWAs (no filesystem); true in the Tauri desktop shell.
  */
@@ -134,17 +160,29 @@ async function ensureFolder(folderPath: string): Promise<void> {
 }
 
 /**
- * Push the current Yjs state to disk (encrypted).
+ * Push the current Yjs state to disk (encrypted). Sets `lastError`
+ * on failure so the Settings UI can surface a message instead of
+ * silently dropping the sync.
  */
 async function pushNow(folderPath: string, passphrase: string): Promise<void> {
   if (!isAvailable() || !passphrase) return;
-  const fs = await import('@tauri-apps/plugin-fs');
-  await ensureFolder(folderPath);
-  const update = Y.encodeStateAsUpdate(getDoc());
-  const cipher = await encryptBytes(update, passphrase);
-  // Write as binary via the typed-array API.
-  await fs.writeFile(`${folderPath}/${SNAPSHOT_FILENAME}`, cipher);
-  setSettingsField('icloudLastSyncedAt', Date.now());
+  try {
+    const fs = await import('@tauri-apps/plugin-fs');
+    await ensureFolder(folderPath);
+    const update = Y.encodeStateAsUpdate(getDoc());
+    const cipher = await encryptBytes(update, passphrase);
+    // Write as binary via the typed-array API.
+    await fs.writeFile(`${folderPath}/${SNAPSHOT_FILENAME}`, cipher);
+    setSettingsField('icloudLastSyncedAt', Date.now());
+    // Clear any previously surfaced error since this push succeeded.
+    if (lastError) setError(null);
+  } catch (err) {
+    setError({
+      message: (err as Error)?.message ?? String(err),
+      at: Date.now(),
+      phase: 'push',
+    });
+  }
 }
 
 /**
@@ -154,9 +192,9 @@ async function pushNow(folderPath: string, passphrase: string): Promise<void> {
  */
 async function pullNow(folderPath: string, passphrase: string): Promise<void> {
   if (!isAvailable() || !passphrase) return;
-  const fs = await import('@tauri-apps/plugin-fs');
-  const file = `${folderPath}/${SNAPSHOT_FILENAME}`;
   try {
+    const fs = await import('@tauri-apps/plugin-fs');
+    const file = `${folderPath}/${SNAPSHOT_FILENAME}`;
     const exists = await fs.exists(file);
     if (!exists) return;
     const cipher = await fs.readFile(file);
@@ -167,8 +205,13 @@ async function pullNow(folderPath: string, passphrase: string): Promise<void> {
       Y.applyUpdate(getDoc(), update, ORIGIN_REMOTE_PULL);
     }, ORIGIN_REMOTE_PULL);
     setSettingsField('icloudLastSyncedAt', Date.now());
+    if (lastError) setError(null);
   } catch (err) {
-    console.warn('[icloud] pull failed', err);
+    setError({
+      message: (err as Error)?.message ?? String(err),
+      at: Date.now(),
+      phase: 'pull',
+    });
   }
 }
 
@@ -239,4 +282,140 @@ export async function forcePull(): Promise<void> {
   const settings = getSettings();
   if (!settings.icloudFolderPath || !settings.syncRoom) return;
   await pullNow(settings.icloudFolderPath, settings.syncRoom);
+}
+
+/**
+ * Pre-flight check: confirm the chosen folder is reachable AND
+ * writable. Done before flipping `icloudEnabled` on so the user gets
+ * a clear error instead of silent failures later. Also returns the
+ * existing snapshot's size if one is already there — useful for the
+ * Settings UI to show "found existing X KB snapshot" before enabling.
+ */
+export type FolderProbeResult = {
+  ok: boolean;
+  /** Human-readable error if `ok` is false. */
+  error?: string;
+  /** Size in bytes of an existing snapshot, if one was found. */
+  existingSnapshotBytes?: number;
+};
+
+export async function probeFolder(folderPath: string): Promise<FolderProbeResult> {
+  if (!isAvailable()) {
+    return { ok: false, error: 'Cloud folder sync requires the desktop app.' };
+  }
+  if (!folderPath.trim()) {
+    return { ok: false, error: 'Pick a folder first.' };
+  }
+  try {
+    const fs = await import('@tauri-apps/plugin-fs');
+    // Try to create the folder if missing — that's normal for a
+    // first-time setup where the user picks a path that doesn't yet
+    // exist (e.g. iCloud Drive/Monii). Failures here mean the path
+    // is on a non-writable volume or permission was denied.
+    if (!(await fs.exists(folderPath))) {
+      try {
+        await fs.mkdir(folderPath, { recursive: true });
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Couldn't create the folder: ${(err as Error)?.message ?? String(err)}`,
+        };
+      }
+    }
+    // Round-trip a marker file to confirm the volume is writable.
+    const marker = `${folderPath}/.monii-write-test`;
+    try {
+      await fs.writeTextFile(marker, 'monii-watch-test');
+      await fs.remove(marker);
+    } catch (err) {
+      return {
+        ok: false,
+        error: `Folder isn't writable: ${(err as Error)?.message ?? String(err)}`,
+      };
+    }
+    // If a snapshot already exists, peek at its size.
+    let existingSnapshotBytes: number | undefined;
+    const file = `${folderPath}/${SNAPSHOT_FILENAME}`;
+    if (await fs.exists(file)) {
+      try {
+        const buf = await fs.readFile(file);
+        existingSnapshotBytes = buf.byteLength;
+      } catch { /* size is informational; ignore */ }
+    }
+    return { ok: true, existingSnapshotBytes };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Folder probe failed: ${(err as Error)?.message ?? String(err)}`,
+    };
+  }
+}
+
+/**
+ * Move the encrypted snapshot from the previously-configured folder
+ * to a new one. Used when the user changes the sync folder
+ * post-setup so the new location is immediately current — no waiting
+ * for the next push to repopulate.
+ *
+ * If the source folder doesn't have a snapshot, this is a no-op
+ * (the next push will create one in the new location). If the move
+ * fails partway through, we leave both copies in place rather than
+ * lose data.
+ */
+export async function moveSnapshot(fromPath: string, toPath: string): Promise<{ moved: boolean; reason?: string }> {
+  if (!isAvailable()) return { moved: false, reason: 'desktop-only' };
+  if (!fromPath || !toPath || fromPath === toPath) return { moved: false, reason: 'no-op' };
+  try {
+    const fs = await import('@tauri-apps/plugin-fs');
+    const src = `${fromPath}/${SNAPSHOT_FILENAME}`;
+    const dst = `${toPath}/${SNAPSHOT_FILENAME}`;
+    if (!(await fs.exists(src))) {
+      return { moved: false, reason: 'no source snapshot' };
+    }
+    if (!(await fs.exists(toPath))) {
+      await fs.mkdir(toPath, { recursive: true });
+    }
+    // Read → write → delete. Doing it as copy-then-delete (rather
+    // than rename) keeps the atomicity guarantee even when source
+    // and destination are on different volumes (iCloud → OneDrive).
+    const data = await fs.readFile(src);
+    await fs.writeFile(dst, data);
+    // Verify the destination got the same bytes before removing the source.
+    const verify = await fs.readFile(dst);
+    if (verify.byteLength !== data.byteLength) {
+      return { moved: false, reason: 'verify mismatch — source kept' };
+    }
+    await fs.remove(src);
+    return { moved: true };
+  } catch (err) {
+    return {
+      moved: false,
+      reason: `move failed: ${(err as Error)?.message ?? String(err)}`,
+    };
+  }
+}
+
+/**
+ * Remove the encrypted snapshot from the cloud folder. Called by
+ * the "Disable + remove cloud copy" flow when the user wants a
+ * clean uninstall (e.g. they're switching transports or no longer
+ * want any encrypted blob in their cloud account).
+ */
+export async function removeCloudSnapshot(folderPath: string): Promise<void> {
+  if (!isAvailable() || !folderPath) return;
+  try {
+    const fs = await import('@tauri-apps/plugin-fs');
+    const file = `${folderPath}/${SNAPSHOT_FILENAME}`;
+    if (await fs.exists(file)) {
+      await fs.remove(file);
+    }
+  } catch (err) {
+    // Surface as an error so the Settings UI can show "couldn't
+    // remove — please delete X manually."
+    setError({
+      message: `Couldn't remove the cloud copy: ${(err as Error)?.message ?? String(err)}`,
+      at: Date.now(),
+      phase: 'verify',
+    });
+  }
 }

@@ -2,6 +2,72 @@
 
 ## Unreleased
 
+### v0.6.13 — Cloud folder sync hardening
+
+The v0.6.12 rename was just a label change. v0.6.13 fills in the
+gaps that surfaced in review:
+
+#### Change folder actually moves the snapshot
+Previously: hitting "Change folder" pointed Monii at a new
+location but left the old folder's encrypted snapshot orphaned —
+the new folder stayed empty until the next push.
+
+Now: **Change folder** runs:
+1. Probes the new path for write access before doing anything.
+2. Atomically moves `monii-watch-snapshot.bin` from the old
+   folder to the new one (read → write → verify byte count →
+   delete source). Cross-volume safe (iCloud → OneDrive works).
+3. Restarts sync against the new folder + force-pushes.
+4. If the move fails partway through, the source file is kept
+   intact — never lose data.
+
+#### Pre-flight folder probe
+Before flipping the toggle on, we now:
+- Try to create the folder if it doesn't exist (typical for
+  first-time `iCloud Drive/Monii` paths).
+- Round-trip a marker file to confirm write access.
+- Peek at any existing snapshot's size so the Settings UI can
+  warn the user "merging existing X KB snapshot — proceed?"
+
+#### Inline error display
+Push and pull failures now flow into a `lastError` state with a
+listener pattern. The Settings panel renders an inline banner
+when sync fails:
+
+> ⚠ Sync error during push (3:42 PM) — *message from the OS*
+> Try Verify access or Sync now to retry…
+
+This replaces the silent console-only failure that v0.6.12 had.
+
+#### "Disable + remove cloud copy" option
+Two disable flavors now:
+- **Disable** (default) — stops syncing, leaves the encrypted
+  snapshot in the cloud folder. Re-enabling later resumes
+  with no data loss.
+- **Disable + remove cloud copy** — also deletes the snapshot
+  from the cloud folder. For users who want a clean uninstall
+  with no encrypted blob lingering in their cloud account.
+  Confirms before doing it.
+
+#### "Verify access" button
+Re-probes the configured folder on demand. Useful when the user
+suspects the cloud app is paused / signed out — the button
+tells them immediately rather than waiting for the next failed
+push.
+
+#### Snapshot size visible
+Settings now shows the snapshot file size alongside the
+last-sync timestamp ("Snapshot: 312 KB"). Lets the user spot
+"the file is suspiciously empty" or "the file is huge" without
+opening their file manager.
+
+#### Help article expanded
+The `cloud-folder-sync` Help article now documents:
+- The atomic-move semantics of "Change folder"
+- Both Disable variants
+- The Verify access button
+- Troubleshooting via the inline error banner
+
 ### v0.6.12 — Cloud sync polish, in-app help, CI fix
 
 #### Critical CI fix

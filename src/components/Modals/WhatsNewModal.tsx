@@ -39,6 +39,19 @@ type ReleaseEntry = {
  */
 export const RELEASE_NOTES: ReleaseEntry[] = [
   {
+    version: '0.6.13',
+    title: 'Cloud folder sync — change folder + safety nets',
+    bullets: [
+      'Change folder now actually MOVES the encrypted snapshot to the new location atomically (verifies the copy before deleting the source — no data loss on partial transfers).',
+      'New "Disable + remove cloud copy" button for clean uninstall.',
+      'New "Verify access" button — re-probes the folder so you can confirm sync is still working without waiting for the next push.',
+      'Pre-flight folder check on setup: warns you immediately if the chosen path isn\'t writable or doesn\'t exist (and offers to create it).',
+      'Inline error banner: when sync fails (cloud app paused, folder deleted by another tool, permission denied), the error is shown right in Settings instead of going silent.',
+      'Settings now shows the snapshot file size next to the last-sync timestamp.',
+      'If a snapshot already exists in the chosen folder during setup, you\'re asked to confirm before merging it with your local data.',
+    ],
+  },
+  {
     version: '0.6.12',
     title: 'Cloud sync polish + CI fix',
     bullets: [

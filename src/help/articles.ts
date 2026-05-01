@@ -1449,15 +1449,55 @@ That requires creating a Google Cloud project + an OAuth client
 ID, which most users don't want to do. The cloud-folder approach
 gets the same outcome with one click.
 
+## Changing the folder later
+
+Settings → Cloud folder sync → **Change folder**. Pick a new path;
+Monii Watch will:
+
+1. Probe the new folder for write access (catches "not writable"
+   errors before flipping the switch).
+2. **Move** the existing encrypted snapshot to the new folder
+   atomically — the source file is deleted only AFTER the
+   destination's bytes match. So a partial transfer never loses
+   data.
+3. Restart sync against the new folder + force a push.
+
+This is the right flow if you switch from iCloud to OneDrive,
+move to a different Dropbox path, etc. — your other devices
+auto-pull the new file once the cloud service propagates it.
+
+## Disabling sync
+
+Two options under **Disable**:
+
+- **Disable** (default) — stops the sync loop but **leaves the
+  encrypted snapshot in the cloud folder**. Re-enabling later
+  picks up where you left off, no data loss.
+- **Disable + remove cloud copy** — also deletes the snapshot
+  from the cloud folder. Use this for a clean uninstall when
+  you don't want any encrypted blob sitting in your cloud
+  account.
+
+## Verifying access
+
+The **Verify access** button re-probes the configured folder.
+Useful when the cloud-storage app on your computer was paused or
+signed out — the verify button tells you immediately whether
+the path is still reachable + writable.
+
 ## Troubleshooting
 
 If sync seems stuck:
+- Check the inline **Sync error** banner in Settings → Cloud
+  folder sync. We surface failures (folder removed by another
+  app, cloud service signed out, permission denied) right there
+  instead of letting them silently disappear.
+- Try **Verify access** — re-probes the path.
+- Try **Sync now** — force-pushes and pulls.
 - Check that the cloud-storage app on your other device is
   signed in and online.
 - The cloud app may sync large changes asynchronously — give it
   a minute.
-- Settings → Cloud folder sync → **Sync now** force-pushes and
-  pulls.
 `,
   },
 

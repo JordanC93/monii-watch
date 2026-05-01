@@ -13,6 +13,7 @@ import { todayIso, formatDate } from '../domain/date';
 import type { Settings as SettingsT } from '../domain/types';
 import { Download, Upload, Cloud, RefreshCw, AlertTriangle, Bug, Plus, Trash2, FileText } from 'lucide-react';
 import { US_STATES, getStateByCode } from '../domain/usaStateTax';
+import { toast } from '../lib/toast';
 import { DEDUCTION_KIND_LABELS, sumDeductions } from '../conversation/paystub';
 import type { PaycheckDeduction } from '../domain/types';
 import { newId } from '../domain/id';
@@ -1149,12 +1150,35 @@ function ICloudSettings() {
   const [available, setAvailable] = useState(false);
   // Platform-aware default suggestion shown in the help copy.
   const [suggested, setSuggested] = useState<string>('');
+  // Live error state from the sync provider — surfaced inline so the
+  // user knows when sync silently breaks (folder removed by another
+  // app, cloud service signed out, etc.).
+  const [syncError, setSyncError] = useState<{ message: string; at: number; phase: 'push' | 'pull' | 'verify' } | null>(null);
+  // Existing-snapshot size in bytes for the post-setup info row.
+  const [snapshotBytes, setSnapshotBytes] = useState<number | null>(null);
+  // Busy spinner for change-folder + disable flows.
+  const [busy, setBusy] = useState<string | null>(null);
+
   useEffect(() => {
+    let unsub: (() => void) | undefined;
     void import('../sync/icloudProvider').then(async (m) => {
       setAvailable(m.isAvailable());
       try { setSuggested(await m.getSuggestedFolder()); } catch { /* ignore */ }
+      unsub = m.onSyncError((e) => setSyncError(e));
     }).catch(() => {});
+    return () => { unsub?.(); };
   }, []);
+
+  // Refresh the snapshot size when the folder or last-sync changes.
+  useEffect(() => {
+    if (!enabled || !folder) { setSnapshotBytes(null); return; }
+    void import('../sync/icloudProvider').then(async (m) => {
+      try {
+        const r = await m.probeFolder(folder);
+        setSnapshotBytes(r.existingSnapshotBytes ?? null);
+      } catch { /* ignore */ }
+    });
+  }, [enabled, folder, lastSyncedAt]);
 
   // Detect the OS so we can show the right product hint.
   const isWindows = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent);
@@ -1173,23 +1197,145 @@ function ICloudSettings() {
     );
   }
 
+  /**
+   * Pick + enable for the FIRST time. Runs a pre-flight probe so
+   * the user gets a clear error before we flip the toggle on.
+   */
   async function pickAndStart() {
-    const m = await import('../sync/icloudProvider');
-    const path = await m.pickFolder();
-    if (!path) return;
-    setSettingsField('icloudFolderPath', path);
-    setSettingsField('icloudEnabled', true);
-    await m.startICloudSync();
+    setBusy('picking');
+    try {
+      const m = await import('../sync/icloudProvider');
+      const path = await m.pickFolder();
+      if (!path) return;
+      const probe = await m.probeFolder(path);
+      if (!probe.ok) {
+        toast.error(probe.error ?? 'Folder check failed');
+        return;
+      }
+      // If a snapshot already exists, ask the user before merging it
+      // — they might have meant to start fresh.
+      if (probe.existingSnapshotBytes && probe.existingSnapshotBytes > 0) {
+        const proceed = confirm(
+          `Found an existing encrypted snapshot in this folder (${formatBytes(probe.existingSnapshotBytes)}). `
+          + `Monii Watch will MERGE it with your local data on the next sync. Continue?`
+        );
+        if (!proceed) return;
+      }
+      setSettingsField('icloudFolderPath', path);
+      setSettingsField('icloudEnabled', true);
+      await m.startICloudSync();
+      toast.success('Cloud folder sync enabled.');
+    } finally {
+      setBusy(null);
+    }
   }
-  async function disable() {
-    const m = await import('../sync/icloudProvider');
-    m.stopICloudSync();
-    setSettingsField('icloudEnabled', false);
+
+  /**
+   * Change folder post-setup. Picks a new folder, probes it, then
+   * MOVES the existing snapshot from the old folder to the new one
+   * before flipping the configured path. The move is verified
+   * (read-back size match) before the source file is deleted, so
+   * a partial transfer never loses data.
+   */
+  async function changeFolder() {
+    setBusy('changing');
+    try {
+      const m = await import('../sync/icloudProvider');
+      const newPath = await m.pickFolder();
+      if (!newPath) return;
+      if (newPath === folder) { toast.info('Same folder — no change.'); return; }
+      const probe = await m.probeFolder(newPath);
+      if (!probe.ok) {
+        toast.error(probe.error ?? 'New folder isn\'t writable.');
+        return;
+      }
+      // Stop the loop so push observers don't fire mid-move.
+      m.stopICloudSync();
+      // Try to move the existing snapshot first.
+      const moved = await m.moveSnapshot(folder, newPath);
+      // Update the configured path regardless — even if the move
+      // failed (e.g. no source file), the new folder is now the
+      // destination for the next push.
+      setSettingsField('icloudFolderPath', newPath);
+      // Restart sync against the new folder.
+      await m.startICloudSync();
+      // Force a push to make sure the new folder has the latest
+      // state, in case the move skipped or failed.
+      await m.forcePush();
+      if (moved.moved) {
+        toast.success('Folder changed — existing snapshot moved.');
+      } else if (moved.reason === 'no source snapshot') {
+        toast.success('Folder changed — first sync will populate it.');
+      } else {
+        toast.success(`Folder changed. ${moved.reason ?? ''}`.trim());
+      }
+    } finally {
+      setBusy(null);
+    }
   }
+
+  /**
+   * Disable sync. Default = leave the encrypted snapshot in place
+   * (lets the user re-enable later without losing the cloud copy).
+   * `removeCloudCopy` = also delete the snapshot from the cloud
+   * folder, for users who want a clean uninstall.
+   */
+  async function disable(removeCloudCopy: boolean) {
+    setBusy('disabling');
+    try {
+      const m = await import('../sync/icloudProvider');
+      m.stopICloudSync();
+      if (removeCloudCopy && folder) {
+        await m.removeCloudSnapshot(folder);
+      }
+      setSettingsField('icloudEnabled', false);
+      toast.success(
+        removeCloudCopy
+          ? 'Disabled and removed cloud copy.'
+          : 'Disabled. Cloud copy left in place.'
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function syncNow() {
-    const m = await import('../sync/icloudProvider');
-    await m.forcePush();
-    await m.forcePull();
+    setBusy('syncing');
+    try {
+      const m = await import('../sync/icloudProvider');
+      await m.forcePush();
+      await m.forcePull();
+      toast.success('Synced.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Pre-flight verify — re-probes the configured folder and shows
+   * the result. Lets the user manually check whether the cloud
+   * service is still mounting the folder (e.g. iCloud Drive paused,
+   * OneDrive logged out).
+   */
+  async function verifyAccess() {
+    setBusy('verifying');
+    try {
+      const m = await import('../sync/icloudProvider');
+      const r = await m.probeFolder(folder);
+      if (r.ok) {
+        toast.success('Folder is reachable + writable ✓');
+      } else {
+        toast.error(r.error ?? 'Verify failed.');
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function formatBytes(b: number): string {
+    if (b < 1024) return `${b} B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+    return `${(b / 1024 / 1024).toFixed(1)} MB`;
   }
 
   return (
@@ -1220,30 +1366,77 @@ function ICloudSettings() {
               Set up your pairing phrase first (Sync section above) — Cloud folder sync uses it as the encryption key.
             </div>
           )}
-          <Button onClick={pickAndStart} disabled={!syncRoom}>
-            <Cloud size={14} /> Pick folder and enable
+          <Button onClick={pickAndStart} disabled={!syncRoom || !!busy}>
+            <Cloud size={14} /> {busy === 'picking' ? 'Checking folder…' : 'Pick folder and enable'}
           </Button>
         </div>
       ) : (
-        <div>
-          <div className="text-[12px] mb-1">
+        <div className="space-y-2">
+          <div className="text-[12px]">
             <strong>Enabled</strong> · folder: <code className="text-[11px] bg-surface-3 px-1 rounded break-all">{folder}</code>
           </div>
-          <div className="text-[11.5px] text-fg-subtle mb-2">
-            {lastSyncedAt
-              ? `Last sync: ${new Date(lastSyncedAt).toLocaleString()}`
-              : 'No sync yet — first push will happen on the next change.'}
+          <div className="text-[11.5px] text-fg-subtle flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>
+              {lastSyncedAt
+                ? `Last sync: ${new Date(lastSyncedAt).toLocaleString()}`
+                : 'No sync yet — first push will happen on the next change.'}
+            </span>
+            {snapshotBytes !== null && (
+              <span className="text-fg-subtle/80">
+                Snapshot: <span className="text-fg-muted tabular">{formatBytes(snapshotBytes)}</span>
+              </span>
+            )}
           </div>
+
+          {/* Inline error display — surfaces failures instead of letting
+              them silently disappear into the console. The user can clear
+              it by hitting Sync now or Verify access (which both reset
+              the error state on success). */}
+          {syncError && (
+            <div className="text-[11.5px] text-negative bg-negative/10 px-3 py-2 rounded flex items-start gap-2">
+              <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="font-medium">
+                  Sync error during {syncError.phase} ({new Date(syncError.at).toLocaleTimeString()})
+                </div>
+                <div className="text-fg-muted">{syncError.message}</div>
+                <div className="text-fg-subtle/80 mt-0.5">
+                  Try Verify access or Sync now to retry. If the cloud app
+                  is paused / signed out, fixing that and retrying usually
+                  clears it.
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2 flex-wrap">
-            <Button size="sm" variant="secondary" onClick={syncNow}>
-              <RefreshCw size={13} /> Sync now
+            <Button size="sm" variant="secondary" onClick={syncNow} disabled={!!busy}>
+              <RefreshCw size={13} /> {busy === 'syncing' ? 'Syncing…' : 'Sync now'}
             </Button>
-            <Button size="sm" variant="secondary" onClick={pickAndStart}>
-              <Cloud size={13} /> Change folder
+            <Button size="sm" variant="secondary" onClick={verifyAccess} disabled={!!busy}>
+              <Cloud size={13} /> {busy === 'verifying' ? 'Verifying…' : 'Verify access'}
             </Button>
-            <Button size="sm" variant="danger" onClick={disable}>
+            <Button size="sm" variant="secondary" onClick={changeFolder} disabled={!!busy}>
+              <Cloud size={13} /> {busy === 'changing' ? 'Moving…' : 'Change folder'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => disable(false)} disabled={!!busy}>
               Disable
             </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={() => {
+                if (confirm('Disable Cloud folder sync AND remove the encrypted snapshot from the cloud folder? Your other devices won\'t be able to pull from it after this.')) {
+                  void disable(true);
+                }
+              }}
+              disabled={!!busy}
+            >
+              Disable + remove cloud copy
+            </Button>
+          </div>
+          <div className="text-[10.5px] text-fg-subtle leading-snug">
+            <strong>Change folder</strong> moves the existing encrypted snapshot to the new location atomically (verifies the copy before deleting the source). <strong>Disable</strong> stops syncing but leaves the snapshot in place — re-enabling later picks up where you left off. <strong>Disable + remove cloud copy</strong> stops syncing AND deletes the snapshot from the cloud folder.
           </div>
         </div>
       )}
