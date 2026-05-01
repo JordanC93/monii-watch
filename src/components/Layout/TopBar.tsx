@@ -130,15 +130,34 @@ export function TopBar({
 
   return (
     <header
-      data-no-meniscus
-      data-material="regular"
-      className="flex-shrink-0 flex items-center gap-1.5 border-b border-border bg-surface/80 backdrop-blur sticky top-0 z-20 glass-panel rounded-none"
+      // Outer header is now a transparent positioning shell — gives the
+      // bar `sticky top-0` semantics + edge padding + safe-area handling
+      // without rendering any visible chrome itself. The visible bar is
+      // the inset pill below, so the topbar visually aligns with the
+      // page-content max-width rails (Tier 14 #13 — the long-standing
+      // "topbar takes the entire width" complaint). On all themes the
+      // gaps to the left/right reveal the body bg (solid for
+      // light/dark/oled, transparent → aurora for glass).
+      className="flex-shrink-0 sticky top-0 z-20"
       style={{
-        paddingTop: 'env(safe-area-inset-top, 0)',
-        paddingLeft: 'max(0.5rem, env(safe-area-inset-left, 0))',
-        paddingRight: 'max(0.5rem, env(safe-area-inset-right, 0))',
+        paddingTop: 'calc(env(safe-area-inset-top, 0) + 0.5rem)',
+        paddingBottom: '0.25rem',
+        paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0))',
+        paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0))',
       }}
     >
+      {/* Inset glass pill — constrained to max-w-7xl to match the
+          widest page content (Account / AllAccounts / Budget). On
+          narrower pages (Settings 3xl, Insights 5xl) the pill is
+          wider than the content card, which is acceptable: chrome
+          should be the same shape across pages, content widens or
+          narrows within. The pill carries the glass-panel material
+          + meniscus (no longer edge-pinned, so the specular ring is
+          allowed). */}
+      <div
+        data-material="regular"
+        className="glass-panel rounded-xl bg-surface/85 backdrop-blur max-w-7xl mx-auto px-3 flex items-center gap-1.5"
+      >
       {/* REVERTED in v0.7.0 — drag-region integration didn't fix the
           alignment complaint. h-12 was the original; back to that
           while we figure out the proper fix (Tier 14 #13). */}
@@ -261,7 +280,7 @@ export function TopBar({
           )}
         </div>
       </div>
-
+      </div>
     </header>
   );
 }

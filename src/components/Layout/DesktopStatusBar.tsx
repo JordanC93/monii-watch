@@ -34,26 +34,28 @@ export function DesktopStatusBar() {
   return (
     <div
       data-no-print
-      // glass-panel + data-no-meniscus mirrors BottomNav / TopBar /
-      // Sidebar — picks up the per-theme `--surface`/`--surface-alpha`
-      // recipe so the bar reads as a translucent strip on glass while
-      // staying solid on light/dark/oled. data-no-meniscus suppresses
-      // the bright `::before` edge ring that would otherwise paint a
-      // white shadow against the screen edge.
-      data-no-meniscus
-      data-material="regular"
-      className="hidden md:flex items-center gap-3 px-3 h-7 border-t border-border glass-panel rounded-none bg-surface/95 backdrop-blur text-[11px] tabular text-fg-subtle flex-shrink-0"
+      // Outer is a transparent positioning shell — provides edge
+      // padding so the inset pill below floats clear of the screen
+      // edges. The visible bar is now an inset max-w-7xl pill,
+      // mirroring the TopBar treatment so chrome aligns with the
+      // page content rails (Tier 14 #13).
+      className="hidden md:block flex-shrink-0 px-3 pb-1 pt-0.5"
     >
-      {selectedTxns.length > 0 ? (
-        <span className="text-fg-muted">
-          Selected: {selectedTxns.length} txn{selectedTxns.length === 1 ? '' : 's'}{' '}
-          (<span className={selectedSum < 0 ? 'text-negative' : selectedSum > 0 ? 'text-positive' : ''}>{fmt(selectedSum)}</span>)
-        </span>
-      ) : (
-        <span>{txns.length} transaction{txns.length === 1 ? '' : 's'}</span>
-      )}
-      <span className="ml-auto">{syncLabel}</span>
-      <span className="opacity-60">v{__APP_VERSION__}</span>
+      <div
+        data-material="regular"
+        className="glass-panel rounded-xl bg-surface/85 backdrop-blur max-w-7xl mx-auto h-7 px-3 flex items-center gap-3 text-[11px] tabular text-fg-subtle"
+      >
+        {selectedTxns.length > 0 ? (
+          <span className="text-fg-muted">
+            Selected: {selectedTxns.length} txn{selectedTxns.length === 1 ? '' : 's'}{' '}
+            (<span className={selectedSum < 0 ? 'text-negative' : selectedSum > 0 ? 'text-positive' : ''}>{fmt(selectedSum)}</span>)
+          </span>
+        ) : (
+          <span>{txns.length} transaction{txns.length === 1 ? '' : 's'}</span>
+        )}
+        <span className="ml-auto">{syncLabel}</span>
+        <span className="opacity-60">v{__APP_VERSION__}</span>
+      </div>
     </div>
   );
 }
