@@ -39,6 +39,14 @@ type ReleaseEntry = {
  */
 export const RELEASE_NOTES: ReleaseEntry[] = [
   {
+    version: '0.6.11',
+    title: 'Goal tile polish',
+    bullets: [
+      'Fixed: icons inside the goal-progress ring no longer poke through the green stroke. Avatar is now properly circular when it sits inside a circular ring.',
+      'Rounder corners on every goal card — purchase tiles, monthly targets, emergency fund tile.',
+    ],
+  },
+  {
     version: '0.6.10',
     title: 'Smarter deal-alert snoozing',
     bullets: [

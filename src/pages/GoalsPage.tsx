@@ -93,7 +93,7 @@ export function GoalsPage() {
       />
       <div className="p-3 sm:p-5 space-y-4">
       <DealMatchesBanner />
-      <div className="glass-panel p-4 sm:p-5 hidden md:flex flex-wrap items-center gap-3">
+      <div className="glass-panel rounded-3xl p-4 sm:p-5 hidden md:flex flex-wrap items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-accent/15 text-accent grid place-items-center flex-shrink-0">
           <Target size={18} />
         </div>
@@ -256,7 +256,7 @@ function GoalTile({
   }
 
   return (
-    <div className={cn('glass-panel ring-1 transition-shadow relative overflow-hidden', tone.ring)}>
+    <div className={cn('glass-panel rounded-3xl ring-1 transition-shadow relative overflow-hidden', tone.ring)}>
       {/* Background photo. Pointer-events:none so it doesn't intercept the tile button. */}
       {photo && (
         <div
@@ -277,8 +277,10 @@ function GoalTile({
         className="relative w-full text-left p-4 sm:p-5 flex items-start gap-3 sm:gap-4 active:scale-[0.995] transition-transform"
         aria-expanded={expanded}
       >
-        {/* Left: ICON inside circular progress ring (no photo here — the photo
-            is now the card background). */}
+        {/* Left: ICON inside circular progress ring. The avatar is
+            shaped `circle` so its corners don't poke through the ring
+            stroke; size 50 sits well inside the 84px ring (with 6px
+            stroke) leaving comfortable breathing room. */}
         <CircularProgress
           ratio={projection.ratio}
           size={84}
@@ -290,7 +292,8 @@ function GoalTile({
             customImageDataUrl={null}
             icon={category.icon}
             emoji={category.emoji}
-            size={56}
+            size={50}
+            shape="circle"
             bgClassName="bg-surface-2/80"
             textClassName={tone.text}
             alt={category.name}
@@ -621,7 +624,7 @@ function MonthlyTargetTile({
   const perCheck = payFrequency !== 'unset' ? perPaycheckAmount(target, payFrequency) : null;
 
   return (
-    <div className={cn('glass-panel p-4 sm:p-5 ring-1', tone.ring)}>
+    <div className={cn('glass-panel rounded-3xl p-4 sm:p-5 ring-1', tone.ring)}>
       <div className="flex items-start gap-3 mb-3">
         <CategoryAvatar
           customImageDataUrl={category.customImageDataUrl}

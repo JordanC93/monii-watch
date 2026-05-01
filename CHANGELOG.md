@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### v0.6.11 — Goal tile polish
+
+- Fix: icon avatar inside the goal-progress ring no longer pokes
+  through the green stroke. CategoryAvatar gained a `shape` prop
+  (`'rounded' | 'circle'`) — the goal tile uses `circle`. Avatar
+  size also tuned from 56px → 50px so it sits comfortably inside
+  the 84px ring with a 6px stroke.
+- Goal cards (purchase tiles + monthly-target tiles + emergency
+  fund tile + goals-page header) get rounder iOS-style corners
+  (`rounded-3xl` = 24px). The base `glass-panel` rounding is
+  unchanged at 14px so other panels in the app stay consistent.
+
 ### v0.6.10 — Smarter snoozing for deal alerts
 
 The v0.6.9 deal tracker had only "Wrong listing" — a per-post

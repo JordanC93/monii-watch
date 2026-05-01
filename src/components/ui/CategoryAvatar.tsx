@@ -15,6 +15,13 @@ type Props = {
   className?: string;
   /** Optional alt text when rendering as an image. */
   alt?: string;
+  /**
+   * Corner shape. `'rounded'` (default) uses Tailwind `rounded-md` for the
+   * subtle iOS-app-icon feel. `'circle'` uses `rounded-full` — required
+   * when the avatar sits inside the CircularProgress ring on the Goals
+   * page tiles, otherwise the square corners poke into the ring stroke.
+   */
+  shape?: 'rounded' | 'circle';
 };
 
 /**
@@ -33,16 +40,20 @@ type Props = {
 export function CategoryAvatar({
   customImageDataUrl, icon, emoji, size = 32,
   bgClassName = 'bg-surface-2', textClassName = 'text-fg-muted',
-  className, alt,
+  className, alt, shape = 'rounded',
 }: Props) {
   const dim = { width: size, height: size };
+  // `circle` shape is for the Goals-page tile avatar that sits inside
+  // the CircularProgress ring — the square corners of `rounded-md`
+  // would otherwise poke into the ring stroke.
+  const radiusClass = shape === 'circle' ? 'rounded-full' : 'rounded-md';
   if (customImageDataUrl) {
     return (
       <img
         src={customImageDataUrl}
         alt={alt ?? 'Category icon'}
         style={dim}
-        className={cn('rounded-md object-cover flex-shrink-0', className)}
+        className={cn(radiusClass, 'object-cover flex-shrink-0', className)}
       />
     );
   }
@@ -50,7 +61,7 @@ export function CategoryAvatar({
     <div
       style={dim}
       className={cn(
-        'rounded-md grid place-items-center flex-shrink-0',
+        radiusClass, 'grid place-items-center flex-shrink-0',
         bgClassName, textClassName, className,
       )}
     >

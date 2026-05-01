@@ -56,7 +56,7 @@ export function EmergencyFundTile() {
   const remaining = Math.max(0, target - available);
 
   return (
-    <div className="glass-panel ring-1 ring-accent/30 p-4 sm:p-5 flex items-start gap-3">
+    <div className="glass-panel rounded-3xl ring-1 ring-accent/30 p-4 sm:p-5 flex items-start gap-3">
       <div className="w-10 h-10 rounded-full bg-accent/15 text-accent grid place-items-center flex-shrink-0">
         <Shield size={18} />
       </div>
