@@ -100,7 +100,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           didn't fix the user's alignment complaint. Punted to Tier 14
           #13 for proper investigation. Restoring the original
           `pt-4 pb-3` layout. */}
-      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-md bg-gradient-to-br from-cyan-400 to-cyan-700 grid place-items-center text-white font-bold">$</div>
           <div>
@@ -110,7 +110,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </div>
 
-      <nav className="px-2 py-1 space-y-0.5">
+      <nav className="px-2 py-1 space-y-0.5 flex-shrink-0">
         {orderedNav(settings.sidebarOrder ?? []).map((entry) => (
           <NavItem
             key={entry.key}
@@ -134,7 +134,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </button>
       </nav>
 
-      <div className="px-3 pt-4 pb-1 flex items-center justify-between">
+      <div className="px-3 pt-4 pb-1 flex items-center justify-between flex-shrink-0">
         <button
           onClick={() => toggleGroup('onBudget')}
           className="text-[11px] uppercase tracking-wider text-fg-subtle font-medium flex items-center gap-1 hover:text-fg"
@@ -150,7 +150,16 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <Plus size={14} />
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto no-scrollbar px-2 pb-3">
+      {/* The accounts list is the only scrollable child. `min-h-0` is
+          critical: without it, a flex-1 child with overflow-auto can
+          ignore the parent's height constraint and grow unbounded,
+          which on glass theme reveals the aurora through the gap and
+          looks like the list got clipped. Other themes hide this
+          because their --surface is opaque. The `.sidebar-account-list`
+          class hook lets globals.css apply a subtle tint on glass so
+          the empty area inside the scroller reads as intentional
+          padding rather than missing content. */}
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2 pb-3 sidebar-account-list">
         {!groupCollapsed.onBudget && onBudgetAccts.map((a) => (
           <AccountItem key={a.id} id={a.id} name={a.name} balance={a.balance} type={a.type} currency={a.currency} pinned={a.pinned} onClick={handleClick} />
         ))}
@@ -187,7 +196,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         aria-label="Resize sidebar"
       />
       <WorkspaceFooter onClick={handleClick} />
-      <div className="border-t border-border px-3 py-2.5 flex items-center justify-between">
+      <div className="border-t border-border px-3 py-2.5 flex items-center justify-between flex-shrink-0">
         <div>
           <div className="text-[11px] text-fg-subtle">Net Worth</div>
           <div className="text-[13px] font-semibold tabular">{fmt(networth.total)}</div>
@@ -237,7 +246,7 @@ function WorkspaceFooter({ onClick }: { onClick: () => void }) {
     return (
       <button
         onClick={() => { openModal({ type: 'workspaces' }); onClick(); }}
-        className="border-t border-border px-3 py-1.5 flex items-center gap-1.5 text-[11px] text-fg-subtle hover:text-fg hover:bg-surface-2/40 w-full text-left"
+        className="border-t border-border px-3 py-1.5 flex items-center gap-1.5 text-[11px] text-fg-subtle hover:text-fg hover:bg-surface-2/40 w-full text-left flex-shrink-0"
       >
         <Briefcase size={11} />
         <span>+ Add workspace</span>
@@ -245,7 +254,7 @@ function WorkspaceFooter({ onClick }: { onClick: () => void }) {
     );
   }
   return (
-    <div className="border-t border-border">
+    <div className="border-t border-border flex-shrink-0">
       <button
         onClick={() => { openModal({ type: 'workspaces' }); onClick(); }}
         className="px-3 py-2 flex items-center gap-2 text-[12px] hover:bg-surface-2/40 w-full text-left"

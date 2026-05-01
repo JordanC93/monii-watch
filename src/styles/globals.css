@@ -619,6 +619,28 @@ a:focus-visible,
   border-radius: 6px;
 }
 
+/* Sidebar accounts list — Liquid Glass theme only.
+ *
+ * The accounts list is the `flex-1 overflow-y-auto` scroll area inside
+ * the sidebar. When a user has few accounts the list is short and the
+ * scroller has empty space below the last row. On opaque themes that
+ * empty area is filled with `--surface` and reads as ordinary padding.
+ * On glass the area is translucent and the aurora bleeds through,
+ * which can read as "the list got clipped" or "more accounts that
+ * aren't loading."
+ *
+ * Adding a faint inner background here gives the empty area a subtle
+ * tint that ties it to the surrounding sidebar material without
+ * defeating the glass effect. The class hook is custom; per Iron Rule
+ * #18 we never style on a Tailwind utility class. */
+html[data-theme='glass'] .sidebar-account-list {
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.02) 0%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+}
+
 /* TopBar pill — Liquid Glass theme only.
  *
  * The chrome pill carries the glass-panel `::before` specular
