@@ -2,6 +2,57 @@
 
 ## Released
 
+### v0.7.4 — Chrome alignment + glass blend
+
+#### Inset TopBar + DesktopStatusBar
+
+Long-standing complaint (Tier 14 #13): the top and bottom
+chrome bars spanned edge-to-edge while every page's content
+was centered in a max-width container, leaving the chrome
+visually disconnected from the content windows.
+
+Both bars now follow the same two-element pattern:
+- **Outer wrapper** — transparent positioning shell with edge
+  padding + safe-area handling. Carries `sticky top-0` on the
+  TopBar.
+- **Inner pill** — `glass-panel rounded-xl` material constrained
+  to `max-w-7xl mx-auto`. The visible bar.
+
+`max-w-7xl` matches the widest pages (Account / AllAccounts /
+Budget); on narrower pages the pill is wider than the inner
+content card but still windowed rather than full-bleed. The
+chrome shape stays consistent across navigation, no width-shift
+when switching pages.
+
+The pills now carry the meniscus specular ring (no longer
+edge-pinned, so `data-no-meniscus` was removed). On glass theme
+they adapt with the active palette automatically via the
+existing `--surface-alpha` material recipe.
+
+#### DesktopStatusBar reads as glass on glass theme
+
+Previously the bottom status bar used `bg-surface` directly,
+which on glass theme is opaque white by design (the surface-token
+split — only `--surface-2/3/elevated` are dark-tinted; `--surface`
+stays white because the panel translucent-fill recipe expects it).
+Result was a solid white strip with a hard white shadow against
+the rest of the translucent UI.
+
+Switched to the `glass-panel` material recipe so the bar picks
+up the per-theme `--surface-alpha` and reads as translucent on
+glass while staying solid on light / dark / oled.
+
+#### Glass-scoped TopBar title padding
+
+The Liquid Glass meniscus specular ring eats ~6-8px of visual
+real estate at the pill's rounded edge, making the page title
+feel crammed against the corner. Solid themes don't paint the
+ring so they read balanced at the default `px-3`.
+
+Added a `topbar-chrome-pill` class hook + a scoped CSS rule
+that bumps `padding-left` on glass theme only. Per Iron Rule
+#18 the hook is a custom class, never a Tailwind utility.
+
 ### v0.7.3 — Glass theme fixes
 
 #### Theme switching no longer crashes
