@@ -39,6 +39,17 @@ type ReleaseEntry = {
  */
 export const RELEASE_NOTES: ReleaseEntry[] = [
   {
+    version: '0.6.15',
+    title: 'Receipt auto-route by last 4 digits',
+    bullets: [
+      'New: per-account "last 4 digits" field. When you upload a receipt, OCR detects "VISA ****1234" patterns and routes the charge to the matching account automatically.',
+      'Optional card network field (Visa / Mastercard / Amex / Discover) for disambiguating when two cards end in the same digits.',
+      'Smart confidence levels: high-confidence matches route silently; medium asks "looks like X — assign?"; low shows a picker between candidates; none falls through to the manual flow.',
+      'Privacy-clean: last 4 is industry-standard partial card ID, not sensitive, doesn\'t enable fraud. Stored in your synced Yjs doc, encrypted in transit. Full card numbers are never stored.',
+      'Help article + Edit Account form copy explain the feature inline — no docs reading required.',
+    ],
+  },
+  {
     version: '0.6.14',
     title: 'Cloud sync — activity log, snapshot rotation, smart errors',
     bullets: [

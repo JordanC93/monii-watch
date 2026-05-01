@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+### v0.6.15 — Receipt auto-route by last 4 digits + cross-device merge inspection (TODO)
+
+#### Receipt auto-route (Tier 12 #16)
+- New `Account.last4` (4-digit string) and `Account.cardNetwork`
+  (visa / mastercard / amex / discover / other) optional fields.
+- New `conversation/cardMatch.ts` — pattern-matches OCR'd
+  receipt text for last-4 in 6 common formats:
+  - "Card ending in 1234"
+  - "Card: VISA ****1234"
+  - "VISA XXXX1234"
+  - "************1234"
+  - "XXXX-XXXX-XXXX-1234"
+  - "Acct: ...1234"
+- Match confidence:
+  - **HIGH** — digits + network match → silent auto-route
+  - **MEDIUM** — digits match, no network on either side →
+    "Looks like X — assign?" prompt
+  - **LOW** — multiple candidates / partial match → picker
+  - **NONE** — falls through to manual flow
+- New `<CardMatchBanner />` in ReceiptUploadModal renders the
+  appropriate UI per confidence level.
+- EditAccountModal exposes the two new fields with inline help
+  copy explaining the feature.
+- New help article `receipt-auto-route` documents setup,
+  patterns recognized, and privacy posture.
+
+#### Cross-device merge inspection — added to backlog
+The activity-log byte-delta from v0.6.14 doesn't break down
+WHAT changed in a remote merge. Tracked as TODO_FEATURES.md
+Tier 12 #15 — categorized change summaries with structured
+ChangeSummary entries. Worth doing only if real users ask.
+
 ### v0.6.14 — Cloud sync activity log + snapshot rotation + smart errors
 
 The four follow-ups from the v0.6.13 review.

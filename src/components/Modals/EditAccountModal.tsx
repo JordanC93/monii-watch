@@ -29,6 +29,10 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
   const [loanTermText, setLoanTermText] = useState<string>(account?.loanTermMonths ? String(account.loanTermMonths) : '');
   const [loanFirstDate, setLoanFirstDate] = useState<string>(account?.loanFirstPaymentDate ?? '');
   const [taxStatus, setTaxStatus] = useState<NonNullable<typeof account>['taxStatus'] | undefined>(account?.taxStatus);
+  // Tier 12 #16 — last 4 digits + card network for receipt auto-routing.
+  // Optional. Empty string = no auto-route. Validated to 4 digits on save.
+  const [last4, setLast4] = useState<string>(account?.last4 ?? '');
+  const [cardNetwork, setCardNetwork] = useState<NonNullable<typeof account>['cardNetwork'] | undefined>(account?.cardNetwork);
 
   if (!account) return null;
 
@@ -87,6 +91,12 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
     // Tax status only meaningful on tracking accounts.
     if (isTracking) patch.taxStatus = taxStatus;
     else patch.taxStatus = undefined;
+    // Tier 12 #16 — last 4 digits validation.  Reject anything that
+    // isn't exactly 4 ASCII digits (silently strips on save). Cleared
+    // when the user blanks the field.
+    const last4Trim = last4.trim();
+    patch.last4 = /^\d{4}$/.test(last4Trim) ? last4Trim : undefined;
+    patch.cardNetwork = patch.last4 ? cardNetwork : undefined;
     updateAccount(accountId, patch);
     onClose();
   }
@@ -136,6 +146,52 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
           Pin to top of sidebar
           <span className="text-fg-subtle text-[11px]">— useful for your daily-driver account</span>
         </label>
+
+        {/* Tier 12 #16 — last-4 + network for receipt auto-routing.
+            Optional. When set, receipt OCR scans for "****1234" or
+            "VISA ****1234" and routes the charge to this account
+            automatically. */}
+        <div className="border-t border-border pt-3 space-y-2">
+          <div className="text-[11.5px] text-fg-subtle">
+            Card / account last 4 digits <span className="text-fg-subtle/80">— optional, used for receipt auto-routing</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[11px] text-fg-subtle">Last 4 digits</label>
+              <Input
+                value={last4}
+                onChange={(e) => setLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                placeholder="1234"
+                inputMode="numeric"
+                maxLength={4}
+                className="mt-0.5 tabular"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-fg-subtle">Card network</label>
+              <Select
+                value={cardNetwork ?? ''}
+                onChange={(e) => setCardNetwork((e.target.value || undefined) as typeof cardNetwork)}
+                className="mt-0.5"
+                disabled={!last4}
+              >
+                <option value="">— None / unknown —</option>
+                <option value="visa">Visa</option>
+                <option value="mastercard">Mastercard</option>
+                <option value="amex">American Express</option>
+                <option value="discover">Discover</option>
+                <option value="other">Other</option>
+              </Select>
+            </div>
+          </div>
+          <div className="text-[10.5px] text-fg-subtle leading-snug">
+            When you upload a receipt with a matching <code>****{last4 || '1234'}</code> on it,
+            Monii Watch routes the charge here automatically. The network helps if two
+            cards end in the same digits. Industry-standard partial card identifier — never
+            a full card number.
+          </div>
+        </div>
+
         <div>
           <label className="text-[12px] text-fg-muted">Type</label>
           <Select value={type} onChange={(e) => setType(e.target.value as AccountType)} className="mt-1">

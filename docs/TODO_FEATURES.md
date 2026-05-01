@@ -912,6 +912,41 @@ corrupted before they trust it.
 
 ---
 
+## Tier 12 — Cloud sync polish + ecosystem
+
+Items deferred from the v0.6.7-v0.6.14 wave. Most of cloud sync's
+foundation shipped; this tier covers the deeper stretch goals.
+
+### #15 Cross-device merge inspection UI
+The Cloud Sync activity log shows "merged X bytes of new
+changes from cloud" per pull but doesn't break down WHAT
+changed. A future pass would diff the Yjs state vector before
+and after a merge and surface a categorized summary:
+
+  - 3 transactions added (from device "iPad")
+  - 1 category renamed: "Coffee" → "Cafe"
+  - 2 monthly assignments updated
+
+Implementation sketch:
+- Snapshot the Yjs state before applying the remote update
+- Apply the update + diff specific maps (transactions,
+  categories, accounts, assignments)
+- Build a structured ChangeSummary { kind, entityId, before,
+  after, source }
+- Append to the existing activity log alongside the byte-delta
+- Surface as an expandable detail row in CloudSyncActivityModal
+
+Useful when:
+- Two people share a budget and want to see who changed what
+- Debugging a "wait, why is this number different" moment
+- Confirming a sync did actually deliver the changes you expected
+
+Worth doing only if real users ask — most CRDT merges are
+correct + invisible by design, and overinstrumenting the
+activity log risks information overload.
+
+---
+
 ## How to use this with future Claude sessions
 
 After a `/compact` or fresh session, paste a prompt like:

@@ -16,6 +16,7 @@ import { keywordsForHint } from '../../conversation/vendors';
 import type { ParsedStatementRow } from '../../conversation/statement';
 import type { PaycheckDeduction } from '../../domain/types';
 import { findCategoryByText } from '../../conversation/parse';
+import { detectAccountFromReceiptText, type CardMatchResult } from '../../conversation/cardMatch';
 import { todayIso } from '../../domain/date';
 import { parseAmountToCents } from '../../domain/calc';
 import { useFormatMoney } from '../../lib/format';
@@ -106,6 +107,10 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  // Tier 12 #16 — auto-route by last-4. Stored alongside the draft so
+  // the UI can show a confirmation banner for MEDIUM / LOW matches and
+  // an info pill for HIGH matches.
+  const [cardMatch, setCardMatch] = useState<CardMatchResult | null>(null);
   const [rawText, setRawText] = useState<string>('');
   const [docKind, setDocKind] = useState<DocKind>('receipt');
   /** Holds the original image file so we can attach a resized copy to the
@@ -130,6 +135,7 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
     setImageFile(null);
     setPdfFile(null);
     setAttachReceipt(true);
+    setCardMatch(null);
     if (fileRef.current) fileRef.current.value = '';
   }
 
@@ -264,7 +270,13 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
     } else {
       setDocKind(result.kind);
       const r = result.kind === 'receipt' ? result.receipt : result.receipt;
-      const defaultAcct = accounts.find((a) => !a.closed)?.id ?? '';
+      // Tier 12 #16 — auto-route by last-4. Scans the OCR text for a
+      // `****1234` style match against `Account.last4`, with card
+      // network as a tie-breaker. HIGH confidence sets the account
+      // silently; MEDIUM/LOW also sets it but the UI shows a notice.
+      const cardMatch = detectAccountFromReceiptText(text, accounts);
+      setCardMatch(cardMatch);
+      const defaultAcct = (cardMatch.account?.id) ?? accounts.find((a) => !a.closed)?.id ?? '';
       setDraft({
         kind: 'receipt',
         vendor: r.vendor,
@@ -273,7 +285,10 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
         accountId: defaultAcct,
         categoryId: '',
       });
-      console.info(`[classify] ${result.kind} — vendor="${r.vendor}" amount=${r.amount} date=${r.date ?? '?'}`);
+      console.info(
+        `[classify] ${result.kind} — vendor="${r.vendor}" amount=${r.amount} date=${r.date ?? '?'} `
+        + `card=${cardMatch.confidence}${cardMatch.detectedLast4 ? ` (****${cardMatch.detectedLast4})` : ''}`
+      );
     }
   }
 
@@ -510,17 +525,31 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
                 onChange={setDraft}
               />
             ) : (
-              <ReceiptForm
-                draft={draft}
-                previewUrl={previewUrl}
-                accounts={accounts}
-                categories={categories}
-                fmt={fmt}
-                onChange={setDraft}
-                hasImage={!!imageFile}
-                attachReceipt={attachReceipt}
-                onToggleAttach={setAttachReceipt}
-              />
+              <>
+                {/* Tier 12 #16 — auto-route by last-4 banner. Only
+                    shown for receipt drafts (not statements / cc /
+                    paystubs which have their own account-pick UX). */}
+                {cardMatch && cardMatch.detectedLast4 && (
+                  <CardMatchBanner
+                    match={cardMatch}
+                    accounts={accounts}
+                    onPick={(accountId) => setDraft((d) => d && d.kind === 'receipt' ? { ...d, accountId } : d)}
+                    onDismiss={() => setCardMatch(null)}
+                    selectedAccountId={(draft.kind === 'receipt' && draft.accountId) || ''}
+                  />
+                )}
+                <ReceiptForm
+                  draft={draft}
+                  previewUrl={previewUrl}
+                  accounts={accounts}
+                  categories={categories}
+                  fmt={fmt}
+                  onChange={setDraft}
+                  hasImage={!!imageFile}
+                  attachReceipt={attachReceipt}
+                  onToggleAttach={setAttachReceipt}
+                />
+              </>
             )}
 
             {rawText && (
@@ -544,6 +573,122 @@ function progressLabel(p: Progress): string {
     case 'reading-page':   return 'Reading PDF…';
     case 'done':           return 'Done';
   }
+}
+
+/**
+ * Auto-route confirmation banner. Surfaces above the receipt form
+ * when the OCR detected a last-4 that matches one (or more) of the
+ * user's accounts.
+ *
+ *   - HIGH:   green "Routed to ACCOUNT" pill, one-tap "wrong?" override
+ *   - MEDIUM: amber "Looks like ACCOUNT — confirm?" with Yes / No buttons
+ *   - LOW:    amber "Multiple matches" picker between candidates + "skip"
+ */
+function CardMatchBanner({
+  match, accounts, onPick, onDismiss, selectedAccountId,
+}: {
+  match: CardMatchResult;
+  accounts: Array<{ id: string; name: string; last4?: string; cardNetwork?: string }>;
+  onPick: (accountId: string) => void;
+  onDismiss: () => void;
+  selectedAccountId: string;
+}) {
+  const masked = `****${match.detectedLast4}`;
+  const networkLabel = match.detectedNetwork ? match.detectedNetwork.toUpperCase() : '';
+  const candidates = [match.account, ...(match.alternates ?? [])].filter(Boolean) as typeof accounts;
+
+  if (match.confidence === 'high') {
+    return (
+      <div className="flex items-center gap-2 p-2.5 rounded-md border border-positive/40 bg-positive/10 text-[12px]">
+        <CreditCard size={13} className="text-positive flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <span className="font-medium">Routed to <span className="text-positive">{match.account?.name}</span></span>
+          <span className="text-fg-subtle"> · matched {networkLabel} {masked}</span>
+        </div>
+        <button
+          onClick={onDismiss}
+          className="text-[11px] text-fg-subtle hover:text-fg px-1.5 py-0.5 rounded hover:bg-surface-2"
+          title="Wrong account? Pick a different one in the form below"
+        >
+          Wrong?
+        </button>
+      </div>
+    );
+  }
+
+  if (match.confidence === 'medium') {
+    return (
+      <div className="p-2.5 rounded-md border border-warning/40 bg-warning/10 text-[12px]">
+        <div className="flex items-start gap-2">
+          <CreditCard size={13} className="text-warning flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="font-medium">
+              Looks like <span className="text-warning">{match.account?.name}</span>
+              {networkLabel && <span className="text-fg-subtle font-normal"> · {networkLabel} {masked}</span>}
+            </div>
+            <div className="text-[11px] text-fg-subtle mt-0.5">
+              The receipt has {masked} on it. Auto-assign to this account, or skip and pick manually below?
+            </div>
+            <div className="flex gap-1.5 mt-1.5">
+              <button
+                onClick={() => { onPick(match.account!.id); onDismiss(); }}
+                className="px-2 py-0.5 rounded bg-positive/15 text-positive text-[11.5px] hover:bg-positive/25"
+              >
+                <Check size={11} className="inline -mt-0.5" /> Yes, assign
+              </button>
+              <button
+                onClick={onDismiss}
+                className="px-2 py-0.5 rounded bg-surface-3 text-fg-muted text-[11.5px] hover:text-fg"
+              >
+                No, skip
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // LOW — multiple candidates or partial match.
+  return (
+    <div className="p-2.5 rounded-md border border-warning/40 bg-warning/10 text-[12px]">
+      <div className="flex items-start gap-2">
+        <CreditCard size={13} className="text-warning flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <div className="font-medium">
+            Receipt has {networkLabel ? `${networkLabel} ` : ''}{masked} — which account?
+          </div>
+          <div className="text-[11px] text-fg-subtle mt-0.5">
+            {candidates.length > 1
+              ? 'Multiple accounts end in those digits. Pick which one was used, or skip.'
+              : 'We\'re not 100% sure this matches the same account. Confirm or skip.'}
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {candidates.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => { onPick(a.id); onDismiss(); }}
+                className={
+                  'px-2 py-0.5 rounded text-[11.5px] '
+                  + (a.id === selectedAccountId
+                    ? 'bg-accent text-accent-fg'
+                    : 'bg-surface-3 text-fg-muted hover:text-fg')
+                }
+              >
+                {a.name}{a.cardNetwork ? ` · ${a.cardNetwork.toUpperCase()}` : ''}
+              </button>
+            ))}
+            <button
+              onClick={onDismiss}
+              className="px-2 py-0.5 rounded bg-surface-3 text-fg-subtle text-[11.5px] hover:text-fg"
+            >
+              Skip · pick manually
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ReceiptForm({ draft, previewUrl, accounts, categories, fmt, onChange, hasImage, attachReceipt, onToggleAttach }: any) {

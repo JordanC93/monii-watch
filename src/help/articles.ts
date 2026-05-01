@@ -2004,6 +2004,74 @@ If you'd rather not tip, that's completely fine — keep using
 the app and tell a friend about it. That's also support.
 `,
   },
+
+  {
+    id: 'receipt-auto-route',
+    title: 'How does Monii auto-route receipt charges to the right account?',
+    category: 'transactions',
+    tags: ['receipt', 'ocr', 'last 4', 'card', 'auto', 'route', 'auto-assign', 'auto-route'],
+    body: `
+When you upload a receipt photo, Monii's OCR pipeline reads the
+text and looks for a "card ending in 1234" / "VISA ****1234"
+pattern. If it matches an account you've configured with a
+**last 4 digits** field, the charge auto-routes to that account.
+
+## Setup (one-time per account)
+
+1. Edit the account (Account page → Edit, or sidebar → right-click → Edit).
+2. Scroll to **"Card / account last 4 digits"**.
+3. Enter the last 4 digits of the card / account number.
+4. Optionally pick a card network (Visa / Mastercard / Amex /
+   Discover) — helps disambiguate when two cards end in the same
+   4 digits.
+5. Save.
+
+The last 4 is industry-standard partial card identification —
+not sensitive, doesn't enable fraud, doesn't trigger PCI
+compliance.
+
+## What happens on upload
+
+After OCR, Monii Watch checks the extracted text for last-4
+patterns. The result is one of four confidence levels:
+
+- **HIGH** — exact 4-digit match AND card-network match.
+  The charge is routed silently. A small green pill at the top
+  of the form confirms "Routed to ACCOUNT — wrong?" so you can
+  override.
+- **MEDIUM** — exact 4-digit match but no network info on the
+  receipt OR on the account. An amber banner asks "Looks like
+  ACCOUNT — assign?" with **Yes, assign** / **No, skip** buttons.
+- **LOW** — multiple accounts share those 4 digits, or the
+  match is partial. A picker lets you tap which account was
+  used, or skip.
+- **NONE** — no last-4 detected, or no account matches. The
+  receipt flow continues as normal — pick the account
+  yourself.
+
+## Patterns the matcher recognizes
+
+- "Card ending in 1234" / "ending 1234"
+- "Card: VISA ****1234" / "Card #****1234"
+- "VISA XXXX1234" / "MasterCard ****1234"
+- "DEBIT ************1234" (raw masked PAN)
+- "XXXX-XXXX-XXXX-1234"
+- "Acct: ...1234"
+
+When multiple last-4 candidates appear in one receipt, Monii
+takes the LAST one — the actual charge amount usually appears
+after the line items, so the trailing match is most reliable.
+
+## Privacy
+
+- The last 4 digits stay in your synced Yjs doc (encrypted
+  in transit).
+- The full card number is never stored. The OCR pipeline only
+  ever sees what's printed on the receipt — typically just the
+  last 4.
+- No data leaves your device for this feature.
+`,
+  },
 ];
 
 export const HELP_INDEX = HELP_ARTICLES.map((a) => ({

@@ -97,6 +97,28 @@ export type Account = {
    */
   pinned?: boolean;
   /**
+   * Tier 12 #15 — last 4 digits of the card / account number. Used by
+   * the receipt OCR pipeline to auto-route a scanned charge to the
+   * right account: when "VISA ****1234" appears on a receipt, the
+   * charge lands on the account whose `last4 === '1234'` (with
+   * `cardNetwork` as a tie-breaker).
+   *
+   * Optional. Industry-standard "partial card ID" — doesn't enable
+   * fraud, doesn't trigger PCI compliance. Stored alongside the
+   * account name in the synced Yjs doc; encrypted in transit.
+   *
+   * Format: exactly 4 ASCII digits. Empty / undefined = no auto-route.
+   */
+  last4?: string;
+  /**
+   * Card network for tie-breaking when two accounts end in the same
+   * 4 digits. Most receipts print the network name ("VISA",
+   * "MASTERCARD", "AMEX") right next to the masked PAN, so this is
+   * easy to match. Optional — when unset, only the digit comparison
+   * is used.
+   */
+  cardNetwork?: 'visa' | 'mastercard' | 'amex' | 'discover' | 'other';
+  /**
    * Sub-envelopes ("buckets") inside this account. A common pattern:
    * one savings account, multiple savings goals. Buckets partition the
    * account balance into virtual sub-allocations ("Emergency $5,000 /
