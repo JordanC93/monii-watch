@@ -39,6 +39,16 @@ type ReleaseEntry = {
  */
 export const RELEASE_NOTES: ReleaseEntry[] = [
   {
+    version: '0.6.10',
+    title: 'Smarter deal-alert snoozing',
+    bullets: [
+      'Three actions on deal alerts now: Open store · Hold off (90d, all sources) · Wrong listing.',
+      '"Hold off" is the new "I\'m not buying right now" button — silences EVERY alert for that item across all feeds for 90 days, so a Steam → Best Buy → Reddit cascade during the same sale week stops at one ping.',
+      'New "Holding off" chip strip shows your snoozed items at the top. Tap a chip to wake alerts back up early if your plans change.',
+      '"Wrong listing" still snoozes just one specific post — for false-positive matches.',
+    ],
+  },
+  {
     version: '0.6.9',
     title: 'Auto deal tracker — public feeds, no scraping',
     bullets: [

@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+### v0.6.10 — Smarter snoozing for deal alerts
+
+The v0.6.9 deal tracker had only "Wrong listing" — a per-post
+snooze. Problem: when Battlefield 6 goes on sale, Wario64 posts
+about Steam, then r/GameDeals posts about Best Buy, then
+Slickdeals indexes the Costco price. Three different posts, three
+different alerts — even though it's all the same sale week.
+
+#### What changed
+- Deal-alert rows now have THREE actions:
+  1. **Open store** — confirm + click through.
+  2. **Hold off · 90d** — category-level snooze. Suppresses
+     EVERY alert for that item across every feed for 90 days.
+     Routes through `Category.priceAlertSilenceUntil` (already
+     respected by the existing manual price tracker).
+  3. **Wrong listing** — match-level snooze (the original v0.6.9
+     behavior). Use when a feed surfaced the wrong product.
+- New **"Holding off" chip strip** at the top of the
+  DealMatchesBanner shows every category currently under a
+  category-level snooze, with days remaining. Tap a chip to wake
+  alerts back up early.
+- The chip strip renders even when no active matches exist, so
+  users always have a way to manage snoozed items.
+
+#### Implementation notes
+- `Category.priceAlertSilenceUntil` already existed (used by the
+  manual price tracker). Reusing it keeps the snooze unified — if
+  the user manually updates `currentItemPrice`, the existing flow
+  clears the silence too. No state can drift between sources.
+- `DealMatchesBanner` filters out any category whose silence is
+  active before computing the visible matches list.
+
 ### v0.6.9 — Automatic deal tracking via public feeds
 
 The big remaining piece of the goal-item price tracker (Tier 9 #2):
