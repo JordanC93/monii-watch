@@ -93,6 +93,8 @@ const initialSettings: Settings = {
   icloudEnabled: false,
   icloudFolderPath: '',
   icloudLastSyncedAt: 0,
+  dealFeedsEnabled: undefined,
+  dealFeedsLastPolledAt: 0,
 };
 
 export const useBudget = create<State>((set) => ({

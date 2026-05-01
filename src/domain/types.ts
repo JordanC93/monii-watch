@@ -221,6 +221,47 @@ export type Category = {
    * always fires.
    */
   priceAlertSilenceUntil?: number;
+  /**
+   * Tier 12 #10 — keywords to match against public deal feeds (Wario64
+   * Bluesky, r/GameDeals RSS, Slickdeals search RSS, etc.). When a feed
+   * post matches ALL keywords AND a price can be extracted from the
+   * post AND the price ≤ envelope available, surface a deal match.
+   *
+   * Example: `['Battlefield 6', 'PC']` matches "[PC] Battlefield 6
+   * Standard Edition $39.99 on Steam" but NOT "Battlefield 6 launches
+   * in 2026" (no price → no match).
+   *
+   * Empty / undefined = no feed-based tracking for this category.
+   * The user's manually-entered `currentItemPrice` is independent.
+   */
+  dealKeywords?: string[];
+  /**
+   * Cache of recent deal-feed matches surfaced to the user. Each entry
+   * stores enough to render the match + decide whether it's still
+   * actionable. Capped at 10 per category, FIFO eviction. Populated by
+   * the deal-feed fetcher (`lib/dealFeedFetcher.ts`); read by the Goals
+   * page + `<GoalDealBanner />`.
+   */
+  dealMatches?: Array<{
+    /** Stable id derived from feed+post for dedup. */
+    id: string;
+    /** Which feed this came from (matches `DealFeed.id`). */
+    feedId: string;
+    /** First ~180 chars of the post for the user to evaluate. */
+    snippet: string;
+    /** URL to the deal — opens in a new tab. */
+    url: string;
+    /** Extracted price in cents. */
+    price: Money;
+    /** Unix ms when the post was published (best effort). */
+    publishedAt: number;
+    /** Unix ms when we surfaced it. */
+    matchedAt: number;
+    /** User's decision: confirmed (treat as real), dismissed (snoozed). */
+    decision?: 'confirmed' | 'dismissed';
+    /** Snooze expiry for dismissed matches (90 days). */
+    silenceUntil?: number;
+  }>;
   order: number;
   hidden: boolean;
   /** Optional goal/target. */
@@ -1135,6 +1176,23 @@ export type Settings = {
   icloudFolderPath: string;
   /** Unix ms — last successful read or write. */
   icloudLastSyncedAt: number;
+  /**
+   * Tier 12 #10 — public deal-feed sources (Wario64 Bluesky, Reddit
+   * deal subs, Slickdeals frontpage, DealNews categories, etc.). The
+   * map is keyed by `DealFeed.id` from `domain/dealFeeds.ts` and the
+   * value is whether the feed is enabled.
+   *
+   * All feeds are READ from public APIs — nothing is sent anywhere.
+   * Off by default; the user opts in per source. Stored as a plain
+   * object so Yjs can serialize / sync it across devices.
+   */
+  dealFeedsEnabled?: Record<string, boolean>;
+  /**
+   * Last unix ms we polled the deal feeds. Used to throttle so we
+   * don't hammer Reddit / Slickdeals on every Yjs observer fire. The
+   * fetcher itself enforces a 30-min minimum interval.
+   */
+  dealFeedsLastPolledAt?: number;
 };
 
 export type ThemeName = 'light' | 'dark' | 'oled' | 'glass' | 'auto';

@@ -488,6 +488,10 @@ export function SettingsPage() {
         <ICloudSettings />
       </Section>
 
+      <Section title="Deal feeds" subtitle="Watch public deal feeds for sales matching your goal items. Only public APIs — nothing about you is sent anywhere.">
+        <DealFeedsSettings />
+      </Section>
+
       <Section title="Backup & Import" subtitle="Always-on safety net. Export downloads a file with everything; import restores from one.">
         <div className="flex flex-wrap gap-2">
           <Button onClick={exportJson} variant="secondary"><Download size={14} /> Export JSON</Button>
@@ -1023,6 +1027,113 @@ function MoneyColorToggle() {
       </div>
     </div>
   );
+}
+
+/**
+ * Deal feeds (Tier 12 #10). Lets the user enable/disable each public
+ * feed source individually. The matcher only fires for goals that
+ * have keywords set in EditCategoryModal.
+ */
+function DealFeedsSettings() {
+  const enabledRaw = useBudget((s) => s.settings.dealFeedsEnabled);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _lastPolled = useBudget((s) => s.settings.dealFeedsLastPolledAt);
+  const enabled = useMemo(() => enabledRaw ?? defaultDealFeedsEnabledFromModule(), [enabledRaw]);
+  const categories = useBudget((s) => s.categories);
+  const goalsWithKeywords = useMemo(() => {
+    return categories.filter((c) => Array.isArray(c.dealKeywords) && c.dealKeywords.length > 0);
+  }, [categories]);
+
+  function toggle(feedId: string) {
+    const next = { ...enabled, [feedId]: !enabled[feedId] };
+    setSettingsField('dealFeedsEnabled', next);
+  }
+
+  async function pollNow() {
+    try {
+      const m = await import('../lib/dealFeedEngine');
+      await m.pollOnce(true);
+    } catch (err) {
+      console.warn('[dealfeeds] manual poll failed', err);
+    }
+  }
+
+  return (
+    <div className="space-y-3 text-[13px]">
+      <div className="text-[11.5px] text-fg-subtle leading-snug">
+        Each feed is a public source — Wario64 on Bluesky, Reddit deal
+        subs, Slickdeals. Posts are matched against the
+        <strong> deal-tracker keywords</strong> you set on each goal
+        category (Edit category → Goal extras). When a post matches
+        AND has a price ≤ what's in your envelope, you get a notification.
+      </div>
+      {goalsWithKeywords.length === 0 && (
+        <div className="text-[11.5px] bg-warning/10 text-warning rounded px-3 py-2">
+          No goals have deal-tracker keywords yet. Edit a category and
+          set keywords in the "Goal extras" section to start tracking.
+        </div>
+      )}
+      <DealFeedTogglesList enabled={enabled} onToggle={toggle} />
+      <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
+        <div className="text-[11px] text-fg-subtle">
+          Throttled to one poll every 30 minutes regardless of how many
+          tabs are open.
+        </div>
+        <Button size="sm" variant="secondary" onClick={pollNow}>
+          <RefreshCw size={13} /> Poll now
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function DealFeedTogglesList({ enabled, onToggle }: { enabled: Record<string, boolean>; onToggle: (id: string) => void }) {
+  // Lazy-load the module so the feed list isn't part of the cold start
+  // bundle (kept inside SettingsPage, which is already lazy).
+  const [feeds, setFeeds] = useState<Array<{ id: string; label: string; description: string; scope: string }>>([]);
+  useEffect(() => {
+    void import('../domain/dealFeeds').then((m) => {
+      setFeeds(m.DEAL_FEEDS.map((f) => ({
+        id: f.id, label: f.label, description: f.description, scope: f.scope,
+      })));
+    });
+  }, []);
+  if (feeds.length === 0) return null;
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {feeds.map((f) => (
+        <label
+          key={f.id}
+          className="flex items-start gap-2 rounded-lg border border-border p-2.5 hover:bg-surface-2/30 cursor-pointer"
+        >
+          <input
+            type="checkbox"
+            checked={!!enabled[f.id]}
+            onChange={() => onToggle(f.id)}
+            className="accent-accent mt-0.5"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-[12.5px] font-medium flex items-center gap-1.5">
+              <span>{f.label}</span>
+              <span className="text-[10px] uppercase tracking-wider text-fg-subtle bg-surface-2 px-1.5 py-0.5 rounded">{f.scope}</span>
+            </div>
+            <div className="text-[11px] text-fg-subtle leading-snug">{f.description}</div>
+          </div>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+// Keep this in module scope so React doesn't recreate it every render —
+// stable identity matters for the `useMemo` dep below.
+function defaultDealFeedsEnabledFromModule(): Record<string, boolean> {
+  // Inline minimal default so SettingsPage doesn't have to import
+  // dealFeeds at module scope. Same shape as `defaultDealFeedsEnabled()`.
+  return {
+    'wario64': true,
+    'slickdeals-keyword': true,
+  };
 }
 
 /**

@@ -102,6 +102,8 @@ const DEFAULT_SETTINGS: Settings = {
   icloudEnabled: false,
   icloudFolderPath: '',
   icloudLastSyncedAt: 0,
+  dealFeedsEnabled: undefined, // set on first read by `getSettings()` to the default map
+  dealFeedsLastPolledAt: 0,
 };
 
 /** Internal tag we add to category names to identify auto-created credit-card payment categories. */
@@ -382,6 +384,102 @@ export function createCategory(input: { groupId: string; name: string; color?: s
   };
   tx(() => categoriesMap().set(id, c));
   return c;
+}
+
+/**
+ * Tier 12 #10 — merge a batch of deal-feed match candidates into the
+ * matching categories' `dealMatches[]`. Dedupes by `id` (so re-poll
+ * doesn't double-up). Caps each category's match list at 10 entries
+ * with FIFO eviction.
+ *
+ * Skips matches whose price is HIGHER than the user's `targetItemPrice`
+ * (the goal's sticker) — those aren't deals. Also skips matches the
+ * user has explicitly dismissed (snoozed for 90 days).
+ */
+export function recordDealMatches(candidates: Array<{
+  id: string;
+  feedId: string;
+  categoryId: string;
+  snippet: string;
+  url: string;
+  price: Money;
+  publishedAt: number;
+}>): { added: number } {
+  if (candidates.length === 0) return { added: 0 };
+  let added = 0;
+  const now = Date.now();
+  tx(() => {
+    // Group by category so we can update each one once.
+    const byCategory = new Map<string, typeof candidates>();
+    for (const c of candidates) {
+      const list = byCategory.get(c.categoryId) ?? [];
+      list.push(c);
+      byCategory.set(c.categoryId, list);
+    }
+    for (const [categoryId, news] of byCategory) {
+      const cat = categoriesMap().get(categoryId);
+      if (!cat) continue;
+      const existing = cat.dealMatches ?? [];
+      const seen = new Set(existing.map((e) => e.id));
+      const next = existing.slice();
+      for (const c of news) {
+        if (seen.has(c.id)) continue;
+        // Honor goal sticker price as an upper bound — not a deal if
+        // it isn't lower than the original target.
+        if (cat.targetItemPrice && c.price > cat.targetItemPrice) continue;
+        next.push({
+          id: c.id,
+          feedId: c.feedId,
+          snippet: c.snippet,
+          url: c.url,
+          price: c.price,
+          publishedAt: c.publishedAt,
+          matchedAt: now,
+        });
+        added++;
+      }
+      // FIFO cap at 10 newest entries.
+      next.sort((a, b) => b.matchedAt - a.matchedAt);
+      const trimmed = next.slice(0, 10);
+      categoriesMap().set(categoryId, { ...cat, dealMatches: trimmed });
+    }
+  });
+  return { added };
+}
+
+/**
+ * Mark a deal match as confirmed (the user agrees this is their item).
+ * Doesn't currently change behavior beyond the flag — present so the
+ * future server-side fetcher can prioritize confirmed-keyword pairs
+ * for finer matching.
+ */
+export function confirmDealMatch(categoryId: string, matchId: string): void {
+  tx(() => {
+    const cat = categoriesMap().get(categoryId);
+    if (!cat || !cat.dealMatches) return;
+    const next = cat.dealMatches.map((m) => m.id === matchId ? { ...m, decision: 'confirmed' as const } : m);
+    categoriesMap().set(categoryId, { ...cat, dealMatches: next });
+  });
+}
+
+/**
+ * Dismiss a deal match (90-day snooze for that specific post). The
+ * match stays in the cache so we don't keep re-fetching it; the UI
+ * filters out dismissed matches when showing the user.
+ */
+export function dismissDealMatch(categoryId: string, matchId: string): void {
+  const silenceUntil = Date.now() + 90 * 86400 * 1000;
+  tx(() => {
+    const cat = categoriesMap().get(categoryId);
+    if (!cat || !cat.dealMatches) return;
+    const next = cat.dealMatches.map((m) => m.id === matchId ? { ...m, decision: 'dismissed' as const, silenceUntil } : m);
+    categoriesMap().set(categoryId, { ...cat, dealMatches: next });
+  });
+}
+
+/** Stamp the global last-poll timestamp on Settings. */
+export function setDealFeedsLastPolledAt(at: number): void {
+  tx(() => settingsMap().set('dealFeedsLastPolledAt', at));
 }
 
 export function updateCategory(id: string, patch: Partial<Category>): void {

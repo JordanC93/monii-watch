@@ -2,6 +2,75 @@
 
 ## Unreleased
 
+### v0.6.9 — Automatic deal tracking via public feeds
+
+The big remaining piece of the goal-item price tracker (Tier 9 #2):
+**automatic** sale detection without scraping any store, leaking
+data, or running a server. Solved by reading public deal feeds the
+same way a podcast app reads RSS.
+
+#### How it works
+- Each goal category gets a new **"Deal-tracker keywords"** field
+  (Edit category → Goal extras). E.g.
+  `Battlefield 6 PC` or `Sonos Beam Gen 2`.
+- A new background engine polls enabled feeds every 30 minutes
+  while the app is in the foreground (visibility-aware — re-polls
+  when the tab regains focus).
+- For each post, we check if ALL keyword tokens appear AND we can
+  extract a $ price. If yes AND the price ≤ what's in the
+  envelope, surface a deal match.
+- The user confirms ("Open store") or dismisses ("Not my item")
+  each match. Dismissal snoozes that specific post for 90 days.
+
+#### Default-enabled sources (curated for fast game-sale signal)
+- **Wario64 (Bluesky)** — `wario64.bsky.social`. The single best
+  signal for video game sales. Posts within minutes of a sale
+  going live, with a structured "[platform] Title — $X" format.
+  Read via the public `public.api.bsky.app` API.
+- **Slickdeals per-keyword search** — runs one Slickdeals search
+  RSS query per unique keyword across all goals. The universal
+  fallback — works for ANY consumer product (sound bars, jackets,
+  kitchen gear, etc.).
+
+#### Optional sources (off by default — enable in Settings → Deal feeds)
+- **Slickdeals frontpage RSS** — community-curated everything
+- **r/GameDeals RSS** — Reddit, voting-filtered
+- **r/buildapcsales RSS** — PC components
+- **r/deals RSS** — general
+- **r/frugalmalefashion** — apparel sales
+- **r/femalefashionadvice** — women's apparel
+
+#### Privacy posture
+- Every fetch hits a **public API** the user could browse
+  themselves (no auth, no tokens, no API keys).
+- Per-keyword Slickdeals queries leak the user's keywords to
+  Slickdeals — disclosed in the Settings panel. To opt out,
+  disable that feed.
+- Nothing is sent to a Monii server (there is no Monii server).
+
+#### Schema additions
+- `Category.dealKeywords?: string[]` — comma-separated keywords
+- `Category.dealMatches?: Array<{...}>` — last 10 cached matches
+  with snooze state, FIFO eviction
+- `Settings.dealFeedsEnabled?: Record<feedId, boolean>` — per-feed
+  master switches
+- `Settings.dealFeedsLastPolledAt?: number` — throttle anchor
+
+#### New files
+- `src/domain/dealFeeds.ts` — feed source definitions
+- `src/lib/dealFeedFetcher.ts` — Bluesky + RSS parsers + matcher
+- `src/lib/dealFeedEngine.ts` — boot loop + visibility-aware polling
+- `src/components/Budget/DealMatchesBanner.tsx` — surfaces matches
+
+#### Repo additions
+- `recordDealMatches(...)` — atomic upsert with FIFO cap
+- `confirmDealMatch(categoryId, matchId)`
+- `dismissDealMatch(categoryId, matchId)` — 90-day snooze
+- `setDealFeedsLastPolledAt(at)`
+
+#### Quality
+- 210 tests passing across 23 files. Typecheck + build clean.
+
 ### v0.6.8 — Recovery, sharing, iCloud sync, mobile UX
 
 A bigger swing pass — focused on three themes: data safety net,

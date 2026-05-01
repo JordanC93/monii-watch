@@ -22,6 +22,7 @@ import { Input } from '../components/ui/Input';
 import { MobilePageHeader } from '../components/Layout/MobilePageHeader';
 import { computeStreaks } from '../domain/streaks';
 import { EmergencyFundTile } from '../components/Goals/EmergencyFundTile';
+import { DealMatchesBanner } from '../components/Budget/DealMatchesBanner';
 
 const PACE_TONES = {
   'on-track': { ring: 'ring-positive/40',  text: 'text-positive', bg: 'bg-positive/10',  bar: 'bg-positive', label: 'On track' },
@@ -91,6 +92,7 @@ export function GoalsPage() {
         }
       />
       <div className="p-3 sm:p-5 space-y-4">
+      <DealMatchesBanner />
       <div className="glass-panel p-4 sm:p-5 hidden md:flex flex-wrap items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-accent/15 text-accent grid place-items-center flex-shrink-0">
           <Target size={18} />

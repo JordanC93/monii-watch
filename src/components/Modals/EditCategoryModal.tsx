@@ -36,6 +36,9 @@ export function EditCategoryModal({ open, onClose, categoryId }: { open: boolean
   const [photoOpacity, setPhotoOpacity] = useState<number>(cat?.customImageOpacity ?? 0.18);
   const [link, setLink] = useState<string>(cat?.link ?? '');
   const [notes, setNotes] = useState<string>(cat?.notes ?? '');
+  // Tier 12 #10 — deal-feed keywords. Comma-separated string for UX;
+  // split into array on save. e.g. "Battlefield 6 PC, BF6 Steam"
+  const [dealKeywordsText, setDealKeywordsText] = useState<string>((cat?.dealKeywords ?? []).join(', '));
   const [taxDeductible, setTaxDeductible] = useState<NonNullable<typeof cat>['taxDeductible'] | undefined>(cat?.taxDeductible);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -70,6 +73,10 @@ export function EditCategoryModal({ open, onClose, categoryId }: { open: boolean
       link: link.trim() || null,
       notes: notes.trim() || null,
       taxDeductible: taxDeductible ?? undefined,
+      dealKeywords: dealKeywordsText
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
     });
     onClose();
   }
@@ -325,6 +332,25 @@ export function EditCategoryModal({ open, onClose, categoryId }: { open: boolean
               rows={3}
               className="w-full mt-0.5 px-3 py-2 rounded-lg bg-surface-2 border border-border text-fg text-[13px] focus:outline-none focus:border-accent resize-y"
             />
+          </div>
+          <div>
+            <label className="text-[11.5px] text-fg-subtle">
+              Deal-tracker keywords
+              <span className="text-fg-subtle/70 ml-1">— comma-separated, ALL must match a post</span>
+            </label>
+            <Input
+              value={dealKeywordsText}
+              onChange={(e) => setDealKeywordsText(e.target.value)}
+              placeholder='e.g. "Battlefield 6 PC, BF6 Steam"'
+              className="w-full mt-0.5"
+            />
+            <div className="text-[10.5px] text-fg-subtle mt-1 leading-snug">
+              Monii Watch will scan public deal feeds (Wario64 Bluesky,
+              Slickdeals, Reddit deal subs) and ping you when a post
+              matches all keywords AND a price ≤ what you've saved
+              shows up. Be specific — "soundbar" is too broad; "Sonos
+              Beam Gen 2" is great. Enable feeds in Settings → Deal feeds.
+            </div>
           </div>
           <HardLimitField categoryId={categoryId} />
         </div>

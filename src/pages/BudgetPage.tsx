@@ -4,6 +4,7 @@ import { QuickStats } from '../components/Budget/QuickStats';
 import { OverspendingAlert } from '../components/Budget/OverspendingAlert';
 import { SetupChecklist } from '../components/Budget/SetupChecklist';
 import { GoalDealBanner } from '../components/Budget/GoalDealBanner';
+import { DealMatchesBanner } from '../components/Budget/DealMatchesBanner';
 import { SeasonalHint } from '../components/Budget/SeasonalHint';
 import { SafeToSpendBanner } from '../components/Budget/SafeToSpendBanner';
 import { CreditUtilizationAlert } from '../components/Budget/CreditUtilizationAlert';
@@ -55,6 +56,7 @@ export function BudgetPage() {
         <HardLimitsBanner />
         <SubscriptionUsagePrompt />
         <GoalDealBanner />
+        <DealMatchesBanner />
         <OverspendingAlert />
         <QuickStats />
         <BudgetTable />

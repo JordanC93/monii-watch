@@ -39,6 +39,19 @@ type ReleaseEntry = {
  */
 export const RELEASE_NOTES: ReleaseEntry[] = [
   {
+    version: '0.6.9',
+    title: 'Auto deal tracker — public feeds, no scraping',
+    bullets: [
+      'New: per-goal "deal-tracker keywords." Add a category, type "Battlefield 6 PC" or "Sonos Beam Gen 2" — Monii now scans public deal feeds for sales matching your goals.',
+      'New default sources: Wario64 (Bluesky) for game sales, plus Slickdeals per-keyword search for any consumer item.',
+      'Optional sources: Slickdeals frontpage, r/GameDeals, r/buildapcsales, r/deals, r/frugalmalefashion, r/femalefashionadvice. Enable each in Settings → Deal feeds.',
+      'When a feed post matches your keywords AND extracts a price ≤ what you have saved, you\'ll see a deal alert with a one-tap link to the store.',
+      '"Not my item" snoozes that specific match for 90 days.',
+      'Privacy: all reads hit public APIs (same as visiting the website). Nothing about you or your goals is ever sent anywhere.',
+      'Fully throttled: 30-min minimum poll interval, regardless of how many tabs you have open.',
+    ],
+  },
+  {
     version: '0.6.8',
     title: 'Recovery + sharing + iCloud',
     bullets: [

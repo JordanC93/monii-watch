@@ -114,6 +114,13 @@ async function bootstrap() {
     });
   }, 1500);
 
+  // Tier 12 #10 — deal-feed engine. Polls public RSS / Bluesky feeds
+  // (Wario64, Slickdeals, Reddit deal subs) and matches posts against
+  // per-goal keywords. No-op when no goals have keywords or no feeds
+  // are enabled. Visibility-aware: re-polls when the tab regains focus
+  // if last poll was > 30 min ago.
+  void import('./lib/dealFeedEngine').then((m) => m.startDealFeedEngine()).catch(() => {});
+
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <BrowserRouter>
