@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { onSyncStatus, type SyncStatus, peerCount } from '../../sync/provider';
 import { useFormatMoney, formatInCurrency } from '../../lib/format';
 import {
-  getActiveWorkspaceId, listWorkspaces, readAllWorkspaceSummaries, writeWorkspaceSummary,
+  getActiveWorkspaceId, listWorkspaces, readAllWorkspaceSummaries,
 } from '../../lib/workspaces';
 
 // Persisted UI preferences for the sidebar — local-per-device.
@@ -85,36 +85,23 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const [sync, setSync] = useState<SyncStatus>('idle');
   useEffect(() => onSyncStatus((s) => setSync(s)), []);
 
-  // Tier 10 #6 — write the active workspace's summary on every NW
-  // change so the cross-workspace widget on OTHER workspaces sees
-  // up-to-date numbers next time they're opened. Cheap call; only
-  // touches localStorage when the value actually changes.
-  useEffect(() => {
-    const wsId = getActiveWorkspaceId();
-    writeWorkspaceSummary(wsId, {
-      netWorth: networth.total,
-      currency: settings.currency || 'USD',
-      updatedAt: Date.now(),
-    });
-  }, [networth.total, settings.currency]);
+  // Tier 10 #6 — workspace summary writes used to live here, but the
+  // Sidebar isn't rendered on the compact (mobile) layout — meaning
+  // mobile users' active workspace never wrote its summary, so other
+  // workspaces showed "—" forever. Now lifted to App.tsx so the
+  // write happens on every layout. See `writeWorkspaceSummary`
+  // useEffect in App.tsx.
 
   const handleClick = () => onNavigate?.();
 
   return (
     <aside data-no-meniscus data-material="regular" style={{ width }} className="h-full flex-shrink-0 bg-surface border-r border-border flex flex-col text-[13px] glass-panel relative">
-      {/* Header height matches the TopBar (h-14 = 56px) so the bottom
-          borders + content line up across the sidebar/content split.
-          The header is also a Mac drag region — `data-tauri-drag-region`
-          + the `app-drag` class which sets `-webkit-app-region: drag`
-          ONLY on macOS+Tauri. The `mac-titlebar-leading-inset` class
-          adds left padding equal to the traffic-lights width so the
-          OS-drawn dots have somewhere to live without overlapping the
-          budget icon. Both rules are no-ops on every other host. */}
-      <div
-        data-tauri-drag-region
-        className="px-4 h-14 flex items-center justify-between border-b border-border/60 app-drag mac-titlebar-leading-inset"
-      >
-        <div className="flex items-center gap-2 app-no-drag">
+      {/* REVERTED in v0.7.0 — the integrated drag region attempt
+          didn't fix the user's alignment complaint. Punted to Tier 14
+          #13 for proper investigation. Restoring the original
+          `pt-4 pb-3` layout. */}
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-md bg-gradient-to-br from-cyan-400 to-cyan-700 grid place-items-center text-white font-bold">$</div>
           <div>
             <div className="font-semibold text-[14px] leading-tight truncate max-w-[140px]">{settings.budgetName}</div>

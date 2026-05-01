@@ -8,6 +8,7 @@ import { cn } from '../../lib/cn';
 import { detectRecurringForPayee } from '../../domain/subscriptions';
 import { toast } from '../../lib/toast';
 import { PayeeSuggestions } from './PayeeSuggestions';
+import { findDuplicateOf } from '../../domain/duplicates';
 
 type Props = {
   accountId?: string;
@@ -71,6 +72,31 @@ export function QuickAdd({ accountId }: Props) {
     if (o !== null && o !== 0) amount = -Math.abs(o);
     else if (i !== null && i !== 0) amount = Math.abs(i);
     else return;
+
+    // Tier 14 #5 — manual duplicate detection. If a transaction with
+    // the same (account, date, amount, payee) already exists, show a
+    // confirmation prompt before committing. Skipped for transfers
+    // because legitimate scheduled transfers might fire twice on
+    // boundary days.
+    if (!transferTo && payee.trim()) {
+      const allTxns = useBudget.getState().transactions;
+      const allPayees = useBudget.getState().payees;
+      const matches = findDuplicateOf(
+        [{ accountId: acctId, date, payee: payee.trim() || null, categoryId: null, amount }],
+        allTxns,
+        allPayees,
+      );
+      const m = matches[0];
+      if (m) {
+        const existing = allTxns.find((t) => t.id === m.existingId);
+        const existingDate = existing?.date ?? '?';
+        if (!confirm(
+          `Looks like you already added "${payee.trim()}" on ${existingDate} for the same amount in this account. Add anyway?`
+        )) {
+          return;
+        }
+      }
+    }
 
     if (transferTo) {
       createTransaction({

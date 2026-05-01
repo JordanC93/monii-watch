@@ -1,5 +1,144 @@
 # Changelog
 
+## Released
+
+### v0.7.0 — Polish, safety, performance — App Store-ready foundation
+
+A consolidating release. Sweeps up the long-tail of "things I
+flagged but hadn't fixed yet," lays the groundwork for App Store
+submission, and tightens performance + privacy in the spots
+that matter.
+
+#### Safety nets
+
+- **Boot-crash recovery splash.** If `bootstrap()` throws before
+  React renders, the user used to see a blank window. Now they
+  see a friendly splash with the error message, a Retry button,
+  and a "Copy error details" button. Plain DOM injection — no
+  React, no module dependencies — so it works even if React
+  itself failed to import.
+- **30-day export reminder.** New `<ExportReminderBanner />` on
+  the Budget page surfaces when both `lastManualExportAt` and
+  `lastAutoBackupAt` are stale. Dismissed for 30 days on click.
+  Hidden for new users (less than 7 days since first run, no
+  data yet).
+- **Manual duplicate detection on QuickAdd.** Already worked on
+  bulk imports; now also runs when a user manually adds a
+  transaction. Warns before saving when the same
+  (account, date, amount, payee) tuple already exists.
+
+#### Privacy + security
+
+- **Optional PIN app lock.** New `lib/appLock.ts` (PBKDF2-SHA256
+  200k iterations, per-device localStorage hash) +
+  `<AppLockScreen />` overlay. Settings → Display → App lock.
+  Locks on cold boot AND after a configurable background
+  timeout. Includes a Tab-key trap + body-scroll lock so the
+  underlying UI can't be reached.
+- **Privacy & data page** at `/privacy` (More → Recovery &
+  safety). App Store reviewers expect a clear in-app affordance
+  for data deletion + export; this page explains we have no
+  server data and points at the local equivalents (export JSON,
+  reset everything). Mechanically satisfies GDPR / CCPA
+  portability + erasure.
+- **Privacy policy** in `docs/PRIVACY_POLICY.md` + App Store
+  privacy disclosure reference in `docs/APP_STORE_PRIVACY.md`
+  (App Privacy form filled out as "Data Not Collected" across
+  the board, with the optional sync transports disclosed).
+- **Chat audit log sanitization.** Previously only stripped
+  `$1,234` style amounts; now also catches bare decimals
+  (`12.50`), comma-grouped numbers (`12,345`), and other
+  currency symbols (€, £, ¥, ₹, ₩).
+
+#### Sync correctness + performance
+
+- **Critical fix: digest cache invalidation on remote pull.**
+  v0.6.14 introduced a "skip-when-equal" digest cache to avoid
+  re-encrypting + writing the cloud snapshot when local state
+  hasn't changed. Bug: when a remote pull updated local state,
+  the digest was NOT invalidated — so the next local edit's
+  push got skipped because the digest still matched the
+  pre-pull state. Multi-device users could silently lose
+  updates. Now: the digest is cleared whenever a pull adds
+  bytes to local state (and on `restorePreviousSnapshot`).
+- **Skip-when-equal push.** When the SHA-256 digest of the
+  encoded Yjs state equals the last successfully pushed
+  digest, skip the push entirely. Saves ~90% of unnecessary
+  writes for users whose observers fire on operations that
+  don't change content.
+
+#### Performance
+
+- **BudgetTable memoization.** `visibleGroups` and a
+  `categoriesByGroup` bucket are now `useMemo`-ed.
+  `onCommitAssignment` is `useCallback`-ed so descendant
+  `React.memo` actually skips work. Stable empty-array
+  reference for groups with no categories.
+
+#### Mobile UX
+
+- **Cross-workspace summary widget fixed on mobile.** The
+  Sidebar-only effect that wrote workspace summaries to
+  localStorage was lifted to App.tsx. Other workspaces now
+  show real numbers on mobile too.
+- **Floating "back to top" button** on long pages (Reports,
+  Goals, Search) — appears after 400 px of scroll, smooth-
+  scrolls to top.
+- **Toast cap at 3 visible** with a "+N more" overflow
+  indicator. Stops the screen filling up during bulk
+  operations.
+
+#### Onboarding + discovery
+
+- **Welcome modal cold-user pass.** First step now leads with
+  a 3-card pitch (Private · Free · Yours) instead of a wall of
+  text. Designed for users coming in cold from the App Store.
+- **Chat intents for deal-tracker keywords.**
+  - `watch [item] under $X` → sets `dealKeywords` +
+    `targetItemPrice` on the matching goal
+  - `stop watching [item]` → clears `dealKeywords`
+  - Removes the need to leave chat to open Edit Category for a
+    common task.
+
+#### Title bar (REVERTED)
+
+The v0.6.16 + v0.6.17 attempts to unify the macOS title bar
+with the sidebar header didn't fix the alignment complaint on
+the user's system. Both reverted in v0.7.0. Properly tracked
+in `docs/TODO_FEATURES.md` Tier 14 #13 — needs high-fidelity
+screenshot diff before another attempt.
+
+#### Schema additions
+
+- `Settings.lastManualExportAt: number | undefined`
+- `Settings.exportReminderShownAt: number | undefined`
+- `Settings.appLockEnabled: boolean`
+- `Settings.appLockTimeoutMinutes: number`
+
+#### New files
+
+- `src/lib/appLock.ts` (PIN hashing + relock logic)
+- `src/components/Layout/AppLockScreen.tsx`
+- `src/components/Budget/ExportReminderBanner.tsx`
+- `src/components/ui/BackToTop.tsx`
+- `src/pages/PrivacyPage.tsx`
+- `docs/PRIVACY_POLICY.md`
+- `docs/APP_STORE_PRIVACY.md`
+
+#### TODO additions
+
+- Tier 13 — App Store launch readiness (10 items)
+- Tier 14 — nice-to-haves (12 items, several shipped in v0.7.0)
+- Tier 14 #13 — title-bar fix punted with implementation
+  notes for next attempt
+
+#### Tests + quality
+
+- 210 tests passing across 23 files
+- Typecheck + build clean
+- Audit pass found 3 real issues — all 3 fixed in this release
+  before tag
+
 ## Unreleased
 
 ### v0.6.17 — Unified macOS title bar + Updates moved to General

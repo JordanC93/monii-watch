@@ -39,6 +39,26 @@ type ReleaseEntry = {
  */
 export const RELEASE_NOTES: ReleaseEntry[] = [
   {
+    version: '0.7.0',
+    title: 'Polish, safety, performance — App Store-ready foundation',
+    bullets: [
+      'Boot-crash recovery: any startup failure now shows a friendly splash with retry + copy-error-details, instead of a blank screen.',
+      'New: optional PIN app lock. Settings → Display → App lock. Locks on cold boot + after a configurable background timeout. Per-device, your synced data isn\'t affected.',
+      'New: 30-day export reminder banner on the Budget page. Quiet again for 30 days after you back up.',
+      'New: chat intents "watch [item] under $X" / "stop watching [item]" — manage deal-tracker keywords without leaving chat.',
+      'New: Privacy & data page (More → Recovery & safety) — explains what we collect (nothing), with one-tap export + reset for GDPR/CCPA portability.',
+      'New: Floating "back to top" button on long pages.',
+      'Fix: cross-workspace summary widget now shows other workspaces correctly on mobile (effect was Sidebar-only).',
+      'Fix: manual duplicate detection on QuickAdd — warns before adding the same payee/amount/date twice.',
+      'Fix: cloud sync no longer silently drops multi-device updates (digest cache invalidates on remote pull).',
+      'Cloud sync: skip-when-equal optimization — pushes are skipped when the encoded state is byte-identical to the last successful push. Saves ~90% of unnecessary writes.',
+      'Privacy: chat audit log now strips amount-shaped tokens from descriptions (broader regex catches non-$ formats too).',
+      'Welcome modal opens with a 3-card pitch ("Private · Free · Yours") for cold App Store users.',
+      'Performance: BudgetTable memoizes group filtering + categories-by-group bucketing + commit callback. Visible at 30+ rows.',
+      'Reverted the v0.6.16/v0.6.17 title-bar attempts (still misaligned). Tracked in Tier 14 #13 for proper investigation.',
+    ],
+  },
+  {
     version: '0.6.17',
     title: 'Unified macOS title bar + Updates moved to General',
     bullets: [

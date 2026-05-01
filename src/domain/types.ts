@@ -1174,6 +1174,29 @@ export type Settings = {
   /** Unix ms of the last successful auto-backup download. */
   lastAutoBackupAt: number;
   /**
+   * Tier 14 (export reminder). Unix ms of the last manual JSON
+   * export. The onboarding-aware nudge fires once every 30 days
+   * when this is stale, encouraging users to keep a fresh local
+   * backup. Auto-backup users have this set automatically too.
+   */
+  lastManualExportAt?: number;
+  /** Unix ms when we last surfaced the export reminder. Suppresses re-fires within 30 days even if dismissed. */
+  exportReminderShownAt?: number;
+  /**
+   * App-lock — Tier 13 #5 / privacy. When enabled, the app shows a
+   * lock screen on every cold boot and after `appLockTimeoutMinutes`
+   * of inactivity. The PIN is hashed with PBKDF2 (the existing
+   * crypto pipeline) and stored in localStorage on this device only
+   * (not synced — different devices unlock independently).
+   *
+   * Local per-device. The Yjs settings carry the master toggle so
+   * the user knows "lock is on" across devices, but each device
+   * stores its own PIN hash in localStorage.
+   */
+  appLockEnabled: boolean;
+  /** Lock the app after this many minutes of background time. 0 = lock immediately on background. */
+  appLockTimeoutMinutes: number;
+  /**
    * Tier 10 #9 — recent auto-backup history (capped at 5). Each entry
    * is the unix ms timestamp + filename of a download triggered by
    * the auto-backup engine. Lets the Settings panel show "last 5

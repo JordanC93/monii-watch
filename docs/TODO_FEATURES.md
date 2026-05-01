@@ -1133,6 +1133,27 @@ enough for the v0.6.x wave. Roughly priority-ordered.
   sense, but sync requires connectivity. A subtle "offline" pill
   in the sidebar's sync status when WebRTC peers are unreachable.
 
+### #13 macOS title-bar / sidebar header alignment ★ blocker for visual polish
+- Two attempts already shipped + reverted (v0.6.16 + v0.6.17).
+- v0.6.16 made both headers `h-14`. User reported still
+  misaligned.
+- v0.6.17 tried the integrated-drag-region pattern with the
+  traffic lights overlapping the sidebar header (Mail.app /
+  Linear convention). User reported still misaligned (with a
+  fresh screenshot showing the original look had also been
+  reverted somehow).
+- Both reverted in v0.7.0 — back to the original 28 px standalone
+  drag strip with `pt-4 pb-3` sidebar header + `h-12` TopBar.
+- **What needs to happen next**: get a high-fidelity screenshot
+  + ruler measurements of what the user expects vs what the
+  code produces. There's likely a CSS/host-attribute interaction
+  we're missing — possibly the user's setup has a different
+  `safe-area-inset-top` value, or `-webkit-app-region: drag` is
+  bleeding upward, or the `glass-panel` border-radius is creating
+  a visual discontinuity.
+- Until the actual cause is identified, leave the layout as v0.7.0
+  has it.
+
 ---
 
 ## How to use this with future Claude sessions

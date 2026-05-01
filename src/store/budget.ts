@@ -95,6 +95,10 @@ const initialSettings: Settings = {
   icloudLastSyncedAt: 0,
   dealFeedsEnabled: undefined,
   dealFeedsLastPolledAt: 0,
+  lastManualExportAt: undefined,
+  exportReminderShownAt: undefined,
+  appLockEnabled: false,
+  appLockTimeoutMinutes: 5,
 };
 
 export const useBudget = create<State>((set) => ({

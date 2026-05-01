@@ -130,4 +130,138 @@ async function bootstrap() {
   );
 }
 
-bootstrap();
+/**
+ * Boot-crash recovery splash. If `bootstrap()` throws before React
+ * renders, the user would otherwise see a blank screen with no path
+ * forward. This handler injects a minimal HTML/CSS splash with:
+ *
+ *   - The error message (so they can paste it for support)
+ *   - A "Retry" button that reloads the app
+ *   - An "Open data folder" hint pointing at the IndexedDB location
+ *   - A clear note that "your data is safe — only the app shell
+ *     failed to start"
+ *
+ * Pure DOM injection — no React, no module dependencies — because
+ * if React itself failed to load, importing components would also
+ * fail. Style is inline so it works even if globals.css didn't
+ * load.
+ */
+function renderBootCrashSplash(err: unknown): void {
+  const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  // Best-effort stack capture for the support-paste flow.
+  const stack = err instanceof Error ? err.stack ?? '' : '';
+  const root = document.getElementById('root');
+  if (!root) return;
+  root.innerHTML = `
+    <div style="
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #0E1117;
+      color: #E5E7EB;
+    ">
+      <div style="max-width: 520px; width: 100%;">
+        <div style="
+          width: 56px; height: 56px; border-radius: 16px;
+          background: linear-gradient(135deg, #f59e0b, #ef4444);
+          display: grid; place-items: center;
+          margin-bottom: 20px;
+          font-size: 28px;
+        ">⚠</div>
+        <h1 style="margin: 0 0 12px; font-size: 22px; font-weight: 600;">
+          Monii Watch couldn't start
+        </h1>
+        <p style="margin: 0 0 16px; color: rgba(229,231,235,0.7); line-height: 1.5;">
+          The app shell failed to load. <strong style="color: #34d399;">Your data is safe</strong> — it lives in your browser's IndexedDB and wasn't touched. Try a reload first.
+        </p>
+        <div style="
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 10px;
+          padding: 12px 14px;
+          margin-bottom: 20px;
+          font-family: ui-monospace, Menlo, monospace;
+          font-size: 12px;
+          color: #f87171;
+          word-break: break-word;
+        ">${escapeHtml(message)}</div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="boot-retry" style="
+            padding: 10px 16px;
+            border-radius: 8px;
+            background: #7C5CFF;
+            color: white;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+          ">Reload app</button>
+          <button id="boot-copy" style="
+            padding: 10px 16px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.08);
+            color: #E5E7EB;
+            border: 1px solid rgba(255,255,255,0.12);
+            font-size: 14px;
+            cursor: pointer;
+          ">Copy error details</button>
+        </div>
+        <details style="margin-top: 20px; color: rgba(229,231,235,0.5); font-size: 12px;">
+          <summary style="cursor: pointer;">Recovery options</summary>
+          <div style="margin-top: 8px; line-height: 1.6;">
+            <p style="margin: 4px 0;">If reloading doesn't help:</p>
+            <ul style="padding-left: 18px; margin: 4px 0;">
+              <li>Force-quit the app and reopen it</li>
+              <li>Try opening from a different device that's already paired</li>
+              <li>Sign out + back in to your cloud-storage app (if using Cloud folder sync) — sometimes a stale auth token blocks startup</li>
+              <li>As a last resort: clear the browser's IndexedDB for this origin and restore from a JSON backup</li>
+            </ul>
+          </div>
+        </details>
+      </div>
+    </div>
+  `;
+  const retry = document.getElementById('boot-retry');
+  if (retry) retry.addEventListener('click', () => window.location.reload());
+  const copy = document.getElementById('boot-copy');
+  if (copy) {
+    copy.addEventListener('click', () => {
+      const text = `Monii Watch boot failure\n\n${message}\n\n${stack}`;
+      try {
+        void navigator.clipboard.writeText(text);
+        copy.textContent = 'Copied ✓';
+        setTimeout(() => { if (copy) copy.textContent = 'Copy error details'; }, 2000);
+      } catch {
+        copy.textContent = 'Clipboard unavailable';
+      }
+    });
+  }
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+bootstrap().catch((err) => {
+  // The single most-likely silent killer at launch. Without this,
+  // any throw during persistence init / Yjs setup / theme load /
+  // OAuth callback handling would leave the user staring at a
+  // blank screen with no recourse.
+  console.error('[bootstrap] failed', err);
+  try {
+    renderBootCrashSplash(err);
+  } catch (renderErr) {
+    // If even the splash fails, fall through to the browser's
+    // default empty-page behavior. At least the console will
+    // have the original error.
+    console.error('[bootstrap] splash render also failed', renderErr);
+  }
+});

@@ -18,6 +18,14 @@ const TONE_RING: Record<ToastTone, string> = {
 };
 
 /**
+ * Maximum visible toasts at once. Older / extra toasts get a
+ * single-line collapsed indicator below the visible stack so the
+ * screen doesn't get overwhelmed when many actions fire at once
+ * (e.g. bulk-import success bursts).
+ */
+const MAX_VISIBLE = 3;
+
+/**
  * Top-center toast stack. Mounted once at the app root next to ChatPanel /
  * CommandPalette. Stays out of the way (above content, below modals).
  */
@@ -26,6 +34,8 @@ export function Toaster() {
   useEffect(() => subscribeToasts(() => force((x) => x + 1)), []);
   const toasts = listToasts();
   if (toasts.length === 0) return null;
+  const visible = toasts.slice(-MAX_VISIBLE);
+  const overflow = Math.max(0, toasts.length - visible.length);
   return (
     <div
       // Position: top-center on desktop (≥md), bottom-center on mobile.
@@ -41,7 +51,12 @@ export function Toaster() {
       className="fixed left-1/2 -translate-x-1/2 z-[60] flex flex-col items-center gap-2 pointer-events-none top-3 md:top-3 max-md:top-auto max-md:bottom-[calc(80px+env(safe-area-inset-bottom,0))]"
       style={{ paddingTop: 'env(safe-area-inset-top, 0)' }}
     >
-      {toasts.map((t) => <ToastRow key={t.id} t={t} />)}
+      {overflow > 0 && (
+        <div className="pointer-events-none text-[10.5px] text-fg-subtle bg-surface-2/60 backdrop-blur px-2 py-0.5 rounded-full">
+          +{overflow} more
+        </div>
+      )}
+      {visible.map((t) => <ToastRow key={t.id} t={t} />)}
     </div>
   );
 }

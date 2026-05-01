@@ -104,6 +104,10 @@ const DEFAULT_SETTINGS: Settings = {
   icloudLastSyncedAt: 0,
   dealFeedsEnabled: undefined, // set on first read by `getSettings()` to the default map
   dealFeedsLastPolledAt: 0,
+  lastManualExportAt: undefined,
+  exportReminderShownAt: undefined,
+  appLockEnabled: false,
+  appLockTimeoutMinutes: 5,
 };
 
 /** Internal tag we add to category names to identify auto-created credit-card payment categories. */
@@ -2086,10 +2090,44 @@ export function logChatMutation(description: string, canUndo: boolean = false): 
   const cur = (settingsMap().get('chatAuditLog') as Array<{ id: string; at: number; description: string; canUndo: boolean }> | undefined) ?? [];
   const cutoff = Date.now() - 30 * 86400_000;
   const recent = cur.filter((e) => e.at >= cutoff);
-  recent.push({ id: newId(), at: Date.now(), description, canUndo });
+  // Tier 14 — sanitize the description before writing. The chat input
+  // can include sensitive freeform text ("Add transaction $5000 to
+  // Mistress Account") that lands verbatim. Strip dollar amounts to
+  // a generic placeholder + truncate to 240 chars. The user can still
+  // see WHAT happened (e.g. "Added transaction → Account") without
+  // the literal amount.
+  const sanitized = sanitizeAuditDescription(description);
+  recent.push({ id: newId(), at: Date.now(), description: sanitized, canUndo });
   // FIFO cap
   while (recent.length > 200) recent.shift();
   tx(() => settingsMap().set('chatAuditLog', recent));
+}
+
+/**
+ * Replace amount-like tokens with a `•••` placeholder so the chat
+ * audit log doesn't leak literal amounts. Keeps the rest of the
+ * description intact (verbs, payee names, account names).
+ *
+ * Patterns matched (in priority order):
+ *   - Common currency-symbol-prefixed amounts: $, €, £, ¥, ₹, ₩
+ *   - "X.XX" decimals (e.g. "12.50") — common bare-number form
+ *   - "1,234" or "1,234.56" thousands-grouped numbers ≥ 4 digits
+ *   - Standalone integers ≥ 4 digits (skips small token IDs / years)
+ *
+ * Conservative — keeps single + double digit numbers (years like 2026,
+ * counts like "5 transactions", IDs like "txn 12") so the entry stays
+ * readable. The goal is shoulder-surf-deterrent privacy, not
+ * forensic-grade redaction.
+ */
+function sanitizeAuditDescription(s: string): string {
+  return s
+    // Currency-symbol-prefixed amounts (most common case).
+    .replace(/[$€£¥₹₩]\s?[0-9][0-9,_]*(?:\.[0-9]{1,2})?/g, '•••')
+    // Bare decimals like "12.50" (cents-typed amounts).
+    .replace(/\b\d+\.\d{1,2}\b/g, '•••')
+    // Comma-grouped thousands like "1,234" or "12,345.67".
+    .replace(/\b\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?\b/g, '•••')
+    .slice(0, 240);
 }
 
 // -- NW snapshots (Tier 1 #4) ------------------------------------------

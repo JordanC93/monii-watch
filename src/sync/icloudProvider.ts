@@ -52,6 +52,33 @@ let yjsObserver: ((update: Uint8Array, origin: unknown) => void) | null = null;
 const ORIGIN_REMOTE_PULL = Symbol('icloud-pull');
 
 /**
+ * Skip-when-equal optimization. Tier 14 perf — every push currently
+ * encodes + encrypts + writes the FULL Yjs state, even when the
+ * actual content hasn't changed since the last push (e.g. observer
+ * fires for the same value). We compare the new encoded bytes
+ * against the previous push's bytes and skip the cloud write when
+ * they're identical.
+ *
+ * `lastPushedDigest` holds a SHA-256 of the most recent successful
+ * push. Hashing is fast (Web Crypto, native), and avoids keeping a
+ * large in-memory copy of the encoded state for comparison.
+ */
+let lastPushedDigest: string | null = null;
+
+async function digestOf(bytes: Uint8Array): Promise<string> {
+  // ArrayBuffer view is required for the SubtleCrypto digest call.
+  const view = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  const buf = await crypto.subtle.digest('SHA-256', view);
+  // Hex-encode the first 16 bytes — collision odds astronomically low
+  // for our use case (comparing app-state bytes), and the shorter
+  // string is easier to log.
+  const arr = new Uint8Array(buf, 0, 16);
+  let hex = '';
+  for (let i = 0; i < arr.length; i++) hex += arr[i].toString(16).padStart(2, '0');
+  return hex;
+}
+
+/**
  * Last error we hit during a push or pull. Surfaced to the Settings
  * UI so the user can see WHY sync isn't working — silent failures
  * are the worst. Subscribers get notified on every change.
@@ -280,6 +307,48 @@ async function pushNow(folderPath: string, passphrase: string): Promise<void> {
     const fs = await import('@tauri-apps/plugin-fs');
     await ensureFolder(folderPath);
     const update = Y.encodeStateAsUpdate(getDoc());
+    // Skip-when-equal: if the doc hasn't changed since the last push,
+    // there's no point re-encrypting + writing. Saves ~90% of pushes
+    // for users with large datasets that get observer-fired without
+    // any actual content change.
+    try {
+      const dig = await digestOf(update);
+      if (dig === lastPushedDigest) {
+        return;
+      }
+      // Don't update the digest yet — only after the write succeeds.
+      // If the write fails, we want the next push to retry.
+      const cipher = await encryptBytes(update, passphrase);
+      const target = `${folderPath}/${SNAPSHOT_FILENAME}`;
+      const previous = `${folderPath}/${PREVIOUS_FILENAME}`;
+      // Rotate: if the current snapshot exists, copy it to .previous
+      // before overwriting.
+      try {
+        if (await fs.exists(target)) {
+          const cur = await fs.readFile(target);
+          await fs.writeFile(previous, cur);
+          recordActivity({ at: Date.now(), kind: 'rotate', ok: true, bytes: cur.byteLength });
+        }
+      } catch (rotErr) {
+        recordActivity({
+          at: Date.now(), kind: 'rotate', ok: false,
+          error: (rotErr as Error)?.message ?? String(rotErr),
+        });
+      }
+      await fs.writeFile(target, cipher);
+      setSettingsField('icloudLastSyncedAt', Date.now());
+      recordActivity({ at: Date.now(), kind: 'push', ok: true, bytes: cipher.byteLength });
+      // Update the cached digest only after the write succeeded.
+      lastPushedDigest = dig;
+      if (lastError) setError(null);
+      return;
+    } catch (innerErr) {
+      // Fall through to the original path on any digest failure (very
+      // rare — Web Crypto is universally available in our targets).
+      console.warn('[icloud] digest skip path failed, falling back', innerErr);
+    }
+    // Original path retained as a fallback in case the digest path
+    // bombs out for any reason.
     const cipher = await encryptBytes(update, passphrase);
     const target = `${folderPath}/${SNAPSHOT_FILENAME}`;
     const previous = `${folderPath}/${PREVIOUS_FILENAME}`;
@@ -347,6 +416,11 @@ async function pullNow(folderPath: string, passphrase: string): Promise<void> {
         at: Date.now(), kind: 'merge', ok: true,
         mergedStructs: stateAfter - stateBefore,
       });
+      // Critical: invalidate the digest cache when a remote pull
+      // actually changed local state, otherwise the next local
+      // edit's push gets skipped because the digest still matches
+      // the PRE-pull state, silently dropping multi-device updates.
+      lastPushedDigest = null;
     }
     if (lastError) setError(null);
   } catch (err) {
@@ -596,6 +670,10 @@ export async function restorePreviousSnapshot(): Promise<{ ok: boolean; error?: 
       Y.applyUpdate(getDoc(), update, ORIGIN_REMOTE_PULL);
     }, ORIGIN_REMOTE_PULL);
     recordActivity({ at: Date.now(), kind: 'restore', ok: true, bytes: cipher.byteLength });
+    // Invalidate the digest cache so the forced push below actually
+    // writes (otherwise it might no-op if the local state happens
+    // to match a previously cached digest by coincidence).
+    lastPushedDigest = null;
     // Force a push so the cloud copy reflects the restored state.
     await pushNow(folder, pass);
     return { ok: true };

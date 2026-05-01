@@ -5,6 +5,7 @@ import { OverspendingAlert } from '../components/Budget/OverspendingAlert';
 import { SetupChecklist } from '../components/Budget/SetupChecklist';
 import { GoalDealBanner } from '../components/Budget/GoalDealBanner';
 import { DealMatchesBanner } from '../components/Budget/DealMatchesBanner';
+import { ExportReminderBanner } from '../components/Budget/ExportReminderBanner';
 import { SeasonalHint } from '../components/Budget/SeasonalHint';
 import { SafeToSpendBanner } from '../components/Budget/SafeToSpendBanner';
 import { CreditUtilizationAlert } from '../components/Budget/CreditUtilizationAlert';
@@ -46,6 +47,7 @@ export function BudgetPage() {
           go edge-to-edge if it wants to. */}
       <div className="p-3 sm:p-5 space-y-4">
         <SetupChecklist />
+        <ExportReminderBanner />
         <LastSessionBanner />
         <ReadyToAssign />
         <SafeToSpendBanner />

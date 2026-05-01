@@ -110,19 +110,32 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
       body: (
         <>
           <p>
-            Monii Watch is a budgeting app that helps you give every dollar a job
-            <em> before</em> you spend it. Built for privacy: nothing leaves
-            your device unless you turn on sync between your own devices.
+            Monii Watch is a budgeting app that helps you give every dollar
+            a job <em>before</em> you spend it. Free, no accounts, no
+            subscription.
           </p>
-          <p className="mt-2">
-            This tour will get you set up in about a minute. You can skip any
-            step — there's a small checklist on the Budget page that picks up
-            whatever you missed.
-          </p>
-          <div className="mt-3 flex items-center gap-2 text-positive bg-positive/10 px-3 py-2 rounded-lg text-[12.5px]">
-            <ShieldCheck size={14} />
-            <span>Your data stays on your device. We never see it.</span>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11.5px]">
+            <div className="bg-positive/10 text-positive rounded-lg p-2.5 text-center">
+              <ShieldCheck size={16} className="mx-auto mb-1" />
+              <div className="font-semibold">Private</div>
+              <div className="text-fg-muted leading-snug">No bank linking. End-to-end encrypted sync.</div>
+            </div>
+            <div className="bg-accent/10 text-accent rounded-lg p-2.5 text-center">
+              <Sparkles size={16} className="mx-auto mb-1" />
+              <div className="font-semibold">Free</div>
+              <div className="text-fg-muted leading-snug">No subscription, no upsell, no ads.</div>
+            </div>
+            <div className="bg-warning/10 text-warning rounded-lg p-2.5 text-center">
+              <ListChecks size={16} className="mx-auto mb-1" />
+              <div className="font-semibold">Yours</div>
+              <div className="text-fg-muted leading-snug">JSON export anytime. No vendor lock-in.</div>
+            </div>
           </div>
+          <p className="mt-3 text-[12.5px] text-fg-subtle">
+            This 60-second tour gets you set up. You can skip any step —
+            the Budget page has a checklist that picks up whatever you
+            missed.
+          </p>
         </>
       ),
     },

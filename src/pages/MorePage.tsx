@@ -14,7 +14,7 @@ import {
   CalendarClock, CreditCard, Search as SearchIcon, Settings as SettingsIcon,
   Cloud, Wallet, BarChart3, FileText, ChevronRight, HelpCircle, Wrench,
   Plane, Calendar, TrendingUp, Wand2, Sparkles, Bookmark, Star, Tag, Image as ImageIcon,
-  BookOpen, Trash2, Heart, LifeBuoy, ScrollText,
+  BookOpen, Trash2, Heart, LifeBuoy, ScrollText, ShieldCheck,
 } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { useUI } from '../store/ui';
@@ -81,6 +81,7 @@ export function MorePage() {
         <Row to="/trash" icon={<Trash2 size={16} />} label="Trash" subtitle="Soft-deleted items · 30-day retention" />
         <Row to="/recover" icon={<LifeBuoy size={16} />} label="Recovery" subtitle="Step-by-step rescue for missing data" />
         <ButtonRow onClick={() => openModal({ type: 'auditLog' })} icon={<ScrollText size={16} />} label="Audit log" subtitle="Every recent mutation, chat + direct" />
+        <Row to="/privacy" icon={<ShieldCheck size={16} />} label="Privacy & data" subtitle="What we collect (nothing) · export · reset" />
       </Section>
 
       <Section title="Help">

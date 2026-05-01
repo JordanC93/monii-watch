@@ -11,7 +11,7 @@ import { useFormatMoney } from '../lib/format';
 import { PAY_FREQUENCY_LABELS, perPaycheckAmount, nextPaycheck } from '../domain/paySchedule';
 import { todayIso, formatDate } from '../domain/date';
 import type { Settings as SettingsT } from '../domain/types';
-import { Download, Upload, Cloud, RefreshCw, AlertTriangle, Bug, Plus, Trash2, FileText } from 'lucide-react';
+import { Download, Upload, Cloud, RefreshCw, AlertTriangle, Bug, Plus, Trash2, FileText, Lock } from 'lucide-react';
 import { US_STATES, getStateByCode } from '../domain/usaStateTax';
 import { toast } from '../lib/toast';
 import { DEDUCTION_KIND_LABELS, sumDeductions } from '../conversation/paystub';
@@ -161,6 +161,10 @@ export function SettingsPage() {
     a.download = `monii-watch-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    // Stamp the manual export timestamp so the 30-day reminder
+    // doesn't nag a user who's actively keeping their own backups.
+    setSettingsField('lastManualExportAt', Date.now());
+    setSettingsField('exportReminderShownAt', Date.now());
     setImportMsg('Backup verified ✓ and downloaded.');
   }
 
@@ -472,6 +476,10 @@ export function SettingsPage() {
 
       <Section title="Privacy mode" subtitle="Blur every dollar amount. ⌘. toggles. Local — never synced.">
         <PrivacyToggle />
+      </Section>
+
+      <Section title="App lock" subtitle="Optional PIN to unlock Monii Watch. Per-device — your synced data isn't affected.">
+        <AppLockSettings />
       </Section>
       </SettingsTab>
 
@@ -1514,6 +1522,159 @@ function ICloudSettings() {
             <strong>Change folder</strong> moves the existing encrypted snapshot to the new location atomically (verifies the copy before deleting the source). <strong>Restore previous</strong> reverts to the snapshot from before the last push (one-step undo for sync mishaps). <strong>Activity log</strong> shows every recent push/pull/merge so you can spot intermittent issues. <strong>Disable</strong> stops syncing but leaves the snapshot in place. <strong>Disable + remove cloud copy</strong> stops syncing AND deletes the snapshot from the cloud folder.
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * App lock settings (Tier 13 #5). Lets the user enable a PIN
+ * lock + pick a background timeout. The PIN is local-per-device
+ * (PBKDF2 hash in localStorage); the synced setting is just the
+ * master toggle so the user remembers across devices that they
+ * have lock enabled here.
+ */
+function AppLockSettings() {
+  const enabled = useBudget((s) => s.settings.appLockEnabled);
+  const timeoutMin = useBudget((s) => s.settings.appLockTimeoutMinutes);
+  const [step, setStep] = useState<'idle' | 'set' | 'confirm' | 'change'>('idle');
+  const [pin, setPin] = useState('');
+  const [pin2, setPin2] = useState('');
+  const [hasPin, setHasPin] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void import('../lib/appLock').then((m) => setHasPin(m.hasLocalPin()));
+  }, [enabled, step]);
+
+  async function enablePin() {
+    if (pin.length < 4) { toast.error('PIN must be at least 4 digits.'); return; }
+    if (pin !== pin2) { toast.error('PINs don\'t match.'); return; }
+    setBusy(true);
+    try {
+      const m = await import('../lib/appLock');
+      await m.setLocalPin(pin);
+      setSettingsField('appLockEnabled', true);
+      setStep('idle');
+      setPin(''); setPin2('');
+      toast.success('App lock enabled.');
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Couldn\'t set PIN.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function disablePin() {
+    if (!confirm('Disable app lock? Anyone with access to this device will see your budget. Your synced data is unaffected.')) return;
+    setBusy(true);
+    try {
+      const m = await import('../lib/appLock');
+      m.clearLocalPin();
+      setSettingsField('appLockEnabled', false);
+      toast.success('App lock disabled.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function changePin() {
+    if (pin.length < 4) { toast.error('PIN must be at least 4 digits.'); return; }
+    if (pin !== pin2) { toast.error('PINs don\'t match.'); return; }
+    setBusy(true);
+    try {
+      const m = await import('../lib/appLock');
+      await m.setLocalPin(pin);
+      setStep('idle');
+      setPin(''); setPin2('');
+      toast.success('PIN updated.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (step === 'set' || step === 'change') {
+    return (
+      <div className="space-y-2 max-w-xs">
+        <div className="text-[12px] text-fg-muted">
+          {step === 'change' ? 'Enter a new PIN.' : 'Pick a 4-12 digit PIN.'}
+        </div>
+        <Input
+          type="password"
+          inputMode="numeric"
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 12))}
+          placeholder="PIN"
+          className="text-center tabular text-[16px] tracking-[0.3em]"
+          autoFocus
+        />
+        <Input
+          type="password"
+          inputMode="numeric"
+          value={pin2}
+          onChange={(e) => setPin2(e.target.value.replace(/\D/g, '').slice(0, 12))}
+          placeholder="Confirm PIN"
+          className="text-center tabular text-[16px] tracking-[0.3em]"
+        />
+        <div className="flex gap-2">
+          <Button size="sm" onClick={step === 'change' ? changePin : enablePin} disabled={busy}>
+            {busy ? 'Saving…' : 'Save'}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => { setStep('idle'); setPin(''); setPin2(''); }}>
+            Cancel
+          </Button>
+        </div>
+        <div className="text-[10.5px] text-fg-subtle">
+          Forgot your PIN? Settings → Danger zone → Reset everything will wipe local data and start fresh. Restore from a backup file or pair with another device after.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {!enabled || !hasPin ? (
+        <>
+          <div className="text-[12px] text-fg-muted leading-relaxed">
+            Locks Monii Watch with a PIN on cold start and after a chosen
+            timeout in the background. Local-per-device — different
+            devices unlock independently. The synced data is unaffected.
+          </div>
+          <Button onClick={() => setStep('set')}>
+            <Lock size={14} /> Enable app lock
+          </Button>
+        </>
+      ) : (
+        <>
+          <div className="text-[12.5px]">
+            <strong>Enabled</strong> · re-lock after{' '}
+            <code className="text-[11.5px] bg-surface-3 px-1 rounded">{timeoutMin}</code>
+            {' '}min in background
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-[11.5px] text-fg-subtle">Timeout (minutes)</label>
+            <Input
+              type="number"
+              min={0}
+              max={120}
+              value={timeoutMin}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                if (Number.isFinite(v) && v >= 0 && v <= 120) {
+                  setSettingsField('appLockTimeoutMinutes', v);
+                }
+              }}
+              className="w-20 text-right tabular"
+            />
+            <span className="text-[10.5px] text-fg-subtle">0 = lock immediately on background</span>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Button size="sm" variant="secondary" onClick={() => setStep('change')}>
+              Change PIN
+            </Button>
+            <Button size="sm" variant="danger" onClick={disablePin} disabled={busy}>
+              Disable lock
+            </Button>
+          </div>
+        </>
       )}
     </div>
   );

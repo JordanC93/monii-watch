@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, memo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Plus, Target, GripVertical, FlaskConical } from 'lucide-react';
 import { useBudget } from '../../store/budget';
@@ -28,6 +28,9 @@ type DragState =
   | { kind: 'group'; id: string }
   | { kind: 'category'; id: string; fromGroupId: string }
   | null;
+
+/** Stable empty-array reference for groups with no categories. */
+const EMPTY_CATEGORIES: Category[] = [];
 
 /**
  * Budget table.
@@ -102,7 +105,32 @@ export function BudgetTable() {
     [accounts, categories, txns, effectiveAssignments, month],
   );
 
-  const visibleGroups = groups.filter((g) => !g.hidden);
+  // Memo: groups.filter creates a new array on every render. The
+  // BudgetGroupRow's React.memo needs stable references upstream
+  // for memoization to actually skip work — without this, every
+  // observer fire re-runs the filter even when no group changed.
+  const visibleGroups = useMemo(() => groups.filter((g) => !g.hidden), [groups]);
+  // Stable callback so descendant memoization isn't defeated by a
+  // new function ref on every parent render. Tier 14 perf.
+  const onCommitAssignment = useCallback((catId: string, value: MoneyCents) => {
+    if (sandboxActive) {
+      sandboxUpsertAssignment({ month, categoryId: catId, assigned: value });
+    } else {
+      setAssignment(month, catId, value);
+    }
+  }, [sandboxActive, sandboxUpsertAssignment, month]);
+  // Pre-bucket categories by groupId so each row doesn't re-walk the
+  // categories array. O(n) once vs O(n × g) per render.
+  const categoriesByGroup = useMemo(() => {
+    const map = new Map<string, Category[]>();
+    for (const c of categories) {
+      if (c.hidden) continue;
+      const list = map.get(c.groupId) ?? [];
+      list.push(c);
+      map.set(c.groupId, list);
+    }
+    return map;
+  }, [categories]);
   const [drag, setDrag] = useState<DragState>(null);
   // Edit mode — when on, drag handles get more visible and a delete
   // button shows up next to each category. Default off so the table
@@ -218,7 +246,7 @@ export function BudgetTable() {
         <BudgetGroupRow
           key={g.id}
           group={g}
-          categories={categories.filter((c) => c.groupId === g.id && !c.hidden)}
+          categories={categoriesByGroup.get(g.id) ?? EMPTY_CATEGORIES}
           monthBudget={monthBudget}
           onEdit={() => openModal({ type: 'editGroup', groupId: g.id })}
           onAddCategory={() => openModal({ type: 'addCategory', groupId: g.id })}
@@ -228,13 +256,7 @@ export function BudgetTable() {
           onCategoryDrop={onCategoryDrop}
           sandboxActive={sandboxActive}
           sandboxOverlay={sandboxOverlay}
-          onCommitAssignment={(catId, value) => {
-            if (sandboxActive) {
-              sandboxUpsertAssignment({ month, categoryId: catId, assigned: value });
-            } else {
-              setAssignment(month, catId, value);
-            }
-          }}
+          onCommitAssignment={onCommitAssignment}
         />
       ))}
 

@@ -879,6 +879,81 @@ const setItemPrice: Intent<{ categoryText: string; cents: number }> = {
   },
 };
 
+// -- Intent: watchItem (Tier 14) ----------------------------------------
+
+/**
+ * "watch [item] under $X" — sets the goal's `dealKeywords` so the
+ * deal-feed engine starts matching, AND sets `targetItemPrice` so the
+ * goal banner shows the threshold. The keywords default to the
+ * category name unless the user explicitly supplied tokens.
+ */
+const watchItem: Intent<{ categoryText: string; cents?: number }> = {
+  name: 'watch-item',
+  examples: [
+    'watch laptop under $1500',
+    'watch battlefield 6 pc under $40',
+    'track gpu under $500',
+  ],
+  priority: 92,
+  match(input) {
+    const m = input.match(/^(?:watch|track)\s+(?:the\s+)?([a-z][a-z0-9 /&'-]{1,60}?)(?:\s+(?:under|below|at|for)\s+\$?\s?(\d[\d,.]*))?$/i);
+    if (!m) return null;
+    const text = m[1].trim();
+    const cents = m[2] ? Math.round(parseFloat(m[2].replace(/[,_]/g, '')) * 100) : undefined;
+    return { categoryText: text, cents };
+  },
+  run({ categoryText, cents }, ctx): IntentResult {
+    const { categories } = snapshot();
+    const cat = findCategoryByText(categoryText, categories);
+    if (!cat) {
+      return { reply: `I couldn't find a category matching "${categoryText}". Create the goal first, then watch it.`, needsClarification: true };
+    }
+    // Use the user's text as keywords. Splitting on commas would be
+    // friendly but the chat input is single-string; the user can edit
+    // multiple keywords via Edit category if they need to.
+    void import('../db/repo').then((r) => r.updateCategory(cat.id, {
+      dealKeywords: [categoryText],
+      ...(cents ? { targetItemPrice: cents } : {}),
+    }));
+    return {
+      reply: cents
+        ? `Watching ${cat.name} for sales under ${ctx.formatMoney(cents)}. I'll ping you when public deal feeds match.`
+        : `Watching ${cat.name} on deal feeds. Set a target price with "set ${cat.name} price to $X" or in Edit category → Goal extras.`,
+      effect: { kind: 'set-setting', field: `${cat.name}.dealKeywords`, value: categoryText },
+    };
+  },
+};
+
+/** "stop watching [item]" — clears the keywords. */
+const stopWatchingItem: Intent<{ categoryText: string }> = {
+  name: 'stop-watching-item',
+  examples: [
+    'stop watching laptop',
+    'unwatch battlefield 6',
+  ],
+  priority: 91,
+  match(input) {
+    const m = input.match(/^(?:stop\s+(?:watching|tracking)|unwatch)\s+(?:the\s+)?([a-z][a-z0-9 /&'-]{1,60})$/i);
+    if (!m) return null;
+    return { categoryText: m[1].trim() };
+  },
+  run({ categoryText }, ctx): IntentResult {
+    void ctx;
+    const { categories } = snapshot();
+    const cat = findCategoryByText(categoryText, categories);
+    if (!cat) {
+      return { reply: `Couldn't find a category matching "${categoryText}".`, needsClarification: true };
+    }
+    void import('../db/repo').then((r) => r.updateCategory(cat.id, {
+      dealKeywords: [],
+    }));
+    return {
+      reply: `Stopped watching ${cat.name}. The goal target stays — only the deal-feed match keywords were cleared.`,
+      effect: { kind: 'set-setting', field: `${cat.name}.dealKeywords`, value: 'cleared' },
+    };
+  },
+};
+
 // -- Intent: spendInRange (Tier 6 #7) -----------------------------------
 
 const spendInCategoryRange: Intent<{ categoryText: string; scope: 'last' | 'this-year' | 'last-year' }> = {
@@ -1134,6 +1209,9 @@ export const ALL_INTENTS: Intent[] = [
   biggestPayee,
   // Tier 9 #2
   setItemPrice,
+  // Tier 14 — deal-tracker keyword management via chat
+  watchItem,
+  stopWatchingItem,
   // Tier 6 #2/#3 — safe-to-spend + financial health
   safeToSpend,
   healthScore,

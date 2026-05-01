@@ -22,6 +22,10 @@ import { useState, useRef } from 'react';
 import { computeGoalProgress } from './domain/goals';
 import { computeMonthBudgetCached } from './domain/budgetCache';
 import { setSettingsField, exportSnapshot } from './db/repo';
+import { computeAccountBalances, computeNetWorth } from './domain/budget';
+import { getActiveWorkspaceId, writeWorkspaceSummary } from './lib/workspaces';
+import { hasLocalPin, markBackgroundedNow, shouldRelock, clearBackgroundMark } from './lib/appLock';
+import { AppLockScreen } from './components/Layout/AppLockScreen';
 import { subscribeMenuEvents, printPage, openNewDesktopWindow } from './lib/nativeDesktop';
 import { useNavigate } from 'react-router-dom';
 import { undo, redo } from './store/undo';
@@ -61,6 +65,8 @@ const CalendarGridPage = lazy(() => import('./pages/CalendarGridPage').then((m) 
 const TrashPage = lazy(() => import('./pages/TrashPage').then((m) => ({ default: m.TrashPage })));
 // Disaster recovery flow (Tier 11 #4).
 const RecoverPage = lazy(() => import('./pages/RecoverPage').then((m) => ({ default: m.RecoverPage })));
+// Privacy + data-deletion explainer (Tier 13 #2 / App Store).
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then((m) => ({ default: m.PrivacyPage })));
 
 function PageFallback() {
   return (
@@ -189,6 +195,60 @@ export default function App() {
   // Show the welcome tour on first run only.
   const onboardingCompleted = useBudget((s) => s.settings.onboardingCompleted);
   const lastSeenVersion = useBudget((s) => s.settings.lastSeenVersion);
+
+  // App-lock state (Tier 13 #5). Locked on cold boot when enabled +
+  // a local PIN exists. Unlocking via the lock screen flips this to
+  // false; backgrounding past the timeout flips it back to true.
+  const appLockEnabled = useBudget((s) => s.settings.appLockEnabled);
+  const appLockTimeoutMinutes = useBudget((s) => s.settings.appLockTimeoutMinutes);
+  const [locked, setLocked] = useState<boolean>(() => appLockEnabled && hasLocalPin());
+
+  // Listen for visibility changes to mark "backgrounded at" / re-lock
+  // when the app comes back to foreground after the timeout.
+  useEffect(() => {
+    if (!appLockEnabled || !hasLocalPin()) return;
+    function onVis() {
+      if (document.visibilityState === 'hidden') {
+        markBackgroundedNow();
+      } else {
+        if (shouldRelock(appLockTimeoutMinutes)) {
+          setLocked(true);
+        }
+        clearBackgroundMark();
+      }
+    }
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [appLockEnabled, appLockTimeoutMinutes]);
+
+  // When the user just turns the lock on, leave them unlocked for
+  // this session — only re-lock on next cold boot.
+  useEffect(() => {
+    if (!appLockEnabled) setLocked(false);
+  }, [appLockEnabled]);
+
+  // Tier 10 #6 — write the active workspace's summary on every NW
+  // change so the cross-workspace widget on OTHER workspaces sees
+  // up-to-date numbers. Lifted from Sidebar (which isn't rendered on
+  // mobile) to App so the write happens on every layout. Cheap;
+  // localStorage write only when the value changes.
+  const accountsForNw = useBudget((s) => s.accounts);
+  const txnsForNw = useBudget((s) => s.transactions);
+  const currencyForNw = useBudget((s) => s.settings.currency);
+  useEffect(() => {
+    try {
+      const balances = computeAccountBalances(accountsForNw.filter((a) => !a.closed), txnsForNw);
+      const nw = computeNetWorth(balances);
+      const wsId = getActiveWorkspaceId();
+      writeWorkspaceSummary(wsId, {
+        netWorth: nw.total,
+        currency: currencyForNw || 'USD',
+        updatedAt: Date.now(),
+      });
+    } catch (err) {
+      console.warn('[workspace-summary] write failed', err);
+    }
+  }, [accountsForNw, txnsForNw, currencyForNw]);
   const yearInReviewShownFor = useBudget((s) => s.settings.yearInReviewShownFor);
   const monthlyReviewLastShown = useBudget((s) => s.settings.monthlyReviewLastShown);
   const vacationMode = useBudget((s) => s.settings.vacationMode);
@@ -369,6 +429,7 @@ export default function App() {
               <Route path="/calendar/grid" element={<CalendarGridPage />} />
               <Route path="/trash" element={<TrashPage />} />
               <Route path="/recover" element={<RecoverPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="*" element={<Navigate to="/budget" replace />} />
             </Routes>
           </Suspense>
@@ -385,6 +446,9 @@ export default function App() {
           onClose={() => setYearReviewYear(null)}
         />
       )}
+      {/* App lock screen renders OVER everything else when locked.
+          It's the last child so it stacks above all modals. */}
+      {locked && <AppLockScreen onUnlock={() => setLocked(false)} />}
     </>
   );
 }
