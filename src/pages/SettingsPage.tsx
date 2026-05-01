@@ -484,7 +484,7 @@ export function SettingsPage() {
         </div>
       </Section>
 
-      <Section title="iCloud Drive sync" subtitle="Optional: write encrypted snapshots to a folder synced by iCloud Drive (or Dropbox / any cloud-synced folder). macOS desktop only; PWA users skip.">
+      <Section title="Cloud folder sync" subtitle="Pick any folder a cloud service auto-syncs (iCloud Drive on Mac, OneDrive on Windows, Dropbox, Google Drive via the desktop app…). Encrypted before write. Desktop app only.">
         <ICloudSettings />
       </Section>
 
@@ -1147,16 +1147,28 @@ function ICloudSettings() {
   const lastSyncedAt = useBudget((s) => s.settings.icloudLastSyncedAt);
   const syncRoom = useBudget((s) => s.settings.syncRoom);
   const [available, setAvailable] = useState(false);
+  // Platform-aware default suggestion shown in the help copy.
+  const [suggested, setSuggested] = useState<string>('');
   useEffect(() => {
-    void import('../sync/icloudProvider').then((m) => setAvailable(m.isAvailable())).catch(() => {});
+    void import('../sync/icloudProvider').then(async (m) => {
+      setAvailable(m.isAvailable());
+      try { setSuggested(await m.getSuggestedFolder()); } catch { /* ignore */ }
+    }).catch(() => {});
   }, []);
+
+  // Detect the OS so we can show the right product hint.
+  const isWindows = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent);
+  const isMac = typeof navigator !== 'undefined' && (/Mac/i.test(navigator.platform) || /Mac/i.test(navigator.userAgent));
+  const platformHint = isMac ? 'iCloud Drive'
+    : isWindows ? 'OneDrive'
+    : 'Dropbox / Nextcloud / etc.';
 
   if (!available) {
     return (
       <div className="text-[12px] text-fg-subtle">
-        iCloud sync requires the desktop app — it isn't available in the
-        browser PWA. Open Monii Watch from your Applications folder
-        (macOS) or installed location (Windows / Linux) to use it.
+        Cloud folder sync requires the desktop app — browsers can't write
+        to arbitrary folders. Open Monii Watch from your Applications
+        folder (macOS) or installed location (Windows / Linux) to use it.
       </div>
     );
   }
@@ -1184,15 +1196,28 @@ function ICloudSettings() {
     <div className="space-y-3">
       {!enabled ? (
         <div>
-          <div className="text-[12px] text-fg-subtle mb-2">
-            On macOS, the suggested folder is{' '}
-            <code className="text-[11px] bg-surface-3 px-1 rounded">~/Library/Mobile Documents/com~apple~CloudDocs/Monii</code>.
-            iCloud Drive auto-syncs that folder across your Apple devices.
-            On Windows / Linux, point at any cloud-synced folder.
+          <div className="text-[12px] text-fg-subtle mb-2 leading-relaxed">
+            Pick any folder that a cloud service automatically syncs
+            (on this OS that's typically <strong>{platformHint}</strong>).
+            Monii Watch writes an encrypted snapshot to the folder; the
+            cloud service handles propagating it to your other devices —
+            no OAuth, no accounts, nothing for you to wire up.
+            {suggested && (
+              <>
+                <br />
+                <span className="text-fg-subtle/80">Suggested folder: </span>
+                <code className="text-[11px] bg-surface-3 px-1 rounded break-all">{suggested}</code>
+              </>
+            )}
+            <br />
+            <span className="text-fg-subtle/80">
+              Want Google Drive? Install <strong>Drive for desktop</strong> (Google's official app),
+              which mounts your Drive as a regular folder — then point this here.
+            </span>
           </div>
           {!syncRoom && (
             <div className="text-[11.5px] text-warning bg-warning/10 px-3 py-2 rounded mb-2">
-              Set up your pairing phrase first (Sync section above) — iCloud sync uses it as the encryption key.
+              Set up your pairing phrase first (Sync section above) — Cloud folder sync uses it as the encryption key.
             </div>
           )}
           <Button onClick={pickAndStart} disabled={!syncRoom}>

@@ -313,7 +313,7 @@ function DriveSection() {
       >
         <div className="flex items-center gap-2">
           <HardDrive size={13} className="text-accent" />
-          <span>Google Drive (advanced — optional, end-to-end encrypted)</span>
+          <span>Google Drive — advanced (OAuth required, see below)</span>
           {enabled && (
             <span className={`text-[10.5px] px-1.5 py-0.5 rounded ${
               tokenExpired ? 'bg-warning/15 text-warning'
@@ -332,9 +332,24 @@ function DriveSection() {
       {showAdvanced && (
         <div className="px-3 py-3 border-t border-border space-y-2.5 bg-surface-2/20">
           <div className="text-[11.5px] text-fg-muted leading-snug">
-            Use your <strong className="text-fg">own</strong> Google Drive as a sync hub. Your data is encrypted with <strong className="text-fg">{ENCRYPTION_LABEL}</strong> (key derived from your pairing phrase) before upload — Google holds the bytes but cannot read them.
+            <strong className="text-fg">For most users we recommend Cloud folder sync</strong>{' '}
+            (Settings → Cloud folder sync) instead of this — point at your iCloud Drive
+            / OneDrive / Dropbox folder and you're done. <strong className="text-fg">No OAuth, no setup.</strong>
+            <br /><br />
+            This Google Drive flow is for users who specifically want to use their
+            own Google Cloud project. Your data is encrypted with{' '}
+            <strong className="text-fg">{ENCRYPTION_LABEL}</strong> (key derived from your pairing
+            phrase) before upload — Google holds the bytes but cannot read them.
             <br />
-            <span className="text-fg-subtle">First time: you'll need a free Google Cloud OAuth client ID. See <code className="px-1 py-0.5 rounded bg-surface-3 text-fg">docs/GOOGLE_DRIVE.md</code>.</span>
+            <span className="text-fg-subtle">
+              First time: you'll need a free Google Cloud OAuth client ID. See the{' '}
+              <a
+                href="/help#article=cloud-folder-sync"
+                className="text-accent underline-offset-2 hover:underline"
+              >
+                Help article on syncing
+              </a>{' '}for the easier path.
+            </span>
           </div>
 
           {!enabled && (

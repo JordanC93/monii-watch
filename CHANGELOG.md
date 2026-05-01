@@ -2,6 +2,63 @@
 
 ## Unreleased
 
+### v0.6.12 — Cloud sync polish, in-app help, CI fix
+
+#### Critical CI fix
+- Builds had been silently failing since v0.6.6: the macos-13
+  (Intel) runner pool gets starved by GitHub on the free tier
+  for public repos. The job sat "Waiting for a runner to pick up
+  this job…" for hours / forever, eventually timing out — and
+  because `publish-updater-json` has `needs: build`, that
+  dependent step skipped, meaning **`latest.json` was never
+  published**. Auto-updater couldn't find updates.
+- Fix: both macOS architectures now build on the **Apple
+  Silicon runner** (`macos-latest`) via Rust cross-compilation.
+  `rustup target add x86_64-apple-darwin` (already in the
+  toolchain step) lets the ARM runner produce x86_64 binaries
+  natively. Apple Silicon runner availability is excellent — no
+  more queueing.
+
+#### Cloud folder sync (renamed from "iCloud sync")
+- Settings section relabeled: **iCloud Drive sync → Cloud folder
+  sync**. Same architecture, more accurate name. Works for any
+  folder a cloud service auto-syncs:
+  - macOS: iCloud Drive (default)
+  - Windows: OneDrive (default — most preinstalled)
+  - Anywhere: Dropbox / Nextcloud / Google Drive (via Drive
+    for desktop) / etc.
+- Folder picker pre-fills with platform-appropriate default.
+- New `getSuggestedFolder()` helper exposed so the Settings UI
+  can show the suggested path inline.
+- Copy explicitly mentions Google Drive via Drive for desktop
+  as the recommended path for Google Drive users.
+
+#### Google Drive OAuth deprioritized
+- The existing OAuth flow stays available (collapsed under
+  Advanced), but the Sync modal now states clearly:
+  **"For most users we recommend Cloud folder sync instead."**
+- Link to the new in-app Help article from the OAuth setup
+  copy.
+
+#### In-app Help center: 11 new articles
+Every feature shipped this session is now documented inside
+the app — no need to leave to read docs:
+
+- **cloud-folder-sync** — recommended sync setup
+- **trash** — soft-delete + restore (Tier 11 #1)
+- **recovery-flow** — the /recover page (Tier 11 #4)
+- **audit-log** — direct + chat mutation log (Tier 10 #8)
+- **auto-backup** — set-and-forget JSON backups (Tier 10 #9)
+- **share-spending** — generate shareable PNG (Tier 12 #5)
+- **deal-tracker** — full feed-based deal alert system
+  (Tier 12 #10) — Wario64, Slickdeals, Reddit, snooze
+  semantics, privacy disclosure
+- **goal-auto-deposit** — scheduled transfer + envelope auto-
+  fund (Tier 10 #11)
+- **mobile-tips** — long-press, swipe, gestures
+- **whats-new-modal** — explanation of the upgrade modal
+- **tip-jar** — about the optional support flow
+
 ### v0.6.11 — Goal tile polish
 
 - Fix: icon avatar inside the goal-progress ring no longer pokes

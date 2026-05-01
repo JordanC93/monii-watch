@@ -57,28 +57,65 @@ export function isAvailable(): boolean {
 }
 
 /**
- * Pick (or remember) the iCloud Drive folder to use. On macOS,
- * defaults to `~/Library/Mobile Documents/com~apple~CloudDocs/Monii`.
- * On other platforms, the user picks any folder (e.g. a Dropbox or
- * OneDrive folder) and the same architecture works.
+ * Detect the most likely "this folder is auto-synced by a cloud
+ * service" path based on the user's OS. Pure best-guess — used to
+ * pre-fill the folder picker so most users only need to click OK.
+ *
+ *   - macOS: iCloud Drive at the standard system path
+ *   - Windows: OneDrive (most common preinstalled), then Dropbox
+ *   - Linux: Dropbox / Nextcloud / etc. — no reliable default
+ *
+ * Doesn't verify the folder exists; the picker handles that.
+ */
+async function suggestDefaultFolder(): Promise<string> {
+  const path = await import('@tauri-apps/api/path');
+  const home = await path.homeDir();
+  // Strip trailing separator if any.
+  const h = home.replace(/[\\/]+$/, '');
+  const isWindows = navigator.userAgent.includes('Windows');
+  const isMac = /Mac/i.test(navigator.platform) || /Mac/i.test(navigator.userAgent);
+  if (isMac) {
+    return `${h}/Library/Mobile Documents/com~apple~CloudDocs/Monii`;
+  }
+  if (isWindows) {
+    // OneDrive lives at %USERPROFILE%\OneDrive on the vast majority
+    // of Windows installs. Personal account uses `OneDrive`,
+    // work/school uses `OneDrive - <Company>`. We suggest the
+    // personal one; the user can navigate to the right folder via
+    // the picker if they want OneDrive Business or a different
+    // service entirely.
+    return `${h}\\OneDrive\\Monii`;
+  }
+  // Linux: no canonical cloud-folder default. Suggest the home dir.
+  return `${h}/Monii`;
+}
+
+/**
+ * Pick (or remember) the cloud-synced folder to use. macOS defaults
+ * to iCloud Drive's standard path; Windows defaults to OneDrive's
+ * standard path. The user can pick any folder a cloud service syncs
+ * — Dropbox, Nextcloud, Google Drive (via the Drive for desktop
+ * app, which mounts as a regular folder), etc.
  *
  * Returns the chosen path, or null if the user cancelled.
  */
 export async function pickFolder(): Promise<string | null> {
   if (!isAvailable()) return null;
   const dialog = await import('@tauri-apps/plugin-dialog');
-  const path = await import('@tauri-apps/api/path');
-  const home = await path.homeDir();
-  // Default to the macOS iCloud Drive Monii subfolder.
-  const defaultPath = `${home}/Library/Mobile Documents/com~apple~CloudDocs/Monii`;
+  const defaultPath = await suggestDefaultFolder();
   const result = await dialog.open({
     directory: true,
     multiple: false,
-    title: 'Pick a folder for iCloud-synced backups',
+    title: 'Pick a cloud-synced folder for encrypted backups',
     defaultPath,
   });
   if (!result || typeof result !== 'string') return null;
   return result;
+}
+
+/** Exported for the Settings UI to display the suggested default path. */
+export async function getSuggestedFolder(): Promise<string> {
+  return suggestDefaultFolder();
 }
 
 /**

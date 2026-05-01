@@ -39,6 +39,16 @@ type ReleaseEntry = {
  */
 export const RELEASE_NOTES: ReleaseEntry[] = [
   {
+    version: '0.6.12',
+    title: 'Cloud sync polish + CI fix',
+    bullets: [
+      '"iCloud sync" renamed to "Cloud folder sync" — works for any cloud-synced folder (iCloud, OneDrive, Dropbox, Google Drive via Drive for desktop). Picker pre-fills the right path for your OS.',
+      'Google Drive OAuth setup is now clearly marked Advanced — most users get a much easier path via Cloud folder sync.',
+      'Help center expanded: 11 new articles covering everything added this session — Cloud folder sync, Trash, Recovery flow, Audit log, Auto-backup, Share image, Deal tracker, Goal auto-deposit, mobile gestures, What\'s new, and the Tip jar. Setup never requires leaving the app.',
+      'CI fix: builds were silently failing because GitHub starves the macos-13 (Intel) runner pool. Both Mac architectures now build via cross-compilation on the Apple Silicon runner. Releases publish properly again.',
+    ],
+  },
+  {
     version: '0.6.11',
     title: 'Goal tile polish',
     bullets: [

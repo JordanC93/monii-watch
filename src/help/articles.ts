@@ -1386,6 +1386,548 @@ Sidebar → Dashboard (top entry). The customization is synced
 across your devices via the standard sync.
 `,
   },
+
+  // ---------------- v0.6.7 - v0.6.11 articles ----------------------------
+
+  {
+    id: 'cloud-folder-sync',
+    title: 'How do I sync between my devices? (Recommended path)',
+    category: 'sync-privacy',
+    tags: ['cloud', 'icloud', 'onedrive', 'dropbox', 'google drive', 'sync', 'folder', 'backup'],
+    body: `
+Monii Watch can sync between your devices through any folder a
+cloud service auto-syncs. **No OAuth, no accounts, nothing to
+configure on someone else's server.**
+
+## How it works
+
+You already have a cloud-storage app on your computer (iCloud
+Drive on Mac, OneDrive on Windows, Dropbox, Google Drive desktop).
+That app keeps a folder on your computer in sync with your
+account in the cloud. Monii writes a small encrypted file into
+that folder. The cloud service propagates it to your other
+devices. The other device reads the file, decrypts it, and
+merges with its own copy.
+
+Your data is encrypted **before** it's written. The cloud
+service stores the bytes but cannot read them — only your
+pairing phrase decrypts them.
+
+## Setup
+
+1. **Set your pairing phrase** under Settings → Sync. Same phrase
+   on every device — treat it like a password.
+2. **Pick a folder** under Settings → Cloud folder sync.
+3. The picker pre-fills with the standard cloud folder for your
+   OS (iCloud Drive on Mac, OneDrive on Windows). Accept it or
+   navigate to a different cloud-synced folder. The folder needs
+   to be one your cloud-storage app already syncs.
+4. Click **Pick folder and enable**. Done.
+
+The first sync happens within a few seconds. From then on,
+changes push within 5 seconds and incoming changes are picked
+up every 30 seconds.
+
+## Per-platform tips
+
+- **macOS**: the standard iCloud folder is
+  \`~/Library/Mobile Documents/com~apple~CloudDocs/Monii\`. Visible
+  in Finder under "iCloud Drive" in the sidebar.
+- **Windows**: OneDrive lives at \`%USERPROFILE%\\OneDrive\\\`. We
+  suggest a \`Monii\` subfolder there.
+- **Google Drive**: install Google's official **"Drive for
+  desktop"** app first — that mounts your Drive as a regular
+  folder on your computer. Then point Monii's picker at that
+  folder.
+- **Linux**: pick whatever your cloud service syncs (Dropbox,
+  Nextcloud, ownCloud, etc.).
+
+## Why not just use Google Drive's API directly?
+
+You can — see the "Google Drive" section under Settings → Sync.
+That requires creating a Google Cloud project + an OAuth client
+ID, which most users don't want to do. The cloud-folder approach
+gets the same outcome with one click.
+
+## Troubleshooting
+
+If sync seems stuck:
+- Check that the cloud-storage app on your other device is
+  signed in and online.
+- The cloud app may sync large changes asynchronously — give it
+  a minute.
+- Settings → Cloud folder sync → **Sync now** force-pushes and
+  pulls.
+`,
+  },
+
+  {
+    id: 'trash',
+    title: 'I deleted something — how do I get it back?',
+    category: 'troubleshooting',
+    tags: ['trash', 'restore', 'undelete', 'soft delete', 'recovery'],
+    body: `
+Deleted accounts, categories, transactions, and scheduled entries
+go to **trash** for 30 days before permanent removal. You can
+restore any of them with one click.
+
+## Find the trash
+
+- Mobile: More → Recovery & safety → **Trash**
+- Desktop: visit \`/trash\` directly, or More → Recovery & safety
+  → Trash
+
+## What you'll see
+
+Each entry shows what was deleted, when, and how many days are
+left before auto-purge. Click **Restore** to bring it back.
+
+When you restore an account, all its transactions come back too.
+When you restore a category, its monthly assignments come back.
+When you restore a transaction that was part of a transfer, the
+counterpart comes back as well.
+
+## Permanent deletion
+
+Click **Purge** on a single entry to delete it forever right
+now. Click **Empty trash** to wipe everything in the trash.
+
+## Edge cases
+
+- Restoring a transaction whose account was permanently deleted
+  fails — there's nothing to attach it to.
+- Restoring a category whose group was deleted moves it to the
+  first available group instead.
+- The trash is synced across devices — if you delete on one and
+  decide to restore on another, you can.
+
+## Auto-purge
+
+Trash entries older than 30 days are removed on app boot. You
+can't recover those.
+`,
+  },
+
+  {
+    id: 'recovery-flow',
+    title: 'My data went missing or sync broke — what now?',
+    category: 'troubleshooting',
+    tags: ['recovery', 'data loss', 'missing', 'recover', 'restore'],
+    body: `
+Visit \`/recover\` (or More → Recovery & safety → Recovery) for
+a step-by-step rescue guide. The page shows your current health
+status and walks through possible solutions based on what's wrong.
+
+## Pick the symptom
+
+The page asks "What's wrong?" and offers six categories:
+
+1. **An account is missing** — most likely in the trash.
+2. **Transactions are missing** — check the search filter, then
+   trash, then your most recent backup.
+3. **A balance looks wrong** — try Reconcile on the account.
+4. **Sync isn't working** — pairing phrase mismatch or
+   network issue.
+5. **Everything looks broken** — export current state first,
+   then try import-replace.
+6. **Wrong workspace open** — switch via the workspaces picker.
+
+Each path has clear next-step buttons.
+
+## Last-resort options
+
+At the bottom of the page:
+- Import a backup file
+- Pair with another device that has good data via sync
+- Export current state (just in case the next step makes it worse)
+- Open trash
+
+## Audit log
+
+If you want to know what was changed recently (chat or direct
+edits), More → Audit log shows every mutation with timestamps.
+`,
+  },
+
+  {
+    id: 'audit-log',
+    title: 'Where can I see what changed in my budget?',
+    category: 'advanced',
+    tags: ['audit', 'log', 'history', 'changes', 'mutations'],
+    body: `
+Every recent change to your data is recorded in the **audit log**.
+Useful for "wait, when did I rename that category?" or to confirm
+the chat panel did what you asked.
+
+## Two sources, one view
+
+- **Direct edits** — you renamed a group, deleted a category,
+  imported a CSV.
+- **Chat-driven** — every mutation made by the chat panel.
+
+The audit log modal merges both, sorted newest-first. Filter by
+source (All / Direct / Chat) or by kind (create / update /
+delete / import).
+
+## Where to find it
+
+- Mobile: More → Recovery & safety → **Audit log**
+- Desktop: ⌘K → "Audit log"
+
+## Retention
+
+- Direct edits: 500 newest entries (FIFO).
+- Chat audit: 200 newest entries.
+
+The log syncs across your devices like the rest of your data,
+so you can review on any device.
+
+## What's NOT logged
+
+Read-only operations (opening modals, viewing reports) are not
+logged. Only changes to data are.
+`,
+  },
+
+  {
+    id: 'auto-backup',
+    title: 'Can the app back up automatically?',
+    category: 'sync-privacy',
+    tags: ['auto backup', 'automatic', 'json', 'export', 'safety'],
+    body: `
+Settings → Backup & Import → **Auto-backup** lets you pick a
+cadence (off / weekly / every 2 weeks / monthly). On app boot,
+if the configured interval has passed since the last auto-backup,
+Monii downloads a fresh JSON snapshot to your Downloads folder.
+
+## When it fires
+
+Auto-backup runs **once on app boot** (deferred 1.5 seconds so
+the React tree paints first). It will not fire while you're
+already using the app.
+
+If you upgrade or restart, the engine checks if a backup is due
+and triggers a download if yes.
+
+## What gets exported
+
+The same JSON snapshot as Settings → Backup & Import → Export
+JSON. Includes accounts, transactions, categories, settings —
+everything synced.
+
+## Backup history
+
+The Settings panel shows the last 5 auto-backup files +
+timestamps. The actual files live in your Downloads folder
+(wherever your browser saves to).
+
+## Recommendations
+
+- **Weekly** is a sensible default for active budgeters.
+- **Monthly** is fine if your budget rarely changes.
+- **Off** if you prefer manual exports + Cloud folder sync as
+  the safety net.
+
+Auto-backup is independent of every other sync option — it always
+saves a local file regardless of what else is configured.
+`,
+  },
+
+  {
+    id: 'share-spending',
+    title: 'How do I share a spending summary as an image?',
+    category: 'reports',
+    tags: ['share', 'image', 'screenshot', 'social', 'png'],
+    body: `
+Reports → Spending by Category has a **Share image** button that
+generates a clean PNG of your top spending categories. The image
+is sized for sharing on social media or with a partner.
+
+## Privacy modes
+
+Three options before generating:
+
+- **Detailed** — shows real dollar amounts. Good for sharing
+  with a spouse or financial advisor.
+- **Percentages only** — shows category proportions but hides
+  amounts. Good for social media.
+- **Hide amounts (••••)** — category names visible, amounts
+  blurred. Good for screenshots that show "what categories I
+  track" without revealing how much.
+
+## Where the image goes
+
+- **Mobile** (iOS / Android): triggers the OS share sheet —
+  pick where to send.
+- **Desktop**: downloads as a PNG to your Downloads folder.
+
+The image is generated entirely on your device using HTML5
+Canvas. Nothing is sent to any server.
+
+## What it includes
+
+- Time period title (e.g. "March 2026 spending")
+- Total spent (or "••••" in privacy mode)
+- Top 7 categories with bars + amounts
+- "Monii Watch" footer credit
+`,
+  },
+
+  {
+    id: 'deal-tracker',
+    title: 'How do I get notified when something I want goes on sale?',
+    category: 'goals',
+    tags: ['deal', 'sale', 'tracker', 'wario64', 'slickdeals', 'reddit', 'price'],
+    body: `
+Set deal-tracker keywords on a goal. Monii Watch scans public
+deal feeds for posts matching your keywords AND extracting a
+price ≤ what you've saved up. When all three conditions hit,
+you get a deal alert.
+
+## Setup
+
+1. **Create a goal** for the item you're saving for.
+2. Edit the category → Goal extras → **Deal-tracker keywords**.
+3. Type one or more keywords, comma-separated. Be specific —
+   "soundbar" matches everything; "Sonos Beam Gen 2" only
+   matches what you actually want.
+4. Open Settings → Deal feeds and confirm at least one feed is
+   enabled. Wario64 (Bluesky) and Slickdeals per-keyword are on
+   by default.
+
+## How matching works
+
+For every post in every enabled feed, the matcher checks:
+
+- Does **every** keyword appear in the post text? (Battlefield 6
+  PC matches "[PC] Battlefield 6 — \\$39.99 on Steam" but NOT
+  "Battlefield 6 launches in 2026" — the second one has no $)
+- Can a price be extracted? (No price → no match.)
+- Is the price ≤ your envelope balance for this goal? (We don't
+  ping you about deals you can't afford yet.)
+- Is the price ≤ your goal's target item price (sticker)?
+
+If all conditions match, the deal lands in your **Deal alert
+banner** on the Budget + Goals pages.
+
+## What the alert offers
+
+Three buttons per match:
+
+- **Open store** — confirms this is your item AND opens the URL.
+- **Hold off · 90d** — pauses every alert for this item for 90
+  days. Use this when you're not buying right now and don't want
+  to be tempted by other stores running the same sale.
+- **Wrong listing** — pauses just this one post (when the feed
+  picked up the wrong product).
+
+## Public feeds we read
+
+All reads hit public APIs the same way visiting the website
+would — no API keys, no logins, no telemetry.
+
+- **Wario64 (Bluesky)** — fastest signal for video game sales
+- **Slickdeals per-keyword** — runs a Slickdeals search RSS for
+  each unique keyword across all goals
+- **Slickdeals frontpage** — community-curated everything
+  (off by default)
+- **r/GameDeals**, **r/buildapcsales**, **r/deals**,
+  **r/frugalmalefashion**, **r/femalefashionadvice** — Reddit
+  RSS feeds (off by default)
+
+## Privacy disclosure
+
+When the Slickdeals per-keyword feed is enabled, your goal
+keywords are sent to Slickdeals as part of public search URLs.
+This is unavoidable — it's how the search works. To opt out,
+disable that feed in Settings.
+
+Nothing else about you (your finances, your other goals, your
+device) is ever sent anywhere.
+
+## Throttling
+
+The engine polls feeds every 30 minutes minimum. There's no way
+to make it poll faster — be polite to public APIs.
+`,
+  },
+
+  {
+    id: 'goal-auto-deposit',
+    title: 'Can a scheduled transfer also fund my envelope?',
+    category: 'goals',
+    tags: ['scheduled', 'auto deposit', 'goal', 'envelope', 'transfer'],
+    body: `
+Yes. When you create a scheduled transfer (e.g. "$200 from
+Checking to Savings on the 1st of each month"), there's an
+**"Also assign to envelope"** dropdown that funds a category at
+the same time.
+
+## Why it exists
+
+Without this, scheduled transfers move cash but don't fund the
+envelope. You'd have to:
+1. Wait for the transfer to materialize
+2. Then manually assign the cash to your goal envelope
+
+The auto-deposit field collapses both into one step.
+
+## Setup
+
+1. Scheduled → New → fill in account / payee / category as usual
+2. **"Also assign to envelope"** — pick the goal category to
+   fund automatically
+3. Save
+
+## What happens on each materialization
+
+- The transfer fires (one transaction in each account)
+- The target envelope's monthly assignment is bumped by the
+  absolute amount
+- Both happen atomically — one undo step reverses both
+
+## Edge cases
+
+- The bump is **additive** — never overwrites manual
+  assignments. If you've already put $50 into the envelope
+  manually and the auto-deposit adds $200, you end up at $250.
+- If the target category was deleted, the auto-deposit
+  silently skips (the transfer still fires).
+- The bump lands in the month of the materialization, not the
+  start date. Useful if you've paused + resumed a scheduled
+  entry.
+
+## Use cases
+
+- "Move $200 to Savings on the 1st AND fund the Vacation goal"
+- "401k contribution drops every paycheck AND mark it on the
+  Retirement envelope"
+- Automatic monthly funding for any savings goal
+`,
+  },
+
+  {
+    id: 'mobile-tips',
+    title: 'Mobile tips: gestures, long-press, swipe',
+    category: 'getting-started',
+    tags: ['mobile', 'phone', 'gestures', 'long press', 'swipe', 'ios', 'android'],
+    body: `
+A handful of touch gestures that aren't always obvious:
+
+## Long-press a transaction
+
+Press-and-hold any transaction row (mobile only). After ~500ms
+an action sheet slides up from the bottom with quick actions:
+mark cleared, flag, edit splits, tag expected refund, find
+similar, delete (moves to trash).
+
+This is the touch equivalent of right-click on desktop.
+
+## Swipe to change month
+
+Budget page: swipe left to advance to the next month, swipe
+right to go back. iOS Calendar app convention.
+
+## Tap a transaction once to edit
+
+A single tap on a mobile transaction row puts it into edit mode
+with the keyboard ready. Tap outside or hit Done to save.
+
+## BottomNav with one thumb
+
+The five primary destinations (Budget, Accounts, Goals, Reports,
+More) are all reachable in the bottom tab bar — no need to
+reach for the top of the screen.
+
+## Number keys jump tabs
+
+If you're on mobile and a hardware/Bluetooth keyboard is
+connected, pressing 1–5 jumps directly to the matching
+BottomNav destination (when not editing a field).
+
+## Pinch-to-zoom on receipts
+
+The receipt viewer (tap the paperclip icon on a transaction
+with an attached receipt) supports pinch-to-zoom (1× to 5×) +
+pan + double-tap-toggle, just like the iOS Photos app.
+
+## Pull down to refresh? No
+
+Monii Watch is local-first; there's nothing to refresh from.
+The data on screen is always the latest data on the device.
+`,
+  },
+
+  {
+    id: 'whats-new-modal',
+    title: 'The "What\'s new" modal — what is it?',
+    category: 'getting-started',
+    tags: ['whats new', 'updates', 'release notes', 'changelog'],
+    body: `
+After Monii Watch updates, you'll see a one-time modal listing
+the new features in that release. The modal stays out of your
+way after — only fires once per version.
+
+## How it decides when to show
+
+The modal compares the current build version against
+\`Settings.lastSeenVersion\`. When they differ, the modal
+opens; when you close it, the version is stamped.
+
+- Brand-new users see the welcome tour, not "What's new". The
+  tour itself stamps the version on completion.
+- Existing users on an old version see "What's new" once after
+  upgrading.
+- If a release has no user-facing changes, the modal silently
+  advances the version without showing.
+
+## Where to find old release notes
+
+The modal has a "View full changelog" link to the GitHub
+CHANGELOG.md, which has every release going back to v0.1.
+
+## Disabling it
+
+There's no opt-out — but it only fires once per release, so
+the noise is minimal.
+`,
+  },
+
+  {
+    id: 'tip-jar',
+    title: 'How can I support the project?',
+    category: 'getting-started',
+    tags: ['tip jar', 'donate', 'support', 'sponsor', 'free'],
+    body: `
+Monii Watch is free and always will be. No ads, no tracking, no
+upsell. If you'd like to chip in voluntarily, More → Support
+the project → **Tip jar** lists a few options.
+
+## How it works
+
+The tip jar opens external payment pages (GitHub Sponsors,
+Stripe Payment Link, etc.) in a new tab. Clicking "Open" leaves
+the app — your browser handles the payment. The Monii Watch app
+itself never sees your payment, your credit card, or your email.
+
+## What the app tracks about tipping
+
+Nothing. The app does NOT remember whether you tipped, doesn't
+prompt you to tip again, and doesn't change behavior based on
+whether you've supported it. Free users and supporters get the
+same experience.
+
+## Why the tip jar exists
+
+Apple's developer fee is \`$99/year\` to keep the app on the App
+Store. The tip jar is the project owner's way to cover that cost
+without ads or in-app purchases that compromise the privacy
+ethos.
+
+If you'd rather not tip, that's completely fine — keep using
+the app and tell a friend about it. That's also support.
+`,
+  },
 ];
 
 export const HELP_INDEX = HELP_ARTICLES.map((a) => ({

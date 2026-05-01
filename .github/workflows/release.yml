@@ -20,19 +20,27 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS builds. Universal (--target universal-apple-darwin)
-          # was causing intermittent `bundle_dmg.sh` failures on
-          # GitHub Actions runners — the universal artifacts double the
-          # disk footprint AND `hdiutil create` locks contention with
-          # the lipos step. Splitting into two single-arch builds is
-          # both faster and reliable.
+          # macOS builds. Both architectures build on the Apple Silicon
+          # runner (`macos-latest`) via Rust cross-compilation. We used
+          # to use `macos-13` for the Intel build, but GitHub has been
+          # starving that runner pool — jobs sit "Waiting for a runner
+          # to pick up this job…" forever, eventually timing out and
+          # taking the dependent `publish-updater-json` step down with
+          # them. The previous fallback (universal-apple-darwin) had
+          # its own bundle_dmg.sh disk-pressure issues, so we land on:
           #
-          # macos-latest = ARM (M-series). macos-13 = the last Intel
-          # runner GitHub still hosts (used for Intel Mac builds).
+          # Two parallel single-arch jobs, both on macos-latest:
+          #   - aarch64 (native) — fast
+          #   - x86_64 (cross-compiled from ARM) — also fast, Cargo
+          #     handles it once `rustup target add x86_64-apple-darwin`
+          #     runs in the toolchain step
+          #
+          # Apple Silicon runners are well-supplied; both jobs land
+          # promptly, no queueing.
           - platform: macos-latest
             args: --target aarch64-apple-darwin
             mac-arch: arm64
-          - platform: macos-13
+          - platform: macos-latest
             args: --target x86_64-apple-darwin
             mac-arch: x64
           - platform: ubuntu-22.04
