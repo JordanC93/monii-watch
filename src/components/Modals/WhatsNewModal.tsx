@@ -39,6 +39,13 @@ type ReleaseEntry = {
  */
 export const RELEASE_NOTES: ReleaseEntry[] = [
   {
+    version: '0.6.16',
+    title: 'TopBar / sidebar header alignment fix',
+    bullets: [
+      'Fixed: the page-title bar (Savings / Search / Chat) was sitting ~4px higher than the sidebar header, making it look like it was protruding above the rest of the app. Both now use the same 56px height and bottom border lines up.',
+    ],
+  },
+  {
     version: '0.6.15',
     title: 'Receipt auto-route by last 4 digits',
     bullets: [

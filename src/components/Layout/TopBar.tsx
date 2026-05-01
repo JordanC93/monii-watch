@@ -139,7 +139,7 @@ export function TopBar({
         paddingRight: 'max(0.5rem, env(safe-area-inset-right, 0))',
       }}
     >
-      <div className="h-12 flex items-center gap-1 w-full">
+      <div className="h-14 flex items-center gap-1 w-full">
         {/* Back button when inside a sub-route. iOS-style — chevron only,
             no label, taps to nav back. */}
         {showBack && (

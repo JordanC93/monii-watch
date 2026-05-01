@@ -102,7 +102,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <aside data-no-meniscus data-material="regular" style={{ width }} className="h-full flex-shrink-0 bg-surface border-r border-border flex flex-col text-[13px] glass-panel relative">
-      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+      {/* Header height matches the TopBar (h-14 = 56px) so the bottom
+          borders + content line up across the sidebar/content split.
+          Without this the TopBar's smaller h-12 made it look like it
+          was "protruding" above the sidebar header. */}
+      <div className="px-4 h-14 flex items-center justify-between border-b border-border/60">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-md bg-gradient-to-br from-cyan-400 to-cyan-700 grid place-items-center text-white font-bold">$</div>
           <div>

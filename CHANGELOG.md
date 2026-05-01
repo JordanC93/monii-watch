@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### v0.6.16 — TopBar alignment fix
+
+The page-title bar (containing the back button + page title +
+Search / Chat shortcuts) was a different height from the sidebar
+header. Both started at the same y-position (just below the
+macOS titlebar drag strip), but:
+
+- Sidebar header: `px-4 pt-4 pb-3` natural height (~58px)
+- TopBar: `h-12` (48px)
+
+Result: TopBar content sat ~4px higher than sidebar header
+content, and the bottom borders didn't line up — looked like
+the TopBar was "protruding" above the rest of the app.
+
+Fix: both now use `h-14` (56px) with content vertically
+centered. The sidebar header also gets a `border-b` so its
+bottom edge is visible (matching the TopBar's), reinforcing
+the alignment.
+
 ### v0.6.15 — Receipt auto-route by last 4 digits + cross-device merge inspection (TODO)
 
 #### Receipt auto-route (Tier 12 #16)
