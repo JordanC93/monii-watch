@@ -39,6 +39,7 @@ import { WhatsNewModal } from './WhatsNewModal';
 import { AuditLogModal } from './AuditLogModal';
 import { TipJarModal } from './TipJarModal';
 import { CloudSyncActivityModal } from './CloudSyncActivityModal';
+import { InvestmentLotsModal } from './InvestmentLotsModal';
 
 export function ModalRoot() {
   const modal = useUI((s) => s.modal);
@@ -87,6 +88,7 @@ export function ModalRoot() {
     case 'auditLog':      return <AuditLogModal open onClose={close} />;
     case 'tipJar':        return <TipJarModal open onClose={close} />;
     case 'cloudSyncActivity': return <CloudSyncActivityModal open onClose={close} />;
+    case 'investmentLots': return <InvestmentLotsModal open onClose={close} accountId={modal.accountId} positionId={modal.positionId} />;
     default: return null;
   }
 }

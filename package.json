@@ -1,7 +1,7 @@
 {
   "name": "monii-watch",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.7.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -20,7 +20,14 @@
     "ios:open": "open src-tauri/gen/apple/monii-watch.xcodeproj || echo 'Run npm run ios:init first.'",
     "android:init": "tauri android init",
     "android:dev": "tauri android dev",
-    "android:build": "tauri android build"
+    "android:build": "tauri android build",
+    "cap:add:ios": "cap add ios",
+    "cap:add:android": "cap add android",
+    "cap:sync": "npm run build && cap sync",
+    "cap:open:ios": "cap open ios",
+    "cap:open:android": "cap open android",
+    "cap:run:ios": "npm run build && cap sync ios && cap run ios",
+    "cap:run:android": "npm run build && cap sync android && cap run android"
   },
   "dependencies": {
     "@noble/ciphers": "^2.2.0",
@@ -49,6 +56,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.2.0",
     "@tauri-apps/cli": "^2.10.1",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.18",
@@ -62,5 +70,14 @@
     "vite": "^6.0.5",
     "vite-plugin-pwa": "^0.21.1",
     "vitest": "^4.1.5"
+  },
+  "optionalDependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/haptics": "^6.0.2",
+    "@capacitor/ios": "^6.2.0",
+    "@capacitor/share": "^6.0.3",
+    "@capacitor/status-bar": "^6.0.2"
   }
 }

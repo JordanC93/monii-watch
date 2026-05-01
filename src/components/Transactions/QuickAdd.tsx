@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useBudget } from '../../store/budget';
 import { createTransaction, ensurePayee, createScheduled, findPayeeByName } from '../../db/repo';
 import { todayIso } from '../../domain/date';
@@ -34,6 +34,19 @@ export function QuickAdd({ accountId }: Props) {
   const [selectedAcct, setSelectedAcct] = useState<string>(accountId ?? accounts[0]?.id ?? '');
   const [mobileExpanded, setMobileExpanded] = useState(false);
   const payees = useBudget((s) => s.payees);
+  // Tier 14 — household member picker (couples mode). Defaults to the
+  // active member on this device. Hidden on solo installs (no members).
+  // Iron Rule #21 — pull the raw possibly-undefined field, default in
+  // useMemo. `?? []` inside the selector returns a fresh array every
+  // render and triggers a useSyncExternalStore feedback loop.
+  const householdMembersRaw = useBudget((s) => s.settings.householdMembers);
+  const householdMembers = useMemo(() => householdMembersRaw ?? [], [householdMembersRaw]);
+  const activeMemberId = useBudget((s) => s.settings.activeHouseholdMemberId);
+  const [enteredBy, setEnteredBy] = useState<string>(activeMemberId ?? '');
+  // Re-sync if the user changes who's "active" in another tab/device.
+  useEffect(() => {
+    if (activeMemberId) setEnteredBy(activeMemberId);
+  }, [activeMemberId]);
 
   /**
    * When the payee changes, auto-suggest the last-used category for that payee
@@ -104,6 +117,7 @@ export function QuickAdd({ accountId }: Props) {
         categoryId: null,
         transferAccountId: transferTo,
         amount,
+        enteredBy: enteredBy || undefined,
       });
     } else {
       if (payee.trim()) ensurePayee(payee);
@@ -112,6 +126,7 @@ export function QuickAdd({ accountId }: Props) {
         payee: payee.trim() || null,
         categoryId: categoryId || null,
         amount,
+        enteredBy: enteredBy || undefined,
       });
       // Tier 3 #7 — smart-detect: if this payee × this amount has appeared
       // ≥3 times on a regular cadence and there's no scheduled template
@@ -296,6 +311,19 @@ export function QuickAdd({ accountId }: Props) {
                   if (!categoryId && defCat) setCategoryId(defCat);
                 }}
               />
+            )}
+            {/* Tier 14 — household member picker, hidden on solo installs. */}
+            {householdMembers.length > 0 && (
+              <select
+                value={enteredBy}
+                onChange={(e) => setEnteredBy(e.target.value)}
+                className="h-9 w-full px-2 rounded bg-surface-3 border border-border text-[13px]"
+              >
+                <option value="">— No attribution —</option>
+                {householdMembers.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
             )}
             <select
               value={isTransfer ? `__transfer__:${transferTo}` : categoryId}

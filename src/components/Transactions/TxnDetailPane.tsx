@@ -14,7 +14,8 @@ import { useBudget } from '../../store/budget';
 import { useFormatMoney } from '../../lib/format';
 import { ACCOUNT_TYPE_META } from '../../domain/types';
 import { formatDate } from '../../domain/date';
-import { setCleared, setFlag, deleteTransaction } from '../../db/repo';
+import { setCleared, setFlag, deleteTransaction, updateTransaction } from '../../db/repo';
+import { TagInput } from './TagInput';
 import { useUI } from '../../store/ui';
 import { Money } from '../ui/Money';
 import { X, Trash2, ArrowLeftRight, Receipt as ReceiptIcon, Hourglass, Tag } from 'lucide-react';
@@ -117,6 +118,21 @@ export function TxnDetailPane({ transactionId, onClose }: Props) {
           onClose={() => setShowReceipt(false)}
         />
       )}
+
+      {/* Tags — Tier 14 #3. Free-form labels orthogonal to categories.
+          Common patterns: "vacation", "tax-deductible", "client-billable". */}
+      <div className="border-t border-border px-4 py-3">
+        <div className="text-[11px] uppercase tracking-wider text-fg-subtle mb-1.5 flex items-center gap-1">
+          <Tag size={11} /> Tags
+        </div>
+        <TagInput
+          value={txn.tags ?? []}
+          onChange={(next) => updateTransaction(txn.id, { tags: next.length > 0 ? next : undefined })}
+        />
+        <div className="text-[10.5px] text-fg-subtle mt-1">
+          Cross-cutting labels — orthogonal to categories. Filter by tag on Search + Reports.
+        </div>
+      </div>
 
       <div className="border-t border-border px-4 py-3">
         <div className="text-[11px] uppercase tracking-wider text-fg-subtle mb-2">

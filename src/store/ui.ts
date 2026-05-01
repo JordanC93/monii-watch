@@ -81,7 +81,8 @@ export type ModalState =
   | { type: 'whatsNew' }
   | { type: 'auditLog' }
   | { type: 'tipJar' }
-  | { type: 'cloudSyncActivity' };
+  | { type: 'cloudSyncActivity' }
+  | { type: 'investmentLots'; accountId: string; positionId: string };
 
 export const useUI = create<State>((set, get) => ({
   commandOpen: false,

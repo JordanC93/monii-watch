@@ -1,6 +1,7 @@
 import type { ThemeName } from '../domain/types';
 import { setSettingsField, getSettings } from '../db/repo';
 import { applyGlassPalette } from '../lib/glassPalettes';
+import { syncStatusBarToTheme } from './../lib/capacitor';
 
 const KEY = 'monii:theme';
 
@@ -44,7 +45,12 @@ function applyMetaThemeColor(theme: Exclude<ThemeName, 'auto'>) {
     meta.name = 'theme-color';
     document.head.appendChild(meta);
   }
-  meta.content = THEME_STATUS_BAR_COLOR[theme] ?? THEME_STATUS_BAR_COLOR.dark;
+  const color = THEME_STATUS_BAR_COLOR[theme] ?? THEME_STATUS_BAR_COLOR.dark;
+  meta.content = color;
+  // Tier 9 #1 — when running inside the Capacitor iOS shell, also tint
+  // the actual status bar (not just the meta tag, which iOS WKWebView
+  // doesn't honor). No-op on web + Android.
+  void syncStatusBarToTheme(color, theme === 'light');
 }
 
 /**

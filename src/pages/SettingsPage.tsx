@@ -14,6 +14,7 @@ import type { Settings as SettingsT } from '../domain/types';
 import { Download, Upload, Cloud, RefreshCw, AlertTriangle, Bug, Plus, Trash2, FileText, Lock } from 'lucide-react';
 import { US_STATES, getStateByCode } from '../domain/usaStateTax';
 import { toast } from '../lib/toast';
+import { HouseholdSettings } from '../components/Settings/HouseholdSettings';
 import { DEDUCTION_KIND_LABELS, sumDeductions } from '../conversation/paystub';
 import type { PaycheckDeduction } from '../domain/types';
 import { newId } from '../domain/id';
@@ -480,6 +481,10 @@ export function SettingsPage() {
 
       <Section title="App lock" subtitle="Optional PIN to unlock Monii Watch. Per-device — your synced data isn't affected.">
         <AppLockSettings />
+      </Section>
+
+      <Section title="Household members" subtitle="Attribute transactions to members of a shared household. Solo users — leave empty.">
+        <HouseholdSettings />
       </Section>
       </SettingsTab>
 

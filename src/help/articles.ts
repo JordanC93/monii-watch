@@ -2072,6 +2072,515 @@ after the line items, so the trailing match is most reliable.
 - No data leaves your device for this feature.
 `,
   },
+
+  // ============================================================
+  // v0.7.1 — new in this release
+  // ============================================================
+
+  {
+    id: 'transaction-tags',
+    title: 'Transaction tags',
+    category: 'transactions',
+    tags: ['tags', 'labels', 'organize', 'filter', 'metadata'],
+    body: `
+Tags are short freeform labels you can stick on any transaction.
+They cut across categories — a tag like \`vacation\` can show up
+on a Groceries transaction, a Hotel transaction, and a Gas
+transaction, then you can filter the whole trip by that tag.
+
+## Adding tags
+
+- Open any transaction's detail pane.
+- In the Tags row, type a label and press Enter (or comma).
+- Reuse an old tag from the autocomplete dropdown.
+
+Tags are stored lowercase + trimmed. \`Vacation\`, \`vacation \`, and
+\`VACATION\` all become the same tag.
+
+## Where tags show up
+
+- The detail pane shows full chips you can remove with one tap.
+- The mobile transaction card shows up to 3 chips inline plus
+  "+N more" when there are extra.
+- Search the tags by typing them into the global search bar.
+
+## Filtering by tag
+
+The Search page accepts \`#tag\` as a filter token, so
+\`#vacation\` returns every transaction tagged "vacation".
+Combine with category and account filters to drill in further.
+
+## Tag list
+
+Settings → Tags shows the registry of every tag you've used.
+Remove ones you don't want anymore (it deletes the tag from
+every transaction that had it).
+
+## Common patterns
+
+- **Trip-based**: \`vacation-2026\`, \`paris\`, \`work-trip\`
+- **Project**: \`renovation\`, \`wedding\`, \`baby\`
+- **Tax**: \`tax-deductible\`, \`business-expense\`
+- **Person**: \`with-mom\`, \`gift\`
+- **Refund tracking**: \`pending-refund\`
+`,
+  },
+
+  {
+    id: 'smart-auto-categorize',
+    title: 'Smart auto-categorize',
+    category: 'transactions',
+    tags: ['auto-categorize', 'rules', 'learning', 'payee'],
+    body: `
+Monii Watch learns from your category corrections. The next time
+you enter a transaction with the same payee, the right category
+is filled in for you.
+
+## How it works
+
+1. You enter a transaction at \`Trader Joe's\` and pick the
+   \`Groceries\` category.
+2. Monii quietly creates an implicit auto-rule:
+   *"any transaction whose payee is exactly 'trader joe's' →
+   Groceries"*.
+3. Next time you add a \`Trader Joe's\` transaction, Groceries is
+   pre-selected.
+
+## What "exactly" means
+
+The match is **case-insensitive** and **exact**. \`Trader Joe's\`
+and \`trader joes\` both hit; \`Trader Joe's #423\` does not. Each
+unique payee gets its own rule — that prevents bleeding between
+similar names.
+
+## Overriding
+
+Pick a different category and Monii updates the rule to point
+at the new one. Your last correction is always the rule.
+
+## Removing a rule
+
+Settings → Auto-categorize lists every rule (including the
+implicit ones). Delete an entry to forget the mapping. The
+implicit rules are tagged with \`auto:\` so you can spot them
+quickly.
+
+## Manual rules still apply
+
+The smart rules sit alongside the manual ones you wrote (with
+substring matching, regex, or amount filters). Manual rules
+have higher priority — if both match, your hand-written rule
+wins.
+
+## Privacy
+
+Auto-categorize runs entirely on-device. No payee data leaves
+your machine. The rules sync to your other devices via the
+normal end-to-end-encrypted Yjs sync, the same as everything
+else.
+`,
+  },
+
+  {
+    id: 'report-export',
+    title: 'Export reports as CSV or PDF',
+    category: 'reports',
+    tags: ['export', 'csv', 'pdf', 'print', 'spreadsheet'],
+    body: `
+Most report cards have **CSV** and **PDF** buttons in their
+top-right. Use them to take a snapshot for taxes, share with a
+financial advisor, or pull into a spreadsheet.
+
+## CSV
+
+Downloads a comma-separated values file you can open in Excel,
+Numbers, Google Sheets, or LibreOffice. The first row is
+column headers; each row after is one record.
+
+CSV files are encoded UTF-8 with proper RFC 4180 escaping —
+commas and quotes inside values are handled.
+
+## PDF
+
+Click PDF and Monii opens the system print dialog. From there:
+
+- **macOS**: choose **Save as PDF** in the bottom-left of the
+  print panel.
+- **Windows**: choose **Microsoft Print to PDF** in the printer
+  dropdown.
+- **iOS / iPadOS**: tap the share icon in the print preview,
+  then **Save to Files** or **Save to Photos**.
+
+The page is automatically reformatted for print: only the
+report you clicked on is included, navigation chrome is hidden,
+and the layout fills the page.
+
+## Reports that support export
+
+- Spending by category
+- Year-over-year month compare
+- Tax summary
+- Net worth history
+- Household member breakdown
+
+More are added every release. If you don't see the buttons on a
+card it doesn't have export wired up yet — let us know which
+one and it'll come in the next update.
+
+## Privacy
+
+Both export paths are 100% local. Nothing is sent to a server,
+no print spooler captures the file, the PDF stays on your
+device until you decide what to do with it.
+`,
+  },
+
+  {
+    id: 'year-over-year-compare',
+    title: 'Year-over-year month compare',
+    category: 'reports',
+    tags: ['year', 'compare', 'history', 'trend', 'side-by-side'],
+    body: `
+The Year-over-year card shows a single calendar month across
+the last 4 years, side by side. Pick May; you see May 2023,
+May 2024, May 2025, and May 2026 in one table.
+
+## Why it's useful
+
+- Spot **seasonal patterns**: heating bill in January, summer
+  childcare, holiday gifts in December.
+- See if a category is **trending up or down** in real terms —
+  not just compared to last month.
+- Catch one-time spikes that distort a month-over-month view.
+
+## How to read it
+
+Each category has a row. Each year has a column. The Δ%
+column on the right shows the change from the prior year:
+
+- Green = lower spend than last year
+- Red = higher spend than last year
+- Gray dash = no data for that month / year
+
+## Tip
+
+Pair this with the Spending Streaks card — if the Δ% is
+green AND you've got a 6-month streak, that category's a
+candidate for tightening the envelope.
+
+## Export
+
+CSV and PDF buttons live in the card header (see "Export
+reports as CSV or PDF" for the details).
+`,
+  },
+
+  {
+    id: 'household-mode',
+    title: 'Household / couples mode',
+    category: 'advanced',
+    tags: ['household', 'couples', 'family', 'partner', 'attribution', 'who'],
+    body: `
+Household mode lets you attribute transactions to one of several
+people sharing the budget — partners, roommates, household members.
+You'll see per-member totals on the Reports page so you know who
+spent what.
+
+## Setting it up
+
+1. Open Settings → **Household members**.
+2. Tap **Add member**, give them a name, optionally pick a color.
+3. Repeat for everyone you want to attribute. Most couples just
+   add the two of them. Roommates might add 3-4 people.
+4. **Pick the active member on this device** — that becomes the
+   default for new transactions you enter.
+
+## Day-to-day flow
+
+- The QuickAdd bar shows a person picker once you've added at
+  least one member.
+- New transactions inherit your device's active member as
+  \`enteredBy\`.
+- Override per-transaction by switching the picker before saving.
+
+## Per-device active member
+
+Each device has its own active member. Set yourself active on
+your phone, set your partner active on theirs. New transactions
+each of you enter get tagged with the right person automatically.
+
+## Reports
+
+The **Household member breakdown** card on Reports shows total
+outflow by person, plus an "unattributed" bucket for anything
+without a member set. Useful for splitting bills, tracking who
+spends what on shared cards, or just curiosity.
+
+## What this is NOT
+
+- **Not separate logins.** There's no per-member password,
+  permissions, or inbox. Every member sees the whole budget.
+  The labels are for attribution, not access control.
+- **Not separate budgets.** All members share one budget.
+  If you want truly separate finances, use **Workspaces**
+  instead (Settings → Workspaces).
+
+## Solo users
+
+If you don't add any household members the picker stays hidden
+and the budget works exactly as before. You can opt in later
+without any data migration.
+`,
+  },
+
+  {
+    id: 'investment-lots',
+    title: 'Investment lot tracking',
+    category: 'advanced',
+    tags: ['investments', 'lots', 'fifo', 'lifo', 'tax-loss', 'capital-gains'],
+    body: `
+For investment accounts, Monii Watch can track individual
+purchase lots — when you bought each share, at what price, and
+how long you've held it. This unlocks accurate capital-gain
+reporting and tax-loss harvesting hints.
+
+## Adding lots
+
+1. Open Investments → click the **layers** icon next to a
+   position.
+2. The Lots modal opens with three tabs: **Lots**, **Add lot**,
+   **Sell shares**.
+3. **Add lot**: enter the acquisition date, share count, price
+   per share at purchase, and optional notes (brokerage
+   reference, etc.).
+4. Add one lot per purchase batch. If you buy AAPL six times in
+   a year, that's six lots — each with its own cost basis and
+   holding period.
+
+## Selling shares
+
+The **Sell shares** tab lets you specify a sale and pick which
+lots to draw from:
+
+- **FIFO** (oldest first) — default; matches IRS default rules.
+- **LIFO** (newest first) — sometimes used to defer recognizing
+  long-term gains.
+- **Specific lot** — you pick exactly which lot. Most useful for
+  tax-loss harvesting (sell the lot with the worst gain to
+  offset other gains).
+
+When you record a sale, Monii calculates realized gain/loss per
+lot and tags it short-term (held < 365 days) or long-term
+(≥ 365 days).
+
+## Long-term vs short-term
+
+US tax law taxes long-term capital gains at preferential rates
+(0% / 15% / 20% depending on income) while short-term gains
+are taxed as ordinary income. Holding past the 1-year mark
+matters. The Lots table shows holding days plus an **(LT)**
+badge once a lot crosses 365 days.
+
+## Tax-loss harvesting
+
+Selling a losing lot can offset gains elsewhere — the wash-sale
+rule (no buying the same security within 30 days) applies. The
+domain layer flags candidates; the modal shows a warning when
+you pick a recently-purchased lot to sell.
+
+## What this is NOT
+
+Monii Watch is **not a tax-prep tool**. The numbers it gives
+you are starting points for your CPA, not the final word.
+Always reconcile against your brokerage's 1099-B at year-end.
+
+## Privacy
+
+Lot data lives in the same encrypted Yjs doc as everything
+else. Nothing is sent to a stock-quote service or a tax
+provider — manual price entry only. Future updates may add
+opt-in price fetching, but it'll always be off by default.
+`,
+  },
+
+  {
+    id: 'dashboard-widgets',
+    title: 'Customizing your dashboard',
+    category: 'getting-started',
+    tags: ['dashboard', 'widgets', 'resize', 'customize', 'layout'],
+    body: `
+The Dashboard at \`/dashboard\` is a customizable grid of
+widgets. Pick the ones that matter to you, hide the rest,
+and resize the important ones to take up more space.
+
+## Customizing
+
+1. Open Dashboard.
+2. Click **Customize** in the top right.
+3. From here you can:
+   - Add widgets from the picker (only ones not already on
+     your dashboard show up).
+   - Move a widget up or down with the arrow buttons.
+   - Remove a widget with the X.
+   - **Resize** a widget by clicking the **S / M / L** button
+     on its card. S = small, M = medium (default), L = full
+     row width.
+4. Click **Done** to commit.
+
+## v0.7.1 widgets
+
+- **Net worth** — total across all accounts
+- **Ready to Assign** — money waiting for a job this month
+- **This month's cash flow** — income, spent, net
+- **Health scorecard** — overall financial health 0-100
+- **Runway** — months of cash if income stops
+- **Savings rate** — 12-month average
+- **Unusual transactions** — surprising charges this week
+- **Recent transactions** — last 5 entries
+- **Active goals** — count of in-progress goals
+- **Quick notes** — sticky-note pad (this device only)
+- **Deal alerts** — goal items at or below your target price
+- **Recent activity** — last 6 changes across the budget
+- **Workspace summary** — current workspace + entity counts
+
+## Reset to default
+
+The **Reset to default** button (in the customize panel) clears
+your custom layout and restores the starter dashboard. It
+doesn't delete the underlying data — just your chosen layout.
+
+## Sync
+
+The widget order + sizing is synced across your devices via the
+normal Yjs sync. Exception: the **Quick notes** widget content
+is per-device-only and stays in localStorage — a sticky note
+belongs to one device.
+`,
+  },
+
+  {
+    id: 'theme-polish',
+    title: 'Theme & visual polish',
+    category: 'getting-started',
+    tags: ['theme', 'glass', 'dark', 'light', 'oled', 'animation', 'pazzaz'],
+    body: `
+v0.7.1 polished the four themes with subtle animation and
+softer interactions while keeping the same overall look.
+
+## Smooth theme switching
+
+When you switch themes (Settings → Appearance), the page
+crossfades between palettes over ~220ms instead of snapping.
+Background, text, and border colors transition together.
+
+Users who set **Reduce Motion** in their OS get an instant
+swap instead — the animation is disabled automatically.
+
+## Active nav highlight
+
+The active sidebar / bottom-nav item now carries a subtle
+inner highlight + drop shadow, so it pops more clearly against
+panel backgrounds. The accent color comes from your active
+theme; Liquid Glass picks up the chosen palette.
+
+## Glass panel hover
+
+Buttons + links rendered as glass panels lift 1px on hover for
+a tactile "pressable" feel. Same Reduce Motion guard — no
+movement if your OS asked for it off.
+
+## Accent button gradient
+
+Primary buttons (Add, Save, Apply, etc.) now layer a faint
+top-to-bottom gradient over the accent color, giving them a
+slight 3D feel without changing the overall palette.
+
+## Focus ring
+
+Tab through the app with the keyboard and the focused control
+gets a 2px accent ring, scaled by your theme's accent color.
+Click-focus stays unstyled — only keyboard navigation surfaces
+the ring (via \`:focus-visible\`).
+
+## Money pills
+
+Big money values (Net Worth tile, Ready to Assign) get a
+subtle gradient background to read more like a metric pill
+than plain text.
+
+## Where this lives
+
+Everything is CSS-only — no behavior changes. If a particular
+animation bothers you, the OS-level **Reduce Motion** preference
+disables them globally. Per-effect toggles aren't planned.
+`,
+  },
+
+  {
+    id: 'native-mobile',
+    title: 'Native iOS app (TestFlight + App Store)',
+    category: 'getting-started',
+    tags: ['ios', 'iphone', 'ipad', 'native', 'app store', 'testflight', 'capacitor'],
+    body: `
+Monii Watch ships as a real native iOS app in addition to
+the PWA you can add to your Home Screen from Safari. Both run
+the same code; the native shell adds App Store distribution,
+proper push-notification capability (later releases), and
+better integration with the iOS share sheet.
+
+## How to get it
+
+The native build is distributed via **TestFlight** for early
+testers and via the App Store once it's reviewed. Check your
+TestFlight invite email or the App Store listing for the
+latest version.
+
+If you're already running the PWA from Safari (Add-to-Home-Screen),
+both work side-by-side. They use separate storage — to avoid
+running both, pick one and stick with it.
+
+## What's the same
+
+- Every feature: budget, accounts, goals, reports, sync, all of
+  it.
+- The 4 themes, including Liquid Glass.
+- Local IndexedDB storage — your data lives on your device.
+- WebRTC + Drive + WebSocket sync transports — same options.
+
+## What's different
+
+- **App Store updates** instead of in-app auto-update. Apple
+  doesn't allow self-updaters — you get updates the regular
+  way (TestFlight push, App Store update prompt).
+- **Status bar tinting** matches your theme automatically.
+- **Haptic feedback** on certain confirmations (transaction
+  saved, transfer complete) — falls back to silent on older
+  devices.
+- **Native share sheet** for the goal price tracker and CSV
+  exports.
+- **iCloud backup** picks up the app's IndexedDB folder
+  automatically — restore your phone, your budget rides
+  along (unless you opt out at the OS level).
+
+## Privacy
+
+Same iron rules as the desktop and PWA versions:
+
+- No analytics SDKs.
+- No third-party financial services.
+- No data collection.
+- All sync is opt-in + end-to-end encrypted.
+
+The App Store privacy nutrition label declares **Data Not
+Collected** across every category.
+
+## For contributors
+
+The iOS shell is built with Capacitor — a cross-platform
+wrapper that ships our existing Vite bundle. Setup details
+in \`docs/CAPACITOR.md\` in the repo.
+`,
+  },
 ];
 
 export const HELP_INDEX = HELP_ARTICLES.map((a) => ({

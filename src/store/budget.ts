@@ -99,6 +99,9 @@ const initialSettings: Settings = {
   exportReminderShownAt: undefined,
   appLockEnabled: false,
   appLockTimeoutMinutes: 5,
+  knownTags: undefined,
+  householdMembers: undefined,
+  activeHouseholdMemberId: undefined,
 };
 
 export const useBudget = create<State>((set) => ({

@@ -11,11 +11,13 @@ import * as Y from 'yjs';
 import { getDoc, MAPS, tx } from '../sync/doc';
 import type {
   Account, AccountType, AllocationRule, AutoRule, BillNegotiationPrompt, BudgetTemplate, Category,
-  CategoryGroup, ClearedState, FlagColor, InvestmentPosition, IouEntry, MonthAssignment, Money,
+  CategoryGroup, ClearedState, FlagColor, InvestmentLot, InvestmentPosition, InvestmentSale,
+  IouEntry, MonthAssignment, Money,
   MonthlyReview, NwSnapshot, Payee, RecurrenceFrequency, SavedSearch, SavingsBucket,
   ScheduledTransaction, Settings, Split, SubscriptionUsagePrompt, ThemeName, Transaction,
   TrashEntry, TripBudget,
 } from '../domain/types';
+import type { LotAllocation } from '../domain/investmentLots';
 import { ACCOUNT_TYPE_META } from '../domain/types';
 import { newId, newSyncRoom } from '../domain/id';
 import { todayIso, thisMonthIso } from '../domain/date';
@@ -108,6 +110,9 @@ const DEFAULT_SETTINGS: Settings = {
   exportReminderShownAt: undefined,
   appLockEnabled: false,
   appLockTimeoutMinutes: 5,
+  knownTags: undefined,
+  householdMembers: undefined,
+  activeHouseholdMemberId: undefined,
 };
 
 /** Internal tag we add to category names to identify auto-created credit-card payment categories. */
@@ -486,6 +491,78 @@ export function setDealFeedsLastPolledAt(at: number): void {
   tx(() => settingsMap().set('dealFeedsLastPolledAt', at));
 }
 
+/**
+ * Tier 14 #3 — merge tags into the known-tags registry. Lowercase +
+ * trimmed. Maintains insertion order with new tags appended; the
+ * registry never shrinks automatically.
+ */
+export function registerTags(tags: string[]): void {
+  if (tags.length === 0) return;
+  const cur = (settingsMap().get('knownTags') as string[] | undefined) ?? [];
+  const known = new Set(cur);
+  let changed = false;
+  for (const raw of tags) {
+    const t = raw.trim().toLowerCase();
+    if (!t || known.has(t)) continue;
+    known.add(t);
+    cur.push(t);
+    changed = true;
+  }
+  if (!changed) return;
+  // Cap at 200 known tags — the autocomplete drops the oldest if a
+  // user goes wild. Heuristic; real users plateau around ~10-30.
+  while (cur.length > 200) cur.shift();
+  tx(() => settingsMap().set('knownTags', cur));
+}
+
+/**
+ * Tier 14 — implicit AutoRule maintenance. When a user re-categorizes
+ * a transaction, treat it as a correction signal: ensure an AutoRule
+ * exists for `payeeName → categoryId`, or update an existing implicit
+ * rule. Implicit rules are flagged with a leading `auto:` in the
+ * pattern (so they don't get confused with user-authored rules) and
+ * use lower priority via being appended at the end of the list.
+ *
+ * The user can promote an implicit rule to a "real" one in the
+ * Auto-rules page by editing the pattern. A user-authored rule on the
+ * same payee will be respected (we don't overwrite explicit rules).
+ */
+function upsertImplicitAutoRule(payeeName: string, categoryId: string): void {
+  const trimmed = payeeName.trim();
+  if (!trimmed) return;
+  const all = listAutoRules();
+  const norm = trimmed.toLowerCase();
+  // Skip if a USER-authored rule already covers this payee — we don't
+  // touch explicit configuration.
+  const explicit = all.find((r) => !r.pattern.startsWith('auto:') && norm.includes(r.pattern.toLowerCase()));
+  if (explicit) return;
+  // Look up an existing implicit rule for this same payee.
+  const implicitId = `auto:${norm}`;
+  const existing = all.find((r) => r.pattern === implicitId);
+  if (existing) {
+    if (existing.categoryId === categoryId) return;
+    // Update the cached category target.
+    tx(() => {
+      autoRulesMap().set(existing.id, { ...existing, categoryId });
+    });
+    return;
+  }
+  // Create a new implicit rule.
+  const id = newId();
+  const order = all.length;
+  const rule: AutoRule = {
+    id,
+    pattern: implicitId,
+    kind: 'category',
+    categoryId,
+    override: false,
+    patternMode: 'substring',
+    order,
+    createdAt: Date.now(),
+  };
+  tx(() => autoRulesMap().set(id, rule));
+}
+
 export function updateCategory(id: string, patch: Partial<Category>): void {
   tx(() => {
     const cur = categoriesMap().get(id);
@@ -684,6 +761,10 @@ export type TxnInput = {
   cleared?: ClearedState;
   flag?: FlagColor | null;
   splits?: Array<{ categoryId: string | null; amount: number; memo?: string }>;
+  /** Tier 14 — household member id for attribution (couples mode). */
+  enteredBy?: string;
+  /** Tier 14 #3 — free-form tags. */
+  tags?: string[];
 };
 
 export function createTransaction(input: TxnInput): Transaction {
@@ -742,6 +823,11 @@ export function createTransaction(input: TxnInput): Transaction {
     amount: input.amount,
     memo, cleared, flag, splits,
     createdAt: now, updatedAt: now,
+    // Tier 14 — pass through household attribution + free-form tags
+    // when the caller supplied them. Tags also register into the
+    // known-tag autocomplete list inside tx() below.
+    enteredBy: input.enteredBy,
+    tags: input.tags && input.tags.length > 0 ? input.tags : undefined,
   };
 
   tx(() => {
@@ -764,6 +850,10 @@ export function createTransaction(input: TxnInput): Transaction {
       txnsMap().set(id, me);
     } else {
       txnsMap().set(id, baseTxn);
+    }
+    // Register any tags so they appear in autocomplete next time.
+    if (input.tags && input.tags.length > 0) {
+      registerTags(input.tags);
     }
   });
   // Tier 6 #1 — fire auto-allocation rules on income inflows. Only on
@@ -799,6 +889,27 @@ export function updateTransaction(id: string, patch: Partial<Transaction> & { pa
     }
     if (next.payeeId && next.categoryId) {
       rememberPayeeDefault(next.payeeId, next.categoryId);
+    }
+    // Tier 14 #3 — register any new tags into the known-tags
+    // autocomplete registry. Stays in sync without per-tag UI.
+    if (patch.tags) {
+      registerTags(patch.tags);
+    }
+    // Tier 14 — smart auto-categorize: when the user CHANGES the
+    // category for a transaction whose payee already had a default,
+    // assume it's an explicit correction and create / update an
+    // implicit AutoRule keyed off the payee's name. Future txns from
+    // that payee will pick up the new category.
+    if (
+      patch.categoryId !== undefined
+      && patch.categoryId !== null
+      && patch.categoryId !== cur.categoryId
+      && next.payeeId
+    ) {
+      const payee = payeesMap().get(next.payeeId);
+      if (payee && payee.name && !payee.builtIn) {
+        upsertImplicitAutoRule(payee.name, patch.categoryId);
+      }
     }
     txnsMap().set(id, next);
 
@@ -1788,21 +1899,30 @@ export function lookupAutoCategory(payeeName: string, amount: Money = 0): string
  * Handles substring vs regex pattern mode + amount-range filtering.
  */
 function ruleMatches(r: AutoRule, payeeName: string, amount: Money): boolean {
-  // Pattern check
-  const mode = r.patternMode ?? 'substring';
-  if (mode === 'regex') {
-    try {
-      // Anchor with case-insensitive flag — same as substring's intent.
-      // Pattern is user-controlled but only runs against in-memory strings,
-      // no DB / network impact even on catastrophic backtracking. Defensive
-      // try/catch swallows invalid regexes.
-      const re = new RegExp(r.pattern, 'i');
-      if (!re.test(payeeName)) return false;
-    } catch {
-      return false;
-    }
+  // Implicit rules (Tier 14 smart auto-categorize) use a stable
+  // `auto:<lowercase-payee-name>` pattern. Match against the payee's
+  // exact lowercase name rather than as a substring so implicit
+  // rules don't bleed across similarly-named payees.
+  if (r.pattern.startsWith('auto:')) {
+    const target = r.pattern.slice(5);
+    if (payeeName.trim().toLowerCase() !== target) return false;
   } else {
-    if (!payeeName.toLowerCase().includes(r.pattern.toLowerCase())) return false;
+    // Pattern check
+    const mode = r.patternMode ?? 'substring';
+    if (mode === 'regex') {
+      try {
+        // Anchor with case-insensitive flag — same as substring's intent.
+        // Pattern is user-controlled but only runs against in-memory strings,
+        // no DB / network impact even on catastrophic backtracking. Defensive
+        // try/catch swallows invalid regexes.
+        const re = new RegExp(r.pattern, 'i');
+        if (!re.test(payeeName)) return false;
+      } catch {
+        return false;
+      }
+    } else {
+      if (!payeeName.toLowerCase().includes(r.pattern.toLowerCase())) return false;
+    }
   }
   // Amount-range check (uses absolute value — outflows are negative)
   const abs = Math.abs(amount);
@@ -1877,6 +1997,87 @@ export function deleteInvestmentPosition(accountId: string, posId: string): void
   if (!a) return;
   const list = (a.positions ?? []).filter((p) => p.id !== posId);
   tx(() => accountsMap().set(accountId, { ...a, positions: list }));
+}
+
+// Tier 9 #6 / Tier 14 — investment lot management.
+
+/**
+ * Add a new lot to a position. Recomputes the position's aggregated
+ * `shares` + `costBasis` so legacy code paths that don't know about
+ * lots still see correct totals.
+ */
+export function addInvestmentLot(
+  accountId: string,
+  posId: string,
+  lot: Omit<InvestmentLot, 'id' | 'createdAt'>,
+): InvestmentLot | null {
+  const a = accountsMap().get(accountId);
+  if (!a) return null;
+  const list = (a.positions ?? []).slice();
+  const ix = list.findIndex((p) => p.id === posId);
+  if (ix < 0) return null;
+  const newLot: InvestmentLot = {
+    ...lot,
+    id: newId(),
+    createdAt: Date.now(),
+  };
+  const lots = [...(list[ix].lots ?? []), newLot];
+  // Recompute aggregate position fields for any legacy reader.
+  const totalShares = lots.reduce((s, l) => s + Math.max(0, l.shares - (l.sharesSold ?? 0)), 0);
+  const totalCost = lots.reduce((s, l) => s + Math.round(Math.max(0, l.shares - (l.sharesSold ?? 0)) * l.pricePerShare), 0);
+  list[ix] = { ...list[ix], lots, shares: totalShares, costBasis: totalCost };
+  tx(() => accountsMap().set(accountId, { ...a, positions: list }));
+  appendAudit(`Added lot for ${list[ix].ticker} (${lot.shares} sh @ ${(lot.pricePerShare / 100).toFixed(2)})`, 'create', posId);
+  return newLot;
+}
+
+/**
+ * Record a sale by drawing from one or more lots. Updates each
+ * source lot's `sharesSold` count and recomputes the position's
+ * aggregated shares/cost. Returns the sale records on success.
+ */
+export function recordInvestmentSale(
+  accountId: string,
+  posId: string,
+  saleDate: string,
+  pricePerShare: Money,
+  allocations: LotAllocation[],
+  memo?: string,
+): InvestmentSale[] | null {
+  if (allocations.length === 0) return null;
+  const a = accountsMap().get(accountId);
+  if (!a) return null;
+  const list = (a.positions ?? []).slice();
+  const ix = list.findIndex((p) => p.id === posId);
+  if (ix < 0) return null;
+  const pos = list[ix];
+  const lots = (pos.lots ?? []).slice();
+  const sales: InvestmentSale[] = [];
+  for (const alloc of allocations) {
+    const li = lots.findIndex((l) => l.id === alloc.lotId);
+    if (li < 0) return null;
+    const sold = (lots[li].sharesSold ?? 0) + alloc.shares;
+    if (sold > lots[li].shares) return null;
+    lots[li] = { ...lots[li], sharesSold: sold };
+    sales.push({
+      id: newId(),
+      positionId: posId,
+      lotId: alloc.lotId,
+      soldOn: saleDate,
+      shares: alloc.shares,
+      pricePerShare,
+      memo,
+      createdAt: Date.now(),
+    });
+  }
+  // Recompute aggregates.
+  const totalShares = lots.reduce((s, l) => s + Math.max(0, l.shares - (l.sharesSold ?? 0)), 0);
+  const totalCost = lots.reduce((s, l) => s + Math.round(Math.max(0, l.shares - (l.sharesSold ?? 0)) * l.pricePerShare), 0);
+  list[ix] = { ...pos, lots, shares: totalShares, costBasis: totalCost };
+  tx(() => accountsMap().set(accountId, { ...a, positions: list }));
+  const totalSold = allocations.reduce((s, x) => s + x.shares, 0);
+  appendAudit(`Sold ${totalSold} shares of ${pos.ticker} @ ${(pricePerShare / 100).toFixed(2)}`, 'update', posId);
+  return sales;
 }
 
 // -- Receipt attachment -------------------------------------------------

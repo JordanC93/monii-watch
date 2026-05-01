@@ -2,6 +2,139 @@
 
 ## Released
 
+### v0.7.1 — Tags, lots, household, native iOS
+
+A "fan-out" release across several long-requested features.
+Free-form tags + smart auto-categorize make day-to-day
+transaction entry faster; lot-level investment tracking
+unlocks tax-loss harvesting; household mode covers couples /
+roommates; per-report CSV + PDF export plus a new YoY month
+compare round out Reports; Capacitor brings a real native iOS
+shell alongside the existing Tauri desktop + PWA targets.
+
+#### Transactions
+
+- **Free-form tags.** Stick short labels on any transaction —
+  \`vacation\`, \`tax-deductible\`, \`#wedding\`, anything you
+  want. New \`<TagInput />\` chip control with autocomplete from
+  \`Settings.knownTags\`. Mobile cards show up to 3 tags inline
+  with a "+N more" overflow; the detail pane shows full chips
+  you can remove. Searchable from the global search bar.
+- **Smart on-device auto-categorize.** When you correct a
+  category on a transaction, Monii quietly creates an implicit
+  auto-rule: \`auto:<lowercase-payee>\` → that category. Next
+  time you add the same payee, the right category is pre-selected.
+  Case-insensitive exact match (no bleeding between similar
+  payee names). Manual rules still take priority.
+
+#### Reports
+
+- **Per-report CSV + PDF export.** \`<ReportExportButtons />\`
+  on every supported card. CSV is RFC 4180-escaped UTF-8; PDF
+  uses an \`@media print\` + \`data-print-scope\` attribute
+  toggle so only the clicked card prints — no html2canvas
+  dependency. Initial coverage: spending-by-category, year-over-year,
+  tax summary, net worth, household member breakdown.
+- **Year-over-year month compare.** Pick a calendar month and
+  see it side-by-side across the last 4 years, per category, with
+  Δ% vs prior year. Catches seasonal patterns and real-terms
+  trends a month-over-month view misses.
+
+#### Couples / household mode
+
+- **Household members roster.** Settings → Household members
+  lets you add named people sharing the budget (with optional
+  accent colors). The QuickAdd bar surfaces a member picker
+  once at least one member exists; new transactions inherit
+  this device's active member as \`enteredBy\`. Each device has
+  its own active member — partners can be active on their own
+  phones independently.
+- **Per-member breakdown report.** Bar chart of total outflow
+  per member with an "unattributed" bucket. Hidden for solo
+  users.
+- **NOT separate logins** — the labels are for attribution
+  only, not access control. Use Workspaces if you want truly
+  separate budgets.
+
+#### Investments
+
+- **Lot-level tracking.** New \`InvestmentsPage\` Manage Lots
+  modal (3 tabs: Lots / Add lot / Sell shares). Each lot has its
+  own acquisition date, share count, price-per-share, and notes.
+  Holding days + (LT) badge once past the 1-year IRS threshold.
+  Supports FIFO / LIFO / specific-lot sale strategies. Realized
+  gain/loss split into short-term / long-term automatically.
+- **Tax-loss harvesting hints.** \`domain/investmentLots.ts →
+  findHarvestCandidates\` flags lots at a loss with wash-sale
+  detection (30-day rule). Pure compute layer; UI surfaces it
+  through the modal.
+- Manual price entry by default. Future server-side fetcher will
+  populate \`lastPrice\` automatically without UI changes.
+
+#### Dashboard
+
+- **4 new widgets.**
+  - **Quick notes** — sticky-note pad (this device only,
+    localStorage, capped at 800 chars)
+  - **Deal alerts** — goal items at or below your target price
+  - **Recent activity** — last 6 changes from the audit log
+    with relative timestamps
+  - **Workspace summary** — active workspace name + entity counts
+- **Resizable widgets.** New \`Settings.dashboardWidgetSizes\`
+  (per-id S / M / L). The customize panel adds an S/M/L button
+  next to the move/remove controls. Large widgets span the full
+  row on lg breakpoints.
+- Reset-to-default also clears sizes alongside order.
+
+#### Theme polish
+
+- **Smooth crossfade on theme switch.** 220ms ease on
+  background-color, color, and border-color across \`html\`,
+  \`body\`, \`.glass-panel\`, and \`[data-theme]\`. Disabled
+  automatically under \`prefers-reduced-motion: reduce\`.
+- **Active nav-pill** highlight + drop shadow scoped to
+  \`[aria-current="page"]\` selectors so it doesn't bleed.
+- **Glass panel hover lift** of \`translateY(-1px)\` on
+  \`button.glass-panel:hover\` / \`a.glass-panel:hover\` — same
+  reduced-motion guard.
+- **Accent button gradient overlay** for primary buttons.
+- **Focus-visible 2px ring** on keyboard navigation only.
+- **Money pill subtle gradient** on big metric tiles.
+- All scoped to specific selectors per Iron Rule #18 — no
+  global \`.cursor-grab\` style traps.
+- **Goals nav icon** changed from \`Target\` to \`Trophy\` —
+  clearer match for the "goal achieved" mental model. Updated
+  in Sidebar, BottomNav, and the Active Goals dashboard widget.
+
+#### Native iOS
+
+- **Capacitor scaffolding.** New \`capacitor.config.ts\` and
+  optional-dependency entries for \`@capacitor/{core,ios,android,
+  app,haptics,share,status-bar}\`. Vite externalizes them so the
+  web bundle stays clean.
+- **Capacitor abstraction shim** \`src/lib/capacitor.ts\` exposes
+  \`isCapacitor\`, \`getPlatform\`, \`hapticTap\`, \`share\`,
+  \`syncStatusBarToTheme\`, and \`onHardwareBack\`. Every helper
+  degrades to a no-op on plain web.
+- **Status bar tinting** wired into \`store/theme.ts\` — when
+  running inside the iOS shell, the OS status bar matches the
+  active theme (using the same color the meta tag uses for PWAs).
+- **App Store / TestFlight workflow** documented in
+  \`docs/CAPACITOR.md\`. New npm scripts: \`cap:add:ios\`,
+  \`cap:sync\`, \`cap:open:ios\`, \`cap:run:ios\` (and android
+  equivalents).
+- iOS still excludes \`tauri-plugin-updater\` per Iron Rule #15
+  — Apple rejects in-app self-updaters; updates ride App Store
+  / TestFlight.
+
+#### Help
+
+- **9 new help articles** covering every v0.7.1 surface:
+  Transaction tags · Smart auto-categorize · Export reports as
+  CSV or PDF · Year-over-year month compare · Household / couples
+  mode · Investment lot tracking · Customizing your dashboard ·
+  Theme & visual polish · Native iOS app.
+
 ### v0.7.0 — Polish, safety, performance — App Store-ready foundation
 
 A consolidating release. Sweeps up the long-tail of "things I

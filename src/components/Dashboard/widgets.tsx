@@ -10,11 +10,12 @@
  * inside a glass panel.
  */
 
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Wallet, Target, TrendingUp, Hourglass, PiggyBank, Activity, BarChart3,
-  Calendar, ListChecks, AlertTriangle, Tag,
+  Wallet, Trophy, Hourglass, PiggyBank, Activity, BarChart3,
+  Calendar, ListChecks, AlertTriangle, Tag, StickyNote, Tags as TagsIcon,
+  History, Briefcase,
 } from 'lucide-react';
 import { useBudget } from '../../store/budget';
 import { useFormatMoney } from '../../lib/format';
@@ -25,6 +26,7 @@ import { computeRunway, computeSavingsRateTrend } from '../../domain/runway';
 import { computeHealthScore } from '../../domain/financialHealth';
 import { detectAnomalies } from '../../domain/anomaly';
 import { todayIso } from '../../domain/date';
+import { getActiveWorkspace } from '../../lib/workspaces';
 
 export type WidgetSpec = {
   id: string;
@@ -213,6 +215,153 @@ function GoalsWidget() {
   );
 }
 
+// v0.7.1 — Quick scratch note. Stored LOCAL-PER-DEVICE in localStorage
+// (not synced) — a sticky note belongs to one device. Capped at 800 chars
+// so it never balloons. Plain textarea — no rich text on a tile.
+const NOTES_KEY = 'monii:dashboard-note';
+function NotesWidget() {
+  const [value, setValue] = useState('');
+  useEffect(() => {
+    try { setValue(localStorage.getItem(NOTES_KEY) ?? ''); } catch {}
+  }, []);
+  function persist(v: string) {
+    setValue(v);
+    try { localStorage.setItem(NOTES_KEY, v.slice(0, 800)); } catch {}
+  }
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wider text-fg-subtle mb-1.5 flex items-center gap-1.5">
+        <StickyNote size={11} /> Notes
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) => persist(e.target.value)}
+        placeholder="Reminders, ideas, ‘pay landlord by 5th’…"
+        rows={4}
+        maxLength={800}
+        className="w-full bg-surface-2/40 border border-border rounded-md p-2 text-[12.5px] resize-none focus:outline-none focus:ring-1 focus:ring-accent/40"
+      />
+      <div className="text-[10.5px] text-fg-subtle mt-1 text-right tabular">
+        {value.length}/800 · stays on this device
+      </div>
+    </div>
+  );
+}
+
+// v0.7.1 — Live deal alerts surfaced from the goal price tracker. Mirrors
+// the same logic as <GoalDealBanner /> but in a tighter list form.
+function DealAlertsWidget() {
+  const categories = useBudget((s) => s.categories);
+  const fmt = useFormatMoney();
+  const nav = useNavigate();
+  const now = Date.now();
+  const live = categories.filter((c) => {
+    if (!c.currentItemPrice || c.currentItemPrice <= 0) return false;
+    if (!c.targetItemPrice) return true;
+    if ((c.priceAlertSilenceUntil ?? 0) > now) return false;
+    return c.currentItemPrice <= c.targetItemPrice;
+  }).slice(0, 4);
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wider text-fg-subtle mb-1.5 flex items-center gap-1.5">
+        <Tag size={11} /> Deal alerts
+      </div>
+      {live.length === 0 ? (
+        <div className="text-[12px] text-fg-subtle py-1">
+          No deals right now. Set a target price on any goal to start watching.
+        </div>
+      ) : (
+        <div className="space-y-1">
+          {live.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => nav('/goals')}
+              className="w-full text-left grid grid-cols-[1fr_auto] gap-2 text-[12px] py-0.5 hover:text-fg"
+            >
+              <span className="truncate text-fg-muted">{c.name}</span>
+              <span className="tabular text-positive">{fmt(c.currentItemPrice ?? 0)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// v0.7.1 — Recent activity log. Reads the synced auditLog (every direct
+// mutation appends an entry) and shows the last 6 entries with relative
+// timestamps. Distinct from RecentTxnsWidget (latest transactions only).
+function ActivityLogWidget() {
+  const auditLog = useBudget((s) => s.settings.auditLog);
+  const recent = (auditLog ?? []).slice(-6).reverse();
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wider text-fg-subtle mb-1.5 flex items-center gap-1.5">
+        <History size={11} /> Recent activity
+      </div>
+      {recent.length === 0 ? (
+        <div className="text-[12px] text-fg-subtle py-1">No activity yet.</div>
+      ) : (
+        <ul className="space-y-1 text-[12px]">
+          {recent.map((e) => (
+            <li key={e.id} className="grid grid-cols-[1fr_auto] gap-2">
+              <span className="truncate text-fg-muted">{e.description}</span>
+              <span className="tabular text-fg-subtle text-[11px]">{relativeTime(e.at)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function relativeTime(at: number): string {
+  const diff = Date.now() - at;
+  if (diff < 60_000) return 'now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`;
+  return `${Math.floor(diff / 86_400_000)}d`;
+}
+
+// v0.7.1 — Workspace summary. Reads the active workspace + counts of the
+// data inside it. Useful when running multiple workspaces (personal +
+// business + household). Click navigates to the workspace switcher modal.
+function WorkspaceSummaryWidget() {
+  const accounts = useBudget((s) => s.accounts);
+  const txns = useBudget((s) => s.transactions);
+  const categories = useBudget((s) => s.categories);
+  const householdMembers = useBudget((s) => s.settings.householdMembers);
+  const ws = getActiveWorkspace();
+  const memberCount = householdMembers?.length ?? 0;
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wider text-fg-subtle mb-1.5 flex items-center gap-1.5">
+        <Briefcase size={11} /> Workspace
+      </div>
+      <div className="text-[16px] font-semibold truncate">{ws.label}</div>
+      <div className="grid grid-cols-3 gap-2 mt-2">
+        <div>
+          <div className="text-[10.5px] text-fg-subtle">Accounts</div>
+          <div className="tabular text-[13px] font-semibold">{accounts.length}</div>
+        </div>
+        <div>
+          <div className="text-[10.5px] text-fg-subtle">Categories</div>
+          <div className="tabular text-[13px] font-semibold">{categories.length}</div>
+        </div>
+        <div>
+          <div className="text-[10.5px] text-fg-subtle">Txns</div>
+          <div className="tabular text-[13px] font-semibold">{txns.length}</div>
+        </div>
+      </div>
+      {memberCount > 0 && (
+        <div className="text-[11px] text-fg-subtle mt-2">
+          {memberCount} household {memberCount === 1 ? 'member' : 'members'}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- registry -----------------------------------------------------------
 
 export const WIDGETS: WidgetSpec[] = [
@@ -224,7 +373,12 @@ export const WIDGETS: WidgetSpec[] = [
   { id: 'savings-rate', label: 'Savings rate', icon: <PiggyBank size={14} />, description: '12-month average savings rate', render: () => <SavingsRateWidget /> },
   { id: 'anomalies', label: 'Unusual transactions', icon: <AlertTriangle size={14} />, description: 'Surprising charges this week', render: () => <AnomalyWidget /> },
   { id: 'recent', label: 'Recent transactions', icon: <Calendar size={14} />, description: 'Last 5 transactions', render: () => <RecentTxnsWidget /> },
-  { id: 'goals', label: 'Active goals', icon: <Target size={14} />, description: 'Number of active goals', render: () => <GoalsWidget /> },
+  { id: 'goals', label: 'Active goals', icon: <Trophy size={14} />, description: 'Number of active goals', render: () => <GoalsWidget /> },
+  // v0.7.1 additions
+  { id: 'notes', label: 'Quick notes', icon: <StickyNote size={14} />, description: 'Sticky note pad — local to this device', render: () => <NotesWidget /> },
+  { id: 'deals', label: 'Deal alerts', icon: <TagsIcon size={14} />, description: 'Goal items at or below your target price', render: () => <DealAlertsWidget /> },
+  { id: 'activity', label: 'Recent activity', icon: <History size={14} />, description: 'Latest changes across the budget', render: () => <ActivityLogWidget /> },
+  { id: 'workspace', label: 'Workspace summary', icon: <Briefcase size={14} />, description: 'Active workspace + entity counts', render: () => <WorkspaceSummaryWidget /> },
 ];
 
 export const DEFAULT_WIDGETS: string[] = [

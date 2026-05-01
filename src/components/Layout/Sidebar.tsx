@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Wallet, BarChart3, Settings as SettingsIcon, Search, ListChecks, Plus, RefreshCw, RefreshCwOff, Loader2, CalendarClock, CreditCard, Target, Pin, Wrench, Plane, Calendar, TrendingUp, Wand2, Image as ImageIcon, ChevronDown, ChevronRight, BookOpen, Tag, LayoutDashboard, Flame, Briefcase } from 'lucide-react';
+import { Wallet, BarChart3, Settings as SettingsIcon, Search, ListChecks, Plus, RefreshCw, RefreshCwOff, Loader2, CalendarClock, CreditCard, Trophy, Pin, Wrench, Plane, Calendar, TrendingUp, Wand2, Image as ImageIcon, ChevronDown, ChevronRight, BookOpen, Tag, LayoutDashboard, Flame, Briefcase } from 'lucide-react';
 import { useBudget } from '../../store/budget';
 import { useUI } from '../../store/ui';
 import { cn } from '../../lib/cn';
@@ -316,7 +316,7 @@ function defaultNavEntries(): NavEntry[] {
     { key: 'budget',       to: '/budget',       icon: <ListChecks size={15} />,    label: 'Budget',           end: true },
     { key: 'accounts',     to: '/accounts',     icon: <Wallet size={15} />,        label: 'All Accounts',     end: false },
     { key: 'reports',      to: '/reports',      icon: <BarChart3 size={15} />,     label: 'Reports',          end: true },
-    { key: 'goals',        to: '/goals',        icon: <Target size={15} />,        label: 'Goals',            end: true },
+    { key: 'goals',        to: '/goals',        icon: <Trophy size={15} />,        label: 'Goals',            end: true },
     { key: 'credit-cards', to: '/credit-cards', icon: <CreditCard size={15} />,    label: 'Credit Cards',     end: true },
     { key: 'investments',  to: '/investments',  icon: <TrendingUp size={15} />,    label: 'Investments',      end: true },
     { key: 'fire',         to: '/fire',         icon: <Flame size={15} />,         label: 'FIRE planner',     end: true },

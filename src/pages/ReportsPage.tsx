@@ -17,6 +17,8 @@ import { IouLedger } from '../components/Reports/IouLedger';
 import { SubscriptionCreep } from '../components/Reports/SubscriptionCreep';
 import { FinancialHealth } from '../components/Reports/FinancialHealth';
 import { YearOverYear } from '../components/Reports/YearOverYear';
+import { YearMonthCompare } from '../components/Reports/YearMonthCompare';
+import { HouseholdBreakdown } from '../components/Reports/HouseholdBreakdown';
 import { TaxSummary } from '../components/Reports/TaxSummary';
 import { NetWorthAttribution } from '../components/Reports/NetWorthAttribution';
 import { BillNegotiation } from '../components/Reports/BillNegotiation';
@@ -64,6 +66,7 @@ const CARD_TABS: Record<string, ReportsTab[]> = {
   'bills-trend':           ['spending'],
   'pending-refunds':       ['spending'],
   'iou':                   ['spending'],
+  'household-breakdown':   ['spending'],
   // Wealth — net worth, debt, runway, savings rate
   'net-worth':             ['wealth'],
   'net-worth-attribution': ['wealth'],
@@ -78,6 +81,7 @@ const CARD_TABS: Record<string, ReportsTab[]> = {
   // Time — when you spend / patterns over time
   'day-of-week':           ['time'],
   'year-over-year':        ['time'],
+  'year-month-compare':    ['time'],
   // Tax
   'tax-summary':           ['tax'],
   'tax-prep':              ['tax'],
@@ -212,6 +216,26 @@ export function ReportsPage() {
             This year vs last year, by category. Catches drift before it becomes a problem.
           </div>
           <YearOverYear />
+        </div>
+
+        <div className="glass-panel p-4 sm:p-5" style={cardStyle('year-month-compare')}>
+          <div className="text-[14px] font-semibold mb-1 flex items-center gap-1.5">
+            <BarChart3 size={14} className="text-accent" /> Same month, last 4 years
+          </div>
+          <div className="text-[11.5px] text-fg-subtle mb-3">
+            Pick a month and see it across the last four years side by side. Spot creep before it compounds.
+          </div>
+          <YearMonthCompare />
+        </div>
+
+        <div className="glass-panel p-4 sm:p-5" style={cardStyle('household-breakdown')}>
+          <div className="text-[14px] font-semibold mb-1 flex items-center gap-1.5">
+            <Users size={14} className="text-accent" /> Household breakdown
+          </div>
+          <div className="text-[11.5px] text-fg-subtle mb-3">
+            Per-member spending split for the selected window. Hidden when you haven&apos;t added household members.
+          </div>
+          <HouseholdBreakdown months={range} />
         </div>
 
         <div className="glass-panel p-4 sm:p-5" style={cardStyle('tax-summary')}>

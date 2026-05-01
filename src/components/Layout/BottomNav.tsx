@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { ListChecks, Wallet, Target, BarChart3, MoreHorizontal } from 'lucide-react';
+import { ListChecks, Wallet, Trophy, BarChart3, MoreHorizontal } from 'lucide-react';
 import { cn } from '../../lib/cn';
 
 /**
@@ -38,7 +38,7 @@ export function BottomNav() {
       <div className="grid grid-cols-5 h-16">
         <Tab to="/budget"    icon={<ListChecks size={20} />}       label="Budget" />
         <Tab to="/accounts"  icon={<Wallet size={20} />}           label="Accounts" />
-        <Tab to="/goals"     icon={<Target size={20} />}           label="Goals" />
+        <Tab to="/goals"     icon={<Trophy size={20} />}           label="Goals" />
         <Tab to="/reports"   icon={<BarChart3 size={20} />}        label="Insights" />
         <Tab to="/more"      icon={<MoreHorizontal size={20} />}   label="More" />
       </div>

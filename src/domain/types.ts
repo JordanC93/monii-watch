@@ -175,6 +175,69 @@ export type InvestmentPosition = {
   lastPrice: Money;
   /** Unix ms of the last price update. */
   lastPriceAt: number;
+  /**
+   * Tier 9 #6 / Tier 14 (lot tracking). Optional list of LOTS —
+   * granular per-purchase records of (date, shares, price-per-share).
+   * Enables tax-loss harvesting + accurate realized gain/loss reporting
+   * + FIFO/LIFO sale ordering. When `lots` is set, `shares` and
+   * `costBasis` are derived sums and the UI surfaces the per-lot view
+   * by default.
+   *
+   * Lots are append-only conceptually; sales reduce a lot's
+   * `sharesSold` rather than deleting the lot. That preserves the
+   * "what's left in this lot" view for tax purposes.
+   */
+  lots?: InvestmentLot[];
+};
+
+/**
+ * One purchase lot inside an investment position. Tracks the
+ * cost-basis + share-count for a single buy event so realized
+ * gain/loss can be computed precisely on partial sales.
+ *
+ * `pricePerShare` is in cents. `shares` and `sharesSold` are
+ * floats (fractional shares common). `costBasis = shares × pricePerShare`
+ * is recomputed on demand.
+ */
+export type InvestmentLot = {
+  id: string;
+  /** ISO yyyy-mm-dd of the purchase. Drives the holding-period
+   *  classification (long-term ≥ 365 days). */
+  acquiredOn: string;
+  /** Shares bought in this lot. */
+  shares: number;
+  /** Price per share in cents at the time of purchase. */
+  pricePerShare: Money;
+  /** Shares sold from this lot (partial sales). 0 = lot is whole. */
+  sharesSold?: number;
+  /** Optional notes the user attached to this lot. */
+  notes?: string;
+  createdAt: number;
+};
+
+/**
+ * Realized sale event from a position. Snapshot of which lot was sold
+ * and at what price. Used by the realized gain/loss report and tax-prep.
+ *
+ * Record-only — sales DON'T mutate the position's `shares` directly;
+ * they update the source lot's `sharesSold` instead. This keeps a clean
+ * audit trail.
+ */
+export type InvestmentSale = {
+  id: string;
+  /** Position id this sale came from. */
+  positionId: string;
+  /** Lot id the sale drew from (specific-ID lot accounting). */
+  lotId: string;
+  /** ISO yyyy-mm-dd of the sale. */
+  soldOn: string;
+  /** Shares sold. */
+  shares: number;
+  /** Price per share in cents at the time of sale. */
+  pricePerShare: Money;
+  /** Optional memo (broker, transaction ref, etc.). */
+  memo?: string;
+  createdAt: number;
 };
 
 export type CategoryGroup = {
@@ -418,6 +481,27 @@ export type Transaction = {
    * OCR run yet.
    */
   receiptText?: string;
+  /**
+   * Tier 14 #3 — free-form tags. Cross-cutting labels orthogonal to
+   * categories: "vacation", "tax-deductible", "client-billable",
+   * "kid", "anniversary". Multi-tag per transaction. Reports can
+   * filter by tag for cross-cutting "what did I spend on X" queries
+   * categories can't answer.
+   *
+   * Stored lowercase + trimmed; the registry of known tags lives at
+   * `Settings.knownTags` for autocomplete.
+   */
+  tags?: string[];
+  /**
+   * Tier 14 (couples / household mode). Optional household-member id
+   * who entered / is responsible for this transaction. When the
+   * household has at least one member configured, the QuickAdd UI
+   * surfaces a member picker. Per-member spending breakdowns on
+   * Reports honor this field.
+   *
+   * Empty / undefined = unattributed (default for solo users).
+   */
+  enteredBy?: string;
 };
 
 export type Split = {
@@ -1068,6 +1152,13 @@ export type Settings = {
    */
   dashboardWidgets?: string[];
   /**
+   * Tier 14 (v0.7.1) — per-widget size override. Map keyed by
+   * widget id; value is one of `small | medium | large`. `small`
+   * = 1 col, `medium` = 1 col mobile / 1 col tablet, `large` = full
+   * row span. Missing entries fall back to `medium`. Synced.
+   */
+  dashboardWidgetSizes?: Record<string, 'small' | 'medium' | 'large'>;
+  /**
    * FIRE / retirement planner inputs (Tier 9 #3). Optional — when
    * unset, the FIRE page surfaces a "set this up" empty state.
    * All amounts in cents, percentages as decimals (0.07 = 7%).
@@ -1197,6 +1288,32 @@ export type Settings = {
   /** Lock the app after this many minutes of background time. 0 = lock immediately on background. */
   appLockTimeoutMinutes: number;
   /**
+   * Tier 14 — registry of known tags for autocomplete on the tag
+   * input. Maintained automatically: any time a user adds a tag to
+   * a transaction it joins this list. The list never shrinks
+   * automatically; the user can prune via Settings → Tags. Empty
+   * for fresh installs.
+   */
+  knownTags?: string[];
+  /**
+   * Tier 14 (couples / household mode). Roster of household members
+   * who can be attributed on transactions. When ≥ 1 member exists,
+   * the QuickAdd UI surfaces a member picker. Empty (default) =
+   * solo mode, picker hidden.
+   *
+   * Each member has a stable id, a display name, and an optional
+   * accent color (one of the existing flag-color palette) for
+   * tinted chips in lists + reports.
+   */
+  householdMembers?: HouseholdMember[];
+  /**
+   * The active household member on THIS device — used as the default
+   * `enteredBy` value on new transactions. Per-device localStorage
+   * sync would let two people share an iPad and toggle who's
+   * entering; for v1 we sync this and let users override per-txn.
+   */
+  activeHouseholdMemberId?: string;
+  /**
    * Tier 10 #9 — recent auto-backup history (capped at 5). Each entry
    * is the unix ms timestamp + filename of a download triggered by
    * the auto-backup engine. Lets the Settings panel show "last 5
@@ -1241,6 +1358,24 @@ export type Settings = {
 };
 
 export type ThemeName = 'light' | 'dark' | 'oled' | 'glass' | 'auto';
+
+/**
+ * Tier 14 — one member of a household sharing this budget. Lives
+ * inside `Settings.householdMembers`. The first member added is
+ * usually the user themselves; partners / kids follow.
+ *
+ * Members are NOT separate users — there's no auth, no per-member
+ * permissions, no separate inboxes. They're labels for attribution
+ * + per-member spending breakdowns. The whole household reads + writes
+ * the same Yjs doc.
+ */
+export type HouseholdMember = {
+  id: string;
+  name: string;
+  /** Tailwind flag-color palette token for the chip tint. */
+  color?: FlagColor | null;
+  createdAt: number;
+};
 
 /**
  * Soft-delete trash entry (Tier 11 #1). When a user deletes an

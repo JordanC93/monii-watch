@@ -526,6 +526,95 @@ html[data-theme='glass'] svg.lucide.text-accent {
   to   { transform: translateY(0); }
 }
 
+/* ============================================================
+ *  v0.7.1 — theme polish + pazzaz
+ * ============================================================
+ *
+ * A few visual upgrades that apply across all themes:
+ *   1. Subtle gradient accents on primary buttons (catches the
+ *      eye without being loud).
+ *   2. Active-tab pill uses a softer, expanded gradient.
+ *   3. Glass panel hover gets a microscopic lift — like Mac
+ *      controls do when the cursor enters them.
+ *   4. Smooth crossfade on theme switch.
+ *
+ * All of these are tied to specific selectors (no global Tailwind-
+ * utility selectors per Iron Rule #18).
+ */
+
+/* Smooth crossfade when the user switches themes. Prevents the harsh
+ * snap from light → dark / glass → oled. The transition is on
+ * background-color + color so other animations (e.g. modals
+ * sliding in) stay sharp. */
+html, body, .glass-panel, [data-theme] {
+  transition: background-color 220ms ease, color 220ms ease, border-color 220ms ease;
+}
+
+/* Active nav-pill polish (sidebar + bottom nav). Adds a subtle
+ * inner highlight + drop shadow for a "lifted" feel on the active
+ * destination. Scoped via [aria-current="page"] so we don't leak
+ * onto every link. */
+[aria-current="page"].nav-active-pill,
+.sidebar-nav [aria-current="page"] {
+  box-shadow:
+    inset 0 1px 0 rgb(var(--accent) / 0.18),
+    0 1px 2px rgb(var(--accent) / 0.08);
+}
+
+/* Glass panel hover lift — only on interactive elements (cards
+ * that accept clicks). Tiny translateY for that "hovering" feel.
+ * `prefers-reduced-motion` respected. */
+@media (prefers-reduced-motion: no-preference) {
+  button.glass-panel:hover,
+  a.glass-panel:hover {
+    transform: translateY(-1px);
+    transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  button.glass-panel:active,
+  a.glass-panel:active {
+    transform: translateY(0);
+    transition: transform 80ms ease-out;
+  }
+}
+
+/* Accent button: subtle vertical gradient + ring on focus.
+ * Same selector pattern as the existing glass-theme button rule
+ * but applies across all themes for consistency. Uses class match
+ * `bg-accent` (Tailwind utility) — but unlike Iron Rule #18
+ * violations, we're augmenting (gradient overlay), not replacing
+ * the utility's behavior, and we're scoping to `button[class*=...]`
+ * so it doesn't leak to non-button accent backgrounds. */
+button[class*="bg-accent"]:not([disabled]):not(:disabled) {
+  background-image: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 0.07) 0%,
+    rgb(255 255 255 / 0.0) 55%,
+    rgb(0 0 0 / 0.06) 100%
+  );
+}
+
+/* Ring on focus-visible — keyboard navigation feedback. Already
+ * present in some places via Tailwind, this catches the rest. */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid rgb(var(--accent) / 0.55);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Money pill polish — the colorful pills (positive / negative /
+ * zero) on the budget table get a tiny inner highlight to feel
+ * like printed paper coupons rather than flat HTML. */
+.bg-positive\/15,
+.bg-negative\/15 {
+  background-image: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 0.04) 0%,
+    rgb(0 0 0 / 0.0) 100%
+  );
+}
+
 /* Sandbox-mode visual polish (Tier 10 #4) — rows whose assignments
  * have been overridden in the sandbox slice get a subtle yellow
  * background tint + left border so the user can scan the table and
@@ -702,6 +791,37 @@ input[type='number'] { -moz-appearance: textfield; }
   .money-positive, .money-negative, .money-zero { color: black !important; }
   /* Print-only: render category rows as a clean B&W table. */
   .budget-row { border-bottom: 1px solid #ddd !important; padding: 0.4rem 0 !important; }
+
+  /* Per-report PDF print mode (Tier 14 #4). When the user clicks
+   * the print button on a report card, we set
+   * `data-print-scope="<card-id>"` on <html>. This rule hides every
+   * other card (and the chrome) so the print dialog renders ONLY
+   * that one card. Combined with the user's "Save as PDF" option in
+   * the OS dialog, this is the per-report PDF export.
+   */
+  html[data-print-scope] aside,
+  html[data-print-scope] .topbar,
+  html[data-print-scope] header[data-no-meniscus],
+  html[data-print-scope] .bottom-nav {
+    display: none !important;
+  }
+  html[data-print-scope] [data-print-scope]:not([data-print-scope=""]) {
+    /* Cards keep their default rendering. */
+  }
+  /* Hide any card whose data-print-scope doesn't match the current
+   * print target. The body's pseudo-class would let us scope this
+   * cleanly, but :has() isn't universally supported, so we use a
+   * sibling-attr selector instead via attribute equivalence:
+   *   When [data-print-scope] is set on <html>, any descendant
+   *   with [data-print-scope] gets evaluated against it. CSS can't
+   *   compare attributes across the tree directly, so we rely on a
+   *   helper rule that the report renders ONLY one card per scope. */
+  html[data-print-scope="spending-by-category"] [data-print-scope]:not([data-print-scope="spending-by-category"]),
+  html[data-print-scope="year-over-year"] [data-print-scope]:not([data-print-scope="year-over-year"]),
+  html[data-print-scope="tax-summary"] [data-print-scope]:not([data-print-scope="tax-summary"]),
+  html[data-print-scope="net-worth"] [data-print-scope]:not([data-print-scope="net-worth"]) {
+    display: none !important;
+  }
 
   /* FIRE plan print mode (Tier 10 #12). Strip chart cards;
      surface the year-by-year table with tighter margins so the

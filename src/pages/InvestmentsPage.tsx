@@ -8,7 +8,8 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Plus, ArrowLeft, TrendingUp, TrendingDown, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, ArrowLeft, TrendingUp, TrendingDown, Trash2, RefreshCw, Layers } from 'lucide-react';
+import { useUI } from '../store/ui';
 import { useNavigate } from 'react-router-dom';
 import { useBudget } from '../store/budget';
 import { upsertInvestmentPosition, deleteInvestmentPosition } from '../db/repo';
@@ -169,6 +170,7 @@ function PositionRow({
   const [costBasisText, setCostBasisText] = useState(pos ? (pos.costBasis / 100).toString() : '');
   const [priceText, setPriceText] = useState(pos ? (pos.lastPrice / 100).toString() : '');
   const [editing, setEditing] = useState(isNew);
+  const openModal = useUI((s) => s.openModal);
 
   function save() {
     const sh = parseFloat(shares);
@@ -193,7 +195,7 @@ function PositionRow({
     const gainPct = pos.costBasis > 0 ? (gain / pos.costBasis) * 100 : 0;
     return (
       <div
-        className="grid grid-cols-[1fr_auto_auto_24px] gap-2 items-center px-2 py-2 rounded-md hover:bg-surface-2/40 cursor-pointer"
+        className="grid grid-cols-[1fr_auto_24px_24px_24px] gap-2 items-center px-2 py-2 rounded-md hover:bg-surface-2/40 cursor-pointer"
         onClick={() => setEditing(true)}
       >
         <div>
@@ -209,6 +211,14 @@ function PositionRow({
             {gain >= 0 ? '+' : ''}{fmt(gain)} ({gainPct >= 0 ? '+' : ''}{gainPct.toFixed(1)}%)
           </div>
         </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); openModal({ type: 'investmentLots', accountId, positionId: pos.id }); }}
+          className="text-fg-subtle hover:text-fg text-[10.5px]"
+          aria-label="Manage lots"
+          title="Manage lots — buy / sell / tax-loss harvest"
+        >
+          <Layers size={11} />
+        </button>
         <button
           onClick={(e) => { e.stopPropagation(); setEditing(true); }}
           className="text-fg-subtle hover:text-fg text-[10.5px]"

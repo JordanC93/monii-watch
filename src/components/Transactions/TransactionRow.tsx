@@ -493,6 +493,20 @@ export function TransactionRow({ txn, showAccount, runningBalance }: Props) {
               </>
             )}
           </div>
+          {/* Tier 14 #3 — tag chips inline. Read-only here; edited via
+              the desktop detail pane / mobile action sheet. */}
+          {txn.tags && txn.tags.length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap mt-0.5">
+              {txn.tags.slice(0, 3).map((t) => (
+                <span key={t} className="inline-block px-1.5 rounded-full bg-accent/15 text-accent text-[10px]">
+                  #{t}
+                </span>
+              ))}
+              {txn.tags.length > 3 && (
+                <span className="text-[10px] text-fg-subtle">+{txn.tags.length - 3}</span>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex flex-col items-end gap-0.5">
           <Money cents={txn.amount} className="text-[14px] font-semibold tabular" monochrome={false} />

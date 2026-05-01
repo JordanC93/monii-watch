@@ -5,7 +5,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Plus, Settings as Cog, X, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Settings as Cog, X, ArrowUp, ArrowDown, Maximize2 } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { setSettingsField } from '../db/repo';
 import { Button } from '../components/ui/Button';
@@ -13,8 +13,20 @@ import { MobilePageHeader } from '../components/Layout/MobilePageHeader';
 import { ErrorBoundary } from '../components/ErrorBoundary/ErrorBoundary';
 import { WIDGETS, DEFAULT_WIDGETS } from '../components/Dashboard/widgets';
 
+type WidgetSize = 'small' | 'medium' | 'large';
+const SIZE_ORDER: WidgetSize[] = ['small', 'medium', 'large'];
+const SIZE_LABEL: Record<WidgetSize, string> = { small: 'S', medium: 'M', large: 'L' };
+// "small" = single col on every breakpoint; "medium" = default (1 / 2 / 3);
+// "large" = full row on lg, 2-col on md, 1-col on mobile.
+const SIZE_CLASS: Record<WidgetSize, string> = {
+  small: 'sm:col-span-1 lg:col-span-1',
+  medium: 'sm:col-span-1 lg:col-span-1',
+  large: 'sm:col-span-2 lg:col-span-3',
+};
+
 export function DashboardPage() {
   const stored = useBudget((s) => s.settings.dashboardWidgets);
+  const sizes = useBudget((s) => s.settings.dashboardWidgetSizes);
   const widgetIds = useMemo(() => stored && stored.length > 0 ? stored : DEFAULT_WIDGETS, [stored]);
   const [editing, setEditing] = useState(false);
 
@@ -44,6 +56,14 @@ export function DashboardPage() {
   }
   function reset() {
     setSettingsField('dashboardWidgets', undefined);
+    setSettingsField('dashboardWidgetSizes', undefined);
+  }
+  function cycleSize(id: string) {
+    const current: WidgetSize = sizes?.[id] ?? 'medium';
+    const next = SIZE_ORDER[(SIZE_ORDER.indexOf(current) + 1) % SIZE_ORDER.length];
+    const map = { ...(sizes ?? {}) };
+    if (next === 'medium') delete map[id]; else map[id] = next;
+    setSettingsField('dashboardWidgetSizes', Object.keys(map).length ? map : undefined);
   }
 
   const available = WIDGETS.filter((w) => !widgetIds.includes(w.id));
@@ -108,40 +128,51 @@ export function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {renderable.map((w, i) => (
-              <div key={w.id} className="glass-panel p-4 relative">
-                {editing && (
-                  <div className="absolute top-2 right-2 flex items-center gap-1">
-                    <button
-                      onClick={() => move(w.id, -1)}
-                      disabled={i === 0}
-                      className="p-1 rounded text-fg-subtle hover:text-fg disabled:opacity-30"
-                      aria-label="Move up"
-                    >
-                      <ArrowUp size={11} />
-                    </button>
-                    <button
-                      onClick={() => move(w.id, 1)}
-                      disabled={i === renderable.length - 1}
-                      className="p-1 rounded text-fg-subtle hover:text-fg disabled:opacity-30"
-                      aria-label="Move down"
-                    >
-                      <ArrowDown size={11} />
-                    </button>
-                    <button
-                      onClick={() => remove(w.id)}
-                      className="p-1 rounded text-fg-subtle hover:text-negative"
-                      aria-label="Remove widget"
-                    >
-                      <X size={11} />
-                    </button>
-                  </div>
-                )}
-                <ErrorBoundary variant="card" scope={`widget:${w.id}`}>
-                  {w.render()}
-                </ErrorBoundary>
-              </div>
-            ))}
+            {renderable.map((w, i) => {
+              const size: WidgetSize = sizes?.[w.id] ?? 'medium';
+              return (
+                <div key={w.id} className={`glass-panel p-4 relative ${SIZE_CLASS[size]}`}>
+                  {editing && (
+                    <div className="absolute top-2 right-2 flex items-center gap-1">
+                      <button
+                        onClick={() => cycleSize(w.id)}
+                        className="px-1.5 py-0.5 rounded text-fg-subtle hover:text-fg ring-1 ring-border bg-surface-2/40 text-[10px] font-semibold tabular flex items-center gap-1"
+                        aria-label={`Resize widget — current size ${size}`}
+                        title={`Resize: ${size} (click to cycle)`}
+                      >
+                        <Maximize2 size={9} /> {SIZE_LABEL[size]}
+                      </button>
+                      <button
+                        onClick={() => move(w.id, -1)}
+                        disabled={i === 0}
+                        className="p-1 rounded text-fg-subtle hover:text-fg disabled:opacity-30"
+                        aria-label="Move up"
+                      >
+                        <ArrowUp size={11} />
+                      </button>
+                      <button
+                        onClick={() => move(w.id, 1)}
+                        disabled={i === renderable.length - 1}
+                        className="p-1 rounded text-fg-subtle hover:text-fg disabled:opacity-30"
+                        aria-label="Move down"
+                      >
+                        <ArrowDown size={11} />
+                      </button>
+                      <button
+                        onClick={() => remove(w.id)}
+                        className="p-1 rounded text-fg-subtle hover:text-negative"
+                        aria-label="Remove widget"
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  )}
+                  <ErrorBoundary variant="card" scope={`widget:${w.id}`}>
+                    {w.render()}
+                  </ErrorBoundary>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
