@@ -2,6 +2,33 @@
 
 ## Released
 
+### v0.7.6 — Glass sidebar accounts fix
+
+Fixed a visual glitch where the sidebar accounts list looked
+broken or clipped on the Liquid Glass theme in fullscreen,
+while light / dark / oled rendered correctly.
+
+Two-part fix:
+
+**Layout.** The accounts list (`flex-1 overflow-y-auto`) was
+missing `min-h-0`. Without it a flex child with overflow can
+ignore the parent's height constraint when the parent column
+gets tall (fullscreen on a large display), letting the
+scroller grow past its bounds. Added `flex-shrink-0` to the
+sidebar header, nav, accounts label, workspace footer, and
+net-worth footer so they hold position when the list above
+them resizes.
+
+**Visual.** Even with the layout fixed, the empty space inside
+the accounts scroller was reading as "missing content" on
+glass because the aurora bled through the translucent
+`glass-panel` material. Added a faint inner tint via a
+`.sidebar-account-list` class hook scoped to glass only. Subtle
+2-4% white linear gradient ties the empty area to the rest of
+the sidebar without defeating the glass effect. Other themes
+ignore the rule. Iron Rule #18 followed: custom class hook,
+not a Tailwind utility.
+
 ### v0.7.5 — Personal backup, sync help, copy edit pass
 
 #### Personal backup server (your own box)
