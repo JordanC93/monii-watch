@@ -436,8 +436,27 @@ html[data-theme='glass'] .glass-panel::after {
 }
 html[data-theme='glass'] .glass-panel[data-no-meniscus]::after { display: none; }
 
-/* Body content above the rim + lensing pseudo-elements */
-html[data-theme='glass'] .glass-panel > * { position: relative; z-index: 2; }
+/* Body content above the rim + lensing pseudo-elements.
+ *
+ * Z-index 2 on every direct child puts it above the meniscus
+ * `::before` (z-index 1) and refractive `::after` (z-index 1).
+ *
+ * `position: relative` is necessary for z-index to apply to
+ * unpositioned children. BUT applying it to children that already
+ * declare their own positioning (Tailwind's `.absolute`, `.fixed`,
+ * `.sticky`) would override that positioning and yank them back
+ * into normal flow. The sidebar resize handle is a real-world
+ * casualty: it has `absolute top-0 right-0 h-full w-1`, and on glass
+ * the override turned it into a relative-positioned flex child with
+ * `h-full`, which ate the height of the accounts list below it.
+ *
+ * Fix: bump z-index unconditionally; only set `position: relative`
+ * on children that don't already have positioning. The
+ * not-list catches every Tailwind positioning utility. */
+html[data-theme='glass'] .glass-panel > * { z-index: 2; }
+html[data-theme='glass'] .glass-panel > :not(.absolute):not(.fixed):not(.sticky) {
+  position: relative;
+}
 
 /* Mobile blur ceiling — at higher than ~24px, mobile WebKit visibly
  * stutters during scroll. Drop one notch for compact viewports. */

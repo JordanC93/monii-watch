@@ -2,6 +2,43 @@
 
 ## Released
 
+### v0.7.7 — Glass sidebar accounts fix (real cause this time)
+
+v0.7.6 misdiagnosed the bug. The actual cause was a CSS rule
+in `globals.css`:
+
+```css
+html[data-theme='glass'] .glass-panel > * {
+  position: relative; z-index: 2;
+}
+```
+
+This rule existed so direct children of any glass-panel sit
+above the meniscus `::before` (z-index 1) and refractive
+`::after` (z-index 1). For unpositioned children, `position:
+relative` is needed so `z-index` applies. But for children that
+already declare positioning (Tailwind's `.absolute`, `.fixed`,
+`.sticky`), the rule overrode their positioning and yanked them
+back into normal flow.
+
+The sidebar resize handle was the casualty: `absolute top-0
+right-0 h-full w-1`. On glass, the override turned it into a
+relative-positioned flex child with `h-full`, which ate the
+height of the accounts list below it. Only the first row peeked
+through. Other themes don't have the rule, so the handle stayed
+absolute and the list rendered normally.
+
+Fix: bump z-index unconditionally on every direct child, but
+only set `position: relative` on children that don't already
+have positioning. The `:not(.absolute):not(.fixed):not(.sticky)`
+list catches Tailwind's positioning utilities so they keep
+their declared positioning untouched.
+
+The defensive `min-h-0` + `flex-shrink-0` additions from v0.7.6
+stay (they're correct flex/overflow hygiene), as does the faint
+`.sidebar-account-list` tint for the edge case of a user with
+fewer accounts than fit the area.
+
 ### v0.7.6 — Glass sidebar accounts fix
 
 Fixed a visual glitch where the sidebar accounts list looked
