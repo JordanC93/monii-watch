@@ -109,8 +109,8 @@ export function ShareLinkModal({ open, onClose }: { open: boolean; onClose: () =
       <div className="space-y-3 text-[13px]">
         <p className="text-fg-muted">
           Generates a self-contained URL that shows your <strong>budget summary only</strong> for{' '}
-          <strong>{month}</strong> — no transactions, no balances. The viewer needs the passphrase
-          you set below; share it out-of-band (text, in person — not in the same email as the link).
+          <strong>{month}</strong>. No transactions, no balances. The viewer needs the passphrase
+          you set below; share it out-of-band (text, in person, not in the same email as the link).
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
@@ -153,7 +153,7 @@ export function ShareLinkModal({ open, onClose }: { open: boolean; onClose: () =
               </Button>
             </div>
             <div className="text-[10.5px] text-fg-subtle">
-              The encrypted payload lives in the URL fragment — it never hits any server. Give the
+              The encrypted payload lives in the URL fragment; it never hits any server. Give the
               recipient the passphrase separately.
             </div>
           </div>

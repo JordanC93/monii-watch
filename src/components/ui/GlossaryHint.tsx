@@ -47,7 +47,7 @@ export type GlossaryTerm =
 const GLOSSARY: Record<GlossaryTerm, GlossaryEntry> = {
   'ready-to-assign': {
     title: 'Ready to Assign',
-    body: 'Money you\'ve earned but haven\'t given a job yet. Goal: get this to zero by assigning every dollar to a category. Negative means you\'ve over-assigned — pull some back from a category.',
+    body: 'Money you\'ve earned but haven\'t given a job yet. Goal: get this to zero by assigning every dollar to a category. Negative means you\'ve over-assigned. Pull some back from a category.',
     articleId: 'ready-to-assign',
   },
   available: {
@@ -57,7 +57,7 @@ const GLOSSARY: Record<GlossaryTerm, GlossaryEntry> = {
   },
   assigned: {
     title: 'Assigned',
-    body: 'How much you decided to put in this envelope this month. Manually editable. Doesn\'t change retroactively when you spend — only Available does.',
+    body: 'How much you decided to put in this envelope this month. Manually editable. Doesn\'t change retroactively when you spend; only Available does.',
     articleId: 'envelope-method',
   },
   activity: {
@@ -77,16 +77,16 @@ const GLOSSARY: Record<GlossaryTerm, GlossaryEntry> = {
   },
   'age-of-money': {
     title: 'Age of Money',
-    body: 'How long (in days) the money you\'re spending right now has been sitting in your accounts. Higher is better — you\'re spending money you earned weeks or months ago, not last week\'s paycheck.',
+    body: 'How long (in days) the money you\'re spending right now has been sitting in your accounts. Higher is better; you\'re spending money you earned weeks or months ago, not last week\'s paycheck.',
   },
   envelope: {
     title: 'Envelope budgeting',
-    body: 'Imagine your money in labeled envelopes (Rent, Food, Fun). You can only spend what\'s in each envelope. When it\'s empty, you stop spending in that category — or move money from another envelope.',
+    body: 'Imagine your money in labeled envelopes (Rent, Food, Fun). You can only spend what\'s in each envelope. When it\'s empty, you stop spending in that category, or move money from another envelope.',
     articleId: 'envelope-method',
   },
   'safe-to-spend': {
     title: 'Safe to spend',
-    body: 'How much you can spend per day without running out before your next paycheck. Math: (cash on hand minus upcoming bills) ÷ days until payday. Excludes credit limits — only liquid balances count.',
+    body: 'How much you can spend per day without running out before your next paycheck. Math: (cash on hand minus upcoming bills) ÷ days until payday. Excludes credit limits; only liquid balances count.',
     articleId: 'safe-to-spend',
   },
   utilization: {
@@ -106,7 +106,7 @@ const GLOSSARY: Record<GlossaryTerm, GlossaryEntry> = {
   },
   transfer: {
     title: 'Transfer',
-    body: 'Money moving between two of YOUR accounts. Doesn\'t affect Ready to Assign or any envelope — it\'s the same money in a different place. Creates two paired transactions automatically.',
+    body: 'Money moving between two of YOUR accounts. Doesn\'t affect Ready to Assign or any envelope; it\'s the same money in a different place. Creates two paired transactions automatically.',
   },
   split: {
     title: 'Split transaction',
@@ -131,7 +131,7 @@ const GLOSSARY: Record<GlossaryTerm, GlossaryEntry> = {
   },
   'allocation-rule': {
     title: 'Auto-allocation rule',
-    body: 'On a trigger (paycheck, income over X, 1st of month), automatically add money to a category. Manual overrides win — the rule never overwrites a change you made later.',
+    body: 'On a trigger (paycheck, income over X, 1st of month), automatically add money to a category. Manual overrides win; the rule never overwrites a change you made later.',
   },
 };
 

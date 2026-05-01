@@ -80,7 +80,7 @@ export function BillSplitModal({ open, onClose }: { open: boolean; onClose: () =
       logged++;
     }
     if (logged === 0) {
-      toast.error('No assignments — pick which person ate what first.');
+      toast.error('No assignments. Pick which person ate what first.');
       return;
     }
     toast.success(`Logged ${logged} IOU entr${logged === 1 ? 'y' : 'ies'}.`);

@@ -45,7 +45,7 @@ export function SetupChecklist() {
       done: hasAccount,
       icon: <Wallet size={14} />,
       title: 'Add your first account',
-      hint: 'Checking, savings, credit card — wherever your money lives.',
+      hint: 'Checking, savings, credit card, wherever your money lives.',
       action: () => openModal({ type: 'addAccount' }),
       actionLabel: 'Add account',
     },

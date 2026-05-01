@@ -115,7 +115,7 @@ export function SandboxControls({ onClose }: { onClose: () => void }) {
         <div className="border-t border-border pt-3">
           <div className="text-[12.5px] font-medium mb-1.5">Hypothetical recurring transactions</div>
           <div className="text-[11px] text-fg-subtle mb-2">
-            "What if I had a $500 car payment starting next month?" — adds it to the cash-flow forecast without committing.
+            "What if I had a $500 car payment starting next month?" Adds it to the cash-flow forecast without committing.
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2">

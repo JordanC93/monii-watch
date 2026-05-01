@@ -54,7 +54,7 @@ export function EmergencyFundSettings() {
             onChange={(e) => setSettingsField('emergencyFundCategoryId', e.target.value || undefined)}
             className="text-[12.5px] mt-1"
           >
-            <option value="">(none — show suggestion only)</option>
+            <option value="">(none, show suggestion only)</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}

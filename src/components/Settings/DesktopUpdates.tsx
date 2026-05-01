@@ -118,7 +118,7 @@ export function DesktopUpdates() {
               <div className="font-medium">Update check failed</div>
               <div className="text-fg-muted">{status.message}</div>
               <div className="text-[11px] text-fg-subtle mt-1">
-                If this build wasn't shipped with an updater key configured, that's expected — auto-update isn't available for this install. Re-download the latest installer from the releases page.
+                If this build wasn't shipped with an updater key configured, that's expected; auto-update isn't available for this install. Re-download the latest installer from the releases page.
               </div>
             </div>
           </div>

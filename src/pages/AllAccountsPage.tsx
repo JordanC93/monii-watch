@@ -44,7 +44,7 @@ export function AllAccountsPage() {
 
         {onBudget.length === 0 && tracking.length === 0 && (
           <div className="text-fg-subtle text-[13px] py-6 text-center">
-            No accounts yet — add one to start tracking your money.
+            No accounts yet. Add one to start tracking your money.
           </div>
         )}
 

@@ -58,7 +58,7 @@ export function SafeToSpendBanner() {
             <div>Spendable: <span className="tabular">{fmt(spend.spendable)}</span></div>
             <div className="pt-1">Next paycheck: {formatDate(spend.nextPaycheckIso)}</div>
             <div className="text-[11px] italic mt-1">
-              Excludes credit-card limits — only liquid balances. Scheduled outflows from now to payday are subtracted.
+              Excludes credit-card limits; only liquid balances. Scheduled outflows from now to payday are subtracted.
             </div>
           </div>
         )}

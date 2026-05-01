@@ -125,7 +125,7 @@ export function TxnContextMenu({ txnId, x, y, onClose }: Props) {
       />
       <MenuItem
         icon={<Activity size={12} />}
-        label={`Track usage${typeof txn.usageCount === 'number' ? ` (${txn.usageCount})` : ''} — +1`}
+        label={`Track usage${typeof txn.usageCount === 'number' ? ` (${txn.usageCount})` : ''}: +1`}
         onClick={() => { incrementTransactionUsage(txn.id, 1); onClose(); }}
       />
       <div className="border-t border-border my-1" />

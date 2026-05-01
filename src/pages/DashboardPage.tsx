@@ -137,7 +137,7 @@ export function DashboardPage() {
                       <button
                         onClick={() => cycleSize(w.id)}
                         className="px-1.5 py-0.5 rounded text-fg-subtle hover:text-fg ring-1 ring-border bg-surface-2/40 text-[10px] font-semibold tabular flex items-center gap-1"
-                        aria-label={`Resize widget — current size ${size}`}
+                        aria-label={`Resize widget (current size ${size})`}
                         title={`Resize: ${size} (click to cycle)`}
                       >
                         <Maximize2 size={9} /> {SIZE_LABEL[size]}

@@ -109,7 +109,7 @@ export function GoalPriceUpdateModal({ open, onClose, categoryId }: {
               <div className="font-medium">Found: {fmt(parsed.cents)}</div>
               {parsed.originalCents && (
                 <div className="text-[11px] text-fg-subtle">
-                  Listed alongside {fmt(parsed.originalCents)} — using lower as current price.
+                  Listed alongside {fmt(parsed.originalCents)}; using lower as current price.
                 </div>
               )}
               <Button

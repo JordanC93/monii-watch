@@ -109,7 +109,7 @@ export function CategoryHeatmap() {
           </div>
         ))}
       </div>
-      <div className="text-[10.5px] text-fg-subtle mt-2">Heat scaled per row — columns within a row are comparable, but a "dark" Dining cell isn't directly comparable to a "dark" Mortgage cell.</div>
+      <div className="text-[10.5px] text-fg-subtle mt-2">Heat scaled per row, so columns within a row are comparable, but a "dark" Dining cell isn't directly comparable to a "dark" Mortgage cell.</div>
     </div>
   );
 }

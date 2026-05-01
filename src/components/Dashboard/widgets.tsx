@@ -69,7 +69,7 @@ function ReadyToAssignWidget() {
       <div className="text-[11px] uppercase tracking-wider text-fg-subtle">Ready to Assign</div>
       <div className={`text-[24px] font-semibold tabular mt-0.5 ${tone}`}>{fmt(rta)}</div>
       <div className="text-[11px] text-fg-subtle mt-0.5">
-        {rta > 0 ? 'Assign every dollar a job.' : rta < 0 ? 'Over-assigned — pull some back.' : 'Every dollar has a job.'}
+        {rta > 0 ? 'Assign every dollar a job.' : rta < 0 ? 'Over-assigned. Pull some back.' : 'Every dollar has a job.'}
       </div>
     </div>
   );
@@ -375,7 +375,7 @@ export const WIDGETS: WidgetSpec[] = [
   { id: 'recent', label: 'Recent transactions', icon: <Calendar size={14} />, description: 'Last 5 transactions', render: () => <RecentTxnsWidget /> },
   { id: 'goals', label: 'Active goals', icon: <Trophy size={14} />, description: 'Number of active goals', render: () => <GoalsWidget /> },
   // v0.7.1 additions
-  { id: 'notes', label: 'Quick notes', icon: <StickyNote size={14} />, description: 'Sticky note pad — local to this device', render: () => <NotesWidget /> },
+  { id: 'notes', label: 'Quick notes', icon: <StickyNote size={14} />, description: 'Sticky note pad, local to this device', render: () => <NotesWidget /> },
   { id: 'deals', label: 'Deal alerts', icon: <TagsIcon size={14} />, description: 'Goal items at or below your target price', render: () => <DealAlertsWidget /> },
   { id: 'activity', label: 'Recent activity', icon: <History size={14} />, description: 'Latest changes across the budget', render: () => <ActivityLogWidget /> },
   { id: 'workspace', label: 'Workspace summary', icon: <Briefcase size={14} />, description: 'Active workspace + entity counts', render: () => <WorkspaceSummaryWidget /> },

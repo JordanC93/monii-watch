@@ -69,7 +69,7 @@ export function ReceiptGalleryPage() {
         <Input
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
-          placeholder='Search receipt text — e.g. "wood stain" or "ground beef"'
+          placeholder='Search receipt text, e.g. "wood stain"'
           aria-label="Search across receipt OCR text, memo, and payee"
         />
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">

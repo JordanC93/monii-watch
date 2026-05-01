@@ -148,14 +148,14 @@ export function DebtPayoff() {
         />
         <span className={cn('text-[11px]', budgetTooLow ? 'text-negative' : 'text-fg-subtle')}>
           Needs at least {fmt(totalMins)} to cover minimums
-          {budgetTooLow && ' — increase budget to simulate'}
+          {budgetTooLow && ' · increase budget to simulate'}
         </span>
       </div>
 
       {snowball && avalanche && (
         <div className="grid sm:grid-cols-2 gap-3">
-          <StrategyCard title="Snowball" subtitle="Smallest first — quick wins" result={snowball} fmt={fmt} />
-          <StrategyCard title="Avalanche" subtitle="Highest APR first — least interest" result={avalanche} fmt={fmt} highlight />
+          <StrategyCard title="Snowball" subtitle="Smallest first, quick wins" result={snowball} fmt={fmt} />
+          <StrategyCard title="Avalanche" subtitle="Highest APR first, least interest" result={avalanche} fmt={fmt} highlight />
         </div>
       )}
 

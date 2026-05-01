@@ -24,7 +24,7 @@ export function YearOverYear() {
   if (rows.length === 0) {
     return (
       <div className="text-[12px] text-fg-subtle text-center py-3">
-        Not enough data yet — add some transactions and check back next year.
+        Not enough data yet. Add some transactions and check back next year.
       </div>
     );
   }

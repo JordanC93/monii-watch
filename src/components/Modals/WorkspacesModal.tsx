@@ -56,7 +56,7 @@ export function WorkspacesModal({ open, onClose }: { open: boolean; onClose: () 
     <Modal open={open} onClose={onClose} title="Workspaces" size="md">
       <div className="space-y-3">
         <div className="text-[12px] text-fg-subtle">
-          Each workspace is a separate budget — separate accounts, transactions,
+          Each workspace is a separate budget: separate accounts, transactions,
           categories, sync. Useful for keeping personal money apart from a
           business or shared household. Workspaces live on this device only;
           switching doesn't propagate to other devices.
@@ -105,7 +105,7 @@ export function WorkspacesModal({ open, onClose }: { open: boolean; onClose: () 
               </div>
               {w.id === 'default' && (
                 <div className="text-[10.5px] text-fg-subtle mt-1">
-                  Default workspace — can't be renamed or deleted.
+                  Default workspace. Can't be renamed or deleted.
                 </div>
               )}
             </div>

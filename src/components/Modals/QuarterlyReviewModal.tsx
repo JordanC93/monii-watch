@@ -81,7 +81,7 @@ export function QuarterlyReviewModal({ open, onClose, quarter }: { open: boolean
     >
       <div className="space-y-4 text-[13px]">
         <p className="text-fg-muted">
-          {quarter} — a quick gut-check. Is your budget still right for you?
+          {quarter}: a quick gut-check. Is your budget still right for you?
           The little journal builds up over time.
         </p>
 

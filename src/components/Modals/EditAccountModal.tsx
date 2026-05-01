@@ -187,7 +187,7 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
           <div className="text-[10.5px] text-fg-subtle leading-snug">
             When you upload a receipt with a matching <code>****{last4 || '1234'}</code> on it,
             Monii Watch routes the charge here automatically. The network helps if two
-            cards end in the same digits. Industry-standard partial card identifier — never
+            cards end in the same digits. Industry-standard partial card identifier, never
             a full card number.
           </div>
         </div>
@@ -325,7 +325,7 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
             >
               <option value="">Not flagged (treated as taxable)</option>
               <option value="taxable">Taxable brokerage</option>
-              <option value="401k">401(k) — pre-tax</option>
+              <option value="401k">401(k), pre-tax</option>
               <option value="roth_401k">Roth 401(k)</option>
               <option value="traditional_ira">Traditional IRA</option>
               <option value="roth_ira">Roth IRA</option>
@@ -342,7 +342,7 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
             <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
               <option value="">{budgetCurrency} (budget default)</option>
               {SUPPORTED_CURRENCIES.filter((c) => c.code !== budgetCurrency).map((c) => (
-                <option key={c.code} value={c.code}>{c.code} — {c.symbol}</option>
+                <option key={c.code} value={c.code}>{c.code} · {c.symbol}</option>
               ))}
             </Select>
             {usingForeignCurrency && (
@@ -358,7 +358,7 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
           {usingForeignCurrency && (
             <div className="text-[10.5px] text-fg-subtle">
               {isTracking
-                ? `Balance is stored in ${currency}; net worth converts via this rate. Update the rate when it shifts (no live FX feed — privacy first).`
+                ? `Balance is stored in ${currency}; net worth converts via this rate. Update the rate when it shifts (no live FX feed, privacy first).`
                 : `Transactions are stored in ${currency}. Envelope math (Ready to Assign, category Available) converts via this rate. For best stability, lock the rate per-month via Settings → FX snapshots.`}
             </div>
           )}

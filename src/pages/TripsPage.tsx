@@ -79,8 +79,8 @@ export function TripsPage() {
             <Plane size={32} className="mx-auto text-fg-subtle mb-3" />
             <div className="text-[14px] font-medium mb-1">No trips yet</div>
             <div className="text-[12.5px] text-fg-subtle max-w-md mx-auto">
-              Tag transactions with a trip — vacation, conference, work
-              expenses for a project — and see running totals separately
+              Tag transactions with a trip (a vacation, a conference, a
+              project's expenses) and see running totals separately
               from your monthly budget.
             </div>
             <Button variant="primary" className="mt-4" onClick={() => setEditing('new')}>

@@ -130,7 +130,7 @@ export function TxnDetailPane({ transactionId, onClose }: Props) {
           onChange={(next) => updateTransaction(txn.id, { tags: next.length > 0 ? next : undefined })}
         />
         <div className="text-[10.5px] text-fg-subtle mt-1">
-          Cross-cutting labels — orthogonal to categories. Filter by tag on Search + Reports.
+          Cross-cutting labels, orthogonal to categories. Filter by tag on Search + Reports.
         </div>
       </div>
 

@@ -36,7 +36,7 @@ export function SandboxBanner() {
 
   function commit() {
     if (overlayCount === 0) {
-      toast.success('Nothing to apply — sandbox was empty.');
+      toast.success('Nothing to apply. Sandbox was empty.');
       reset();
       return;
     }
@@ -78,7 +78,7 @@ export function SandboxBanner() {
             <span className="font-semibold text-warning">Sandbox mode</span>
             <span className="text-fg-subtle ml-2">
               {overlayCount === 0
-                ? 'No changes yet — try editing assignments or income.'
+                ? 'No changes yet. Try editing assignments or income.'
                 : `${overlayCount} hypothetical change${overlayCount === 1 ? '' : 's'} pending`}
             </span>
             {monthlyIncomeOverride !== null && (

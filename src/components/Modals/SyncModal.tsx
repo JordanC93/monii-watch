@@ -110,7 +110,7 @@ export function SyncModal({ open, onClose }: { open: boolean; onClose: () => voi
                 </>
               )}
               {status === 'connecting' && 'Looking for peers…'}
-              {status === 'error' && 'Sync error — check connection or phrase'}
+              {status === 'error' && 'Sync error. Check connection or phrase'}
               {status === 'idle' && 'Sync is off'}
             </div>
             <div className="text-[12.5px] text-fg-subtle">
@@ -143,25 +143,37 @@ export function SyncModal({ open, onClose }: { open: boolean; onClose: () => voi
             <Button variant="secondary" onClick={regenerate}><RefreshCw size={14} /> New</Button>
           </div>
           <div className="text-[11.5px] text-fg-subtle mt-1.5 leading-snug">
-            Enter the same phrase on every device you want to sync. Treat it like a password — anyone with this phrase can read or change your data.
+            Enter the same phrase on every device you want to sync. Treat it like a password; anyone with this phrase can read or change your data.
           </div>
         </div>
 
-        {/* Advanced: Google Drive (E2E encrypted) */}
+        {/* Help shortcut — links to the help article that walks the
+            user through every transport's setup. */}
+        <div className="flex items-center justify-between p-3 rounded-lg bg-surface-2/40 border border-border">
+          <div className="text-[12px] text-fg-muted leading-snug">
+            New to syncing? The help center walks through each option
+            with screenshots.
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => { window.location.hash = '#article=sync-overview'; window.location.pathname = '/help'; }}>
+            <Cloud size={12} /> Sync help
+          </Button>
+        </div>
+
+        {/* Optional: Google Drive (E2E encrypted) */}
         <DriveSection />
 
-        {/*
-          Self-hosted server URL — gated behind maintainerMode. This
-          option is for users who run their own y-websocket hub (Plex
-          box / NAS / Raspberry Pi). For everyone else it's clutter:
-          friends-and-family installs use WebRTC P2P, less-technical
-          users use Google Drive. Hiding it keeps the Sync surface
-          focused for the audience that ships gets.
+        {/* Optional: personal backup server (your own box). */}
+        <PersonalBackupSection />
 
-          To use it: Settings → Advanced (maintainer) → enable
-          maintainer mode. Then this section appears.
+        {/*
+          Self-hosted realtime sync. v0.7.5: ungated from maintainerMode
+          so any user comfortable running a tiny binary on their own
+          server can use it. Distinct from Personal backup above:
+          this one is realtime sync (websocket persistent connection),
+          the other one is periodic encrypted snapshot upload. Same
+          server binary, two independent features.
         */}
-        {settings.maintainerMode && (
+        {(
           <div className="border border-border rounded-lg overflow-hidden">
             <button
               onClick={() => setShowAdvanced((v) => !v)}
@@ -169,7 +181,7 @@ export function SyncModal({ open, onClose }: { open: boolean; onClose: () => voi
             >
               <div className="flex items-center gap-2">
                 <Server size={13} className="text-accent" />
-                <span>Self-hosted server (maintainer — optional)</span>
+                <span>Self-hosted realtime sync (your own server)</span>
                 {detail.wsConfigured && (
                   <span className={`text-[10.5px] px-1.5 py-0.5 rounded ${wsActive ? 'bg-positive/15 text-positive' : 'bg-warning/15 text-warning'}`}>
                     {wsActive ? 'Active' : 'Configured'}
@@ -182,10 +194,14 @@ export function SyncModal({ open, onClose }: { open: boolean; onClose: () => voi
             {showAdvanced && (
               <div className="px-3 py-3 border-t border-border space-y-2 bg-surface-2/20">
                 <div className="text-[11.5px] text-fg-muted leading-snug">
-                  Run a y-websocket server on your own box (Plex / Raspberry Pi / cloud VM) and point this app at it. Your devices then sync through the server <strong>and</strong> peer-to-peer — so updates land even if the other device is offline.
-                  <br />
-                  <span className="text-fg-subtle">Setup instructions: <code className="px-1 py-0.5 rounded bg-surface-3 text-fg">server/README.md</code> in the project repo.</span>
+                  Run the small Monii Watch sync binary on your own server (Plex box, Raspberry Pi, cloud VM) and point this app at it. Your devices sync through the server AND peer-to-peer, so updates still land when one device is offline.
                 </div>
+                <button
+                  onClick={(e) => { e.preventDefault(); window.location.hash = '#article=self-hosted-sync-setup'; window.location.pathname = '/help'; }}
+                  className="text-[11.5px] text-accent hover:underline underline-offset-2"
+                >
+                  Step-by-step setup guide →
+                </button>
                 <div className="flex gap-2">
                   <Input
                     value={serverUrl}
@@ -209,7 +225,7 @@ export function SyncModal({ open, onClose }: { open: boolean; onClose: () => voi
                   </div>
                 </div>
                 <div className="text-[10.5px] text-fg-subtle leading-snug">
-                  Leave blank for friends-and-family P2P only — no server required.
+                  Leave blank to use peer-to-peer sync only. No server required.
                 </div>
               </div>
             )}
@@ -256,7 +272,7 @@ function DriveSection() {
 
   async function connect() {
     if (!clientId.trim()) { toast.error('Paste your Google Cloud OAuth client ID first.'); return; }
-    if (!settings.syncRoom) { toast.error('Set a pairing phrase first — it\'s the encryption password.'); return; }
+    if (!settings.syncRoom) { toast.error('Set a pairing phrase first; it\'s the encryption password.'); return; }
     setBusy(true);
     try {
       setSettingsField('googleClientId', clientId.trim());
@@ -313,7 +329,7 @@ function DriveSection() {
       >
         <div className="flex items-center gap-2">
           <HardDrive size={13} className="text-accent" />
-          <span>Google Drive — advanced (OAuth required, see below)</span>
+          <span>Google Drive: advanced (OAuth required, see below)</span>
           {enabled && (
             <span className={`text-[10.5px] px-1.5 py-0.5 rounded ${
               tokenExpired ? 'bg-warning/15 text-warning'
@@ -333,13 +349,13 @@ function DriveSection() {
         <div className="px-3 py-3 border-t border-border space-y-2.5 bg-surface-2/20">
           <div className="text-[11.5px] text-fg-muted leading-snug">
             <strong className="text-fg">For most users we recommend Cloud folder sync</strong>{' '}
-            (Settings → Cloud folder sync) instead of this — point at your iCloud Drive
+            (Settings → Cloud folder sync) instead of this. Point at your iCloud Drive
             / OneDrive / Dropbox folder and you're done. <strong className="text-fg">No OAuth, no setup.</strong>
             <br /><br />
             This Google Drive flow is for users who specifically want to use their
             own Google Cloud project. Your data is encrypted with{' '}
             <strong className="text-fg">{ENCRYPTION_LABEL}</strong> (key derived from your pairing
-            phrase) before upload — Google holds the bytes but cannot read them.
+            phrase) before upload. Google holds the bytes but cannot read them.
             <br />
             <span className="text-fg-subtle">
               First time: you'll need a free Google Cloud OAuth client ID. See the{' '}
@@ -403,7 +419,207 @@ function DriveSection() {
           )}
 
           <div className="text-[10.5px] text-fg-subtle leading-snug">
-            Stays off by default. Independent of WebRTC — you can use either, both, or neither.
+            Stays off by default. Independent of every other sync option. You can use any combination.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Personal-server backup section (v0.7.5). The user runs the small
+ * Monii Watch sync binary on their own server (Plex, NAS, VPS) and
+ * points this section at it. Same encryption as Drive (XChaCha20-
+ * Poly1305 + Argon2id, key derived from the pairing phrase). Server
+ * holds opaque ciphertext.
+ *
+ * Distinct from "Self-hosted realtime sync" below, which uses the
+ * y-websocket layer of the same binary for live multi-device sync.
+ * This one is just periodic encrypted snapshot upload, no realtime
+ * connection.
+ */
+function PersonalBackupSection() {
+  const settings = useBudget((s) => s.settings);
+  const enabled = settings.personalBackupEnabled;
+  const [open, setOpen] = useState(enabled);
+  const [url, setUrl] = useState(settings.personalBackupUrl ?? '');
+  const [token, setToken] = useState(settings.personalBackupToken ?? '');
+  const [workspace, setWorkspace] = useState(settings.personalBackupWorkspace ?? 'default');
+  const [busy, setBusy] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  useEffect(() => { setUrl(settings.personalBackupUrl ?? ''); }, [settings.personalBackupUrl]);
+  useEffect(() => { setToken(settings.personalBackupToken ?? ''); }, [settings.personalBackupToken]);
+  useEffect(() => { setWorkspace(settings.personalBackupWorkspace ?? 'default'); }, [settings.personalBackupWorkspace]);
+
+  async function testNow() {
+    if (!url.trim()) {
+      setTestResult({ ok: false, message: 'Enter a URL first.' });
+      return;
+    }
+    setBusy(true);
+    setTestResult(null);
+    try {
+      // Persist the values first so the provider reads them.
+      setSettingsField('personalBackupUrl', url.trim());
+      setSettingsField('personalBackupToken', token.trim());
+      setSettingsField('personalBackupWorkspace', workspace.trim() || 'default');
+      const m = await import('../../sync/personalServerProvider');
+      const err = await m.testConnection();
+      if (err) setTestResult({ ok: false, message: err });
+      else setTestResult({ ok: true, message: 'Connected. The server is ready to accept backups.' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function enable() {
+    if (!url.trim()) { toast.error('Enter your server URL first.'); return; }
+    if (!settings.syncRoom) { toast.error('Set a pairing phrase first. It is the encryption password.'); return; }
+    setBusy(true);
+    try {
+      setSettingsField('personalBackupUrl', url.trim());
+      setSettingsField('personalBackupToken', token.trim());
+      setSettingsField('personalBackupWorkspace', workspace.trim() || 'default');
+      setSettingsField('personalBackupEnabled', true);
+      const m = await import('../../sync/personalServerProvider');
+      await m.startPersonalBackupSync();
+      toast.success('Personal backup turned on.');
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Could not start backup.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disable() {
+    setBusy(true);
+    try {
+      const m = await import('../../sync/personalServerProvider');
+      m.stopPersonalBackupSync();
+      setSettingsField('personalBackupEnabled', false);
+      toast.success('Personal backup turned off.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function syncNow() {
+    setBusy(true);
+    try {
+      const m = await import('../../sync/personalServerProvider');
+      await m.forcePush();
+      await m.forcePull();
+      toast.success('Backup complete.');
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Backup failed.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const lastSyncedAt = settings.personalBackupLastSyncedAt;
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-[12.5px] font-medium hover:bg-surface-2/40"
+      >
+        <div className="flex items-center gap-2">
+          <Server size={13} className="text-accent" />
+          <span>Personal backup server (your own box, encrypted)</span>
+          {enabled && (
+            <span className="text-[10.5px] px-1.5 py-0.5 rounded bg-positive/15 text-positive">On</span>
+          )}
+        </div>
+        <span className="text-fg-subtle">{open ? '−' : '+'}</span>
+      </button>
+
+      {open && (
+        <div className="px-3 py-3 border-t border-border space-y-2.5 bg-surface-2/20">
+          <div className="text-[11.5px] text-fg-muted leading-snug">
+            Run the Monii Watch sync binary on your own server (Plex, NAS, Raspberry Pi, cloud VM) and point this app at it. Encrypted snapshots get uploaded automatically. The server holds opaque ciphertext, not your data.
+          </div>
+          <button
+            onClick={(e) => { e.preventDefault(); window.location.hash = '#article=personal-server-backup'; window.location.pathname = '/help'; }}
+            className="text-[11.5px] text-accent hover:underline underline-offset-2"
+          >
+            Step-by-step setup guide →
+          </button>
+
+          <div>
+            <label className="text-[11px] text-fg-subtle">Server URL</label>
+            <Input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://backup.example.com  (or http://192.168.1.10:1234)"
+              className="mt-0.5 font-mono text-[11.5px]"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-fg-subtle">Bearer token (optional, recommended)</label>
+            <Input
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="Paste the same token you set as MONII_BACKUP_TOKEN on the server"
+              className="mt-0.5 font-mono text-[11.5px]"
+              type="password"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-fg-subtle">Workspace name</label>
+            <Input
+              value={workspace}
+              onChange={(e) => setWorkspace(e.target.value)}
+              placeholder="default"
+              className="mt-0.5 font-mono text-[11.5px]"
+            />
+            <div className="text-[10.5px] text-fg-subtle mt-0.5">
+              Lets one server hold backups for several budgets. Leave as "default" if you only have one.
+            </div>
+          </div>
+
+          {testResult && (
+            <div className={`flex items-start gap-1.5 text-[11.5px] ${testResult.ok ? 'text-positive' : 'text-negative'}`}>
+              {testResult.ok ? <Check size={11} className="mt-0.5 flex-shrink-0" /> : <AlertTriangle size={11} className="mt-0.5 flex-shrink-0" />}
+              <span>{testResult.message}</span>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={testNow} disabled={busy || !url.trim()}>
+              {busy ? <><Loader2 size={13} className="animate-spin" /> Testing…</> : 'Test connection'}
+            </Button>
+            {!enabled ? (
+              <Button variant="primary" onClick={enable} disabled={busy || !url.trim()}>
+                {busy ? <><Loader2 size={13} className="animate-spin" /> Starting…</> : 'Turn on'}
+              </Button>
+            ) : (
+              <>
+                <Button variant="secondary" onClick={syncNow} disabled={busy}>
+                  {busy ? <><Loader2 size={13} className="animate-spin" /> Syncing…</> : <><RefreshCw size={13} /> Back up now</>}
+                </Button>
+                <Button variant="ghost" onClick={disable} disabled={busy}>
+                  Turn off
+                </Button>
+              </>
+            )}
+          </div>
+
+          {enabled && lastSyncedAt > 0 && (
+            <div className="flex items-center gap-3 text-[11px] text-fg-subtle flex-wrap">
+              <div className="flex items-center gap-1" title={ENCRYPTION_DESCRIPTION}>
+                <ShieldCheck size={11} className="text-positive" />
+                {ENCRYPTION_LABEL}
+              </div>
+              <div>Last backup: {timeAgo(lastSyncedAt)}</div>
+            </div>
+          )}
+
+          <div className="text-[10.5px] text-fg-subtle leading-snug">
+            Off by default. Independent of every other sync option. You can use any combination.
           </div>
         </div>
       )}

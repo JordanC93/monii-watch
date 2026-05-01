@@ -87,7 +87,7 @@ export function AppLockScreen({ onUnlock }: Props) {
           Monii Watch is locked
         </h1>
         <p className="text-[12.5px] text-fg-subtle mb-6">
-          Enter your PIN to unlock. This stays on this device — your synced data is unaffected.
+          Enter your PIN to unlock. This stays on this device; your synced data is unaffected.
         </p>
         <input
           ref={inputRef}

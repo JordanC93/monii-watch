@@ -89,7 +89,7 @@ export function OnboardingWizardModal({ open, onClose }: { open: boolean; onClos
             onClick={finish}
             className="text-[12px] text-fg-subtle hover:text-fg flex items-center gap-1"
           >
-            <SkipForward size={12} /> Skip — I&apos;ll set up later
+            <SkipForward size={12} /> Skip, I&apos;ll set up later
           </button>
           {step === 'income' && (
             <Button onClick={commitIncome} disabled={!parseAmountToCents(income)}>
@@ -162,7 +162,7 @@ export function OnboardingWizardModal({ open, onClose }: { open: boolean; onClos
               ))}
             </Select>
             <div className="text-[11px] text-fg-subtle mt-1">
-              Drives per-paycheck math everywhere — &quot;you need $83/check to fund this
+              Drives per-paycheck math everywhere, like &quot;you need $83/check to fund this
               goal&quot;.
             </div>
           </div>
@@ -173,7 +173,7 @@ export function OnboardingWizardModal({ open, onClose }: { open: boolean; onClos
               <Building2 size={14} className="text-accent" /> Which US state?
             </div>
             <Select value={stateCode} onChange={(e) => setStateCode(e.target.value)}>
-              <option value="">— Pick a state (optional) —</option>
+              <option value="">Pick a state (optional)</option>
               {US_STATES.map((s) => (
                 <option key={s.code} value={s.code}>{s.name}</option>
               ))}
@@ -190,7 +190,7 @@ export function OnboardingWizardModal({ open, onClose }: { open: boolean; onClos
               <Receipt size={14} className="text-accent" /> Default deductions
             </div>
             <p className="text-fg-muted">
-              We&apos;ll add two starter deductions per paycheck — Federal income tax
+              We&apos;ll add two starter deductions per paycheck: Federal income tax
               (~12% of gross) and FICA (7.65%). Adjust the actual numbers later in
               Settings → Income & Deductions; this is just to get you a realistic
               take-home estimate.

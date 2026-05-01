@@ -21,9 +21,20 @@
  *
  * Environment variables:
  *   PORT              TCP port to listen on (default 1234)
- *   HOST              Bind address (default 0.0.0.0 — all interfaces)
+ *   HOST              Bind address (default 0.0.0.0, all interfaces)
  *   MONII_PERSIST_DIR Optional path for on-disk persistence (LevelDB)
  *   MONII_PUBLIC_DIR  Override the static-file root (default ./public)
+ *   MONII_BACKUP_DIR  Optional path for the personal-backup HTTP store.
+ *                     When set, the server exposes a small REST API at
+ *                     /backup/* for upload + download of encrypted
+ *                     snapshots from the app. See "Personal backup" in
+ *                     the README for the wire format.
+ *   MONII_BACKUP_TOKEN Optional bearer token. When set, requests must
+ *                     include Authorization: Bearer <token>. Strongly
+ *                     recommended in any setting that isn't a private
+ *                     LAN.
+ *   MONII_BACKUP_KEEP Number of historical snapshots to retain per
+ *                     workspace (default 10). Older snapshots roll off.
  *
  * The web UI is OPTIONAL — if `MONII_PUBLIC_DIR` doesn't exist, the
  * server runs as a sync-only hub and the HTTP root prints a hint.
@@ -47,6 +58,9 @@ const PORT = parseInt(process.env.PORT || '1234', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const PERSIST_DIR = process.env.MONII_PERSIST_DIR || '';
 const PUBLIC_DIR = process.env.MONII_PUBLIC_DIR || path.join(__dirname, 'public');
+const BACKUP_DIR = process.env.MONII_BACKUP_DIR || '';
+const BACKUP_TOKEN = process.env.MONII_BACKUP_TOKEN || '';
+const BACKUP_KEEP = parseInt(process.env.MONII_BACKUP_KEEP || '10', 10);
 
 // MIME-type lookup — covers everything Vite / the PWA bundle emits.
 const MIME = {
@@ -96,6 +110,239 @@ if (PERSIST_DIR) {
 }
 
 // -----------------------------------------------------------------------
+// Personal backup HTTP store.
+//
+// Layout on disk:
+//   <BACKUP_DIR>/<workspace>/snapshot.bin           (the latest pointer)
+//   <BACKUP_DIR>/<workspace>/snapshots/<unix-ms>.bin  (versioned copies)
+//
+// Wire format:
+//
+//   GET  /backup/<workspace>/snapshot.bin
+//        Returns the latest encrypted blob, or 404 if absent.
+//
+//   PUT  /backup/<workspace>/snapshot.bin
+//        Accepts a raw binary body. Writes it as the new latest, AND
+//        keeps a copy in /snapshots/<unix-ms>.bin. Rolls off all but
+//        the most recent BACKUP_KEEP versioned copies.
+//
+//   GET  /backup/<workspace>/snapshots
+//        Returns JSON: [{ name, size, mtime }, ...] sorted by mtime
+//        descending. Useful for surfacing "you have 7 backups" in the
+//        app and for restoring an older version.
+//
+//   GET  /backup/<workspace>/snapshots/<name>
+//        Returns a specific historical snapshot.
+//
+// Auth: when MONII_BACKUP_TOKEN is set, every request must include
+//   Authorization: Bearer <token>. Mismatched / missing token returns
+//   401 with no body.
+//
+// Encryption: blobs are opaque to the server. The app encrypts them
+//   with the user's pairing phrase before upload (XChaCha20-Poly1305 +
+//   Argon2id, see src/sync/crypto.ts). Anyone with filesystem access
+//   to BACKUP_DIR sees only ciphertext.
+// -----------------------------------------------------------------------
+const backupEnabled = !!BACKUP_DIR;
+if (backupEnabled) {
+  try {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    console.log(`[monii-sync] personal backup enabled at ${BACKUP_DIR}`);
+    if (!BACKUP_TOKEN) {
+      console.log('[monii-sync] WARNING: MONII_BACKUP_TOKEN not set — backups are unauthenticated');
+    }
+  } catch (e) {
+    console.warn(`[monii-sync] backup dir could not be created at ${BACKUP_DIR}:`, e?.message ?? e);
+  }
+}
+
+const WORKSPACE_RE = /^[a-z0-9][a-z0-9_-]{0,47}$/i;
+const SNAPSHOT_NAME_RE = /^[0-9]{1,16}\.bin$/;
+
+function backupAuthOk(req) {
+  if (!BACKUP_TOKEN) return true;
+  const header = req.headers.authorization || '';
+  return header === `Bearer ${BACKUP_TOKEN}`;
+}
+
+function jsonResponse(res, status, body) {
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+  });
+  res.end(JSON.stringify(body));
+}
+
+function plainResponse(res, status, text) {
+  res.writeHead(status, {
+    'Content-Type': 'text/plain; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+  });
+  res.end(text);
+}
+
+function workspaceDir(workspace) {
+  const safe = path.resolve(BACKUP_DIR, workspace);
+  if (safe !== path.resolve(BACKUP_DIR, workspace) || !safe.startsWith(path.resolve(BACKUP_DIR) + path.sep)) {
+    return null;
+  }
+  return safe;
+}
+
+async function handleBackupRoute(req, res, urlPath) {
+  // CORS preflight — the desktop / web app may run on a different
+  // origin from the backup server, so OPTIONS needs to ack the
+  // Authorization header up front.
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+      'Access-Control-Max-Age': '86400',
+    });
+    res.end();
+    return;
+  }
+
+  if (!backupEnabled) {
+    plainResponse(res, 501, 'Personal backup is not configured on this server. Set MONII_BACKUP_DIR.\n');
+    return;
+  }
+  if (!backupAuthOk(req)) {
+    plainResponse(res, 401, 'Unauthorized\n');
+    return;
+  }
+
+  // Parse: /backup/<workspace>/...
+  const parts = urlPath.replace(/^\/backup\/?/, '').split('/').filter(Boolean);
+  if (parts.length === 0) {
+    jsonResponse(res, 200, { ok: true, message: 'monii-sync backup endpoint' });
+    return;
+  }
+  const workspace = parts[0];
+  if (!WORKSPACE_RE.test(workspace)) {
+    plainResponse(res, 400, 'Bad workspace name\n');
+    return;
+  }
+  const wsDir = workspaceDir(workspace);
+  if (!wsDir) {
+    plainResponse(res, 400, 'Invalid path\n');
+    return;
+  }
+
+  const sub = parts.slice(1).join('/');
+
+  // PUT /backup/<ws>/snapshot.bin — upload latest
+  if (req.method === 'PUT' && sub === 'snapshot.bin') {
+    fs.mkdirSync(path.join(wsDir, 'snapshots'), { recursive: true });
+    const chunks = [];
+    let total = 0;
+    const MAX_BYTES = 64 * 1024 * 1024; // 64 MiB cap, way over what we'd ever ship
+    req.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > MAX_BYTES) {
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (total > MAX_BYTES) {
+        plainResponse(res, 413, 'Payload too large\n');
+        return;
+      }
+      const body = Buffer.concat(chunks, total);
+      const stamp = Date.now();
+      const versioned = path.join(wsDir, 'snapshots', `${stamp}.bin`);
+      const latest = path.join(wsDir, 'snapshot.bin');
+      try {
+        fs.writeFileSync(versioned, body);
+        fs.writeFileSync(latest, body);
+        // Roll off old versioned copies.
+        const all = fs.readdirSync(path.join(wsDir, 'snapshots'))
+          .filter((n) => SNAPSHOT_NAME_RE.test(n))
+          .sort()
+          .reverse();
+        for (const name of all.slice(BACKUP_KEEP)) {
+          try { fs.unlinkSync(path.join(wsDir, 'snapshots', name)); } catch {}
+        }
+        jsonResponse(res, 200, { ok: true, size: body.length, stamp });
+      } catch (e) {
+        plainResponse(res, 500, `Write failed: ${e?.message ?? e}\n`);
+      }
+    });
+    req.on('error', () => plainResponse(res, 400, 'Read error\n'));
+    return;
+  }
+
+  // GET /backup/<ws>/snapshot.bin — download latest
+  if (req.method === 'GET' && sub === 'snapshot.bin') {
+    const file = path.join(wsDir, 'snapshot.bin');
+    fs.stat(file, (err, stats) => {
+      if (err || !stats.isFile()) {
+        plainResponse(res, 404, 'No snapshot yet\n');
+        return;
+      }
+      res.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': stats.size,
+        'Last-Modified': stats.mtime.toUTCString(),
+        'Access-Control-Allow-Origin': '*',
+      });
+      fs.createReadStream(file).pipe(res);
+    });
+    return;
+  }
+
+  // GET /backup/<ws>/snapshots — list versions
+  if (req.method === 'GET' && (sub === 'snapshots' || sub === 'snapshots/')) {
+    const dir = path.join(wsDir, 'snapshots');
+    if (!fs.existsSync(dir)) {
+      jsonResponse(res, 200, []);
+      return;
+    }
+    const entries = fs.readdirSync(dir)
+      .filter((n) => SNAPSHOT_NAME_RE.test(n))
+      .map((name) => {
+        const st = fs.statSync(path.join(dir, name));
+        return { name, size: st.size, mtime: st.mtimeMs };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+    jsonResponse(res, 200, entries);
+    return;
+  }
+
+  // GET /backup/<ws>/snapshots/<name> — download a specific version
+  if (req.method === 'GET' && sub.startsWith('snapshots/')) {
+    const name = sub.slice('snapshots/'.length);
+    if (!SNAPSHOT_NAME_RE.test(name)) {
+      plainResponse(res, 400, 'Bad snapshot name\n');
+      return;
+    }
+    const file = path.join(wsDir, 'snapshots', name);
+    fs.stat(file, (err, stats) => {
+      if (err || !stats.isFile()) {
+        plainResponse(res, 404, 'Not Found\n');
+        return;
+      }
+      res.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': stats.size,
+        'Access-Control-Allow-Origin': '*',
+      });
+      fs.createReadStream(file).pipe(res);
+    });
+    return;
+  }
+
+  plainResponse(res, 405, 'Method not allowed\n');
+}
+
+// -----------------------------------------------------------------------
 // Static file serving (web UI).
 // -----------------------------------------------------------------------
 const publicDirExists = fs.existsSync(PUBLIC_DIR) && fs.statSync(PUBLIC_DIR).isDirectory();
@@ -109,6 +356,14 @@ if (publicDirExists) {
 }
 
 function serveStatic(req, res) {
+  // Personal backup endpoint takes priority over static files. Routes
+  // under /backup are handled by the JSON / binary handler above.
+  let urlPathForRouting = decodeURIComponent(req.url.split('?')[0]);
+  if (urlPathForRouting === '/backup' || urlPathForRouting.startsWith('/backup/')) {
+    handleBackupRoute(req, res, urlPathForRouting);
+    return;
+  }
+
   if (!publicDirExists) {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end(
@@ -203,5 +458,8 @@ server.listen(PORT, HOST, () => {
     console.log(`[monii-sync] web UI:  http://${displayHost}:${PORT}/`);
   }
   console.log(`[monii-sync] sync ws: ws://${displayHost}:${PORT}/`);
+  if (backupEnabled) {
+    console.log(`[monii-sync] backup:  http://${displayHost}:${PORT}/backup/<workspace>/snapshot.bin`);
+  }
   console.log(`[monii-sync] (put behind a TLS proxy for https:// + wss:// in production)`);
 });

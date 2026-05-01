@@ -303,8 +303,8 @@ function syncTooltip(s: SyncStatus): string {
   switch (s) {
     case 'connected': return 'Connected to peers via WebRTC. Click for sync settings.';
     case 'connecting': return 'Looking for peers…';
-    case 'error': return 'Sync error — click for details';
-    default: return 'Sync is off — click to set up';
+    case 'error': return 'Sync error. Click for details';
+    default: return 'Sync is off. Click to set up';
   }
 }
 

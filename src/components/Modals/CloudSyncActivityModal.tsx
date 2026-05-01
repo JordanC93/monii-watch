@@ -57,7 +57,7 @@ export function CloudSyncActivityModal({ open, onClose }: { open: boolean; onClo
   }, [entries, filter]);
 
   async function clearAll() {
-    if (!confirm('Clear the activity log? Doesn\'t affect your synced data — just the local debug history.')) return;
+    if (!confirm('Clear the activity log? Doesn\'t affect your synced data, just the local debug history.')) return;
     const m = await import('../../sync/icloudProvider');
     m.clearActivityLog();
   }
@@ -80,7 +80,7 @@ export function CloudSyncActivityModal({ open, onClose }: { open: boolean; onClo
       <div className="space-y-3 text-[13px]">
         <p className="text-fg-muted text-[12.5px] leading-relaxed">
           Chronological log of every push / pull / merge for this
-          device. Stored locally — not synced across devices. Last
+          device. Stored locally; not synced across devices. Last
           100 events.
         </p>
 
@@ -110,7 +110,7 @@ export function CloudSyncActivityModal({ open, onClose }: { open: boolean; onClo
           <div className="text-fg-subtle text-center py-8">
             {entries.length === 0
               ? 'No activity recorded yet. Once you enable Cloud folder sync, push and pull events will land here.'
-              : 'No matching entries — try a different filter.'}
+              : 'No matching entries. Try a different filter.'}
           </div>
         ) : (
           <div className="border border-border rounded-lg overflow-hidden divide-y divide-border/60 max-h-[60vh] overflow-y-auto">

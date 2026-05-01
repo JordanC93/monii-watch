@@ -95,7 +95,7 @@ export function TipJarModal({ open, onClose }: { open: boolean; onClose: () => v
         <p>
           Monii Watch is free and always will be. No ads, no tracking,
           no upsell. If the app's been useful to you and you'd like to
-          chip in, here are a few ways. Zero pressure — the app
+          chip in, here are a few ways. Zero pressure; the app
           doesn't track whether you tipped.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">

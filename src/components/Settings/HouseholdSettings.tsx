@@ -63,7 +63,7 @@ export function HouseholdSettings() {
     <div className="space-y-3">
       <div className="text-[12px] text-fg-muted leading-relaxed">
         Add household members to attribute transactions on the QuickAdd
-        bar. Useful for couples / families sharing one budget — each
+        bar. Useful for couples / families sharing one budget. Each
         person picks their name when entering a charge, and Reports get
         a per-member breakdown. <strong>Solo users:</strong> leave this
         empty; the picker stays hidden.

@@ -143,7 +143,7 @@ function AccountInvestmentCard({ account, fmt }: { account: Account; fmt: (cents
       </div>
 
       {positions.length === 0 && !adding ? (
-        <div className="text-[12.5px] text-fg-subtle text-center py-4 italic">No positions yet — tap the button above to add one.</div>
+        <div className="text-[12.5px] text-fg-subtle text-center py-4 italic">No positions yet. Tap the button above to add one.</div>
       ) : (
         <div className="space-y-2">
           {positions.map((p) => (
@@ -215,7 +215,7 @@ function PositionRow({
           onClick={(e) => { e.stopPropagation(); openModal({ type: 'investmentLots', accountId, positionId: pos.id }); }}
           className="text-fg-subtle hover:text-fg text-[10.5px]"
           aria-label="Manage lots"
-          title="Manage lots — buy / sell / tax-loss harvest"
+          title="Manage lots: buy, sell, tax-loss harvest"
         >
           <Layers size={11} />
         </button>

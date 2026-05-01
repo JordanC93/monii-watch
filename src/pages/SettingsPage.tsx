@@ -46,7 +46,7 @@ import { undo, redo } from '../store/undo';
  */
 async function resetEverything(): Promise<void> {
   if (!confirm(
-    'This will delete ALL data on this device — accounts, transactions, ' +
+    'This will delete ALL data on this device: accounts, transactions, ' +
     'budgets, settings, paired-device sync state, everything.\n\n' +
     'To restore later, import a backup JSON file.\n\nContinue?'
   )) return;
@@ -148,7 +148,7 @@ export function SettingsPage() {
     try {
       const v = validateSnapshot(JSON.parse(json));
       if (!v.ok) {
-        setImportMsg(`Backup verification FAILED — file not downloaded: ${v.errors.join(' · ')}`);
+        setImportMsg(`Backup verification FAILED. File not downloaded: ${v.errors.join(' · ')}`);
         return;
       }
     } catch (err: any) {
@@ -178,7 +178,7 @@ export function SettingsPage() {
    * detects it without inspecting bytes.
    */
   async function exportEncryptedBackup() {
-    const pass = window.prompt('Choose a passphrase. Anyone who knows it can decrypt this file.\n\nMin 8 chars. Save it somewhere safe — there is no recovery.');
+    const pass = window.prompt('Choose a passphrase. Anyone who knows it can decrypt this file.\n\nMin 8 chars. Save it somewhere safe; there is no recovery.');
     if (!pass) return;
     if (pass.length < 8) { setImportMsg('Passphrase must be at least 8 characters.'); return; }
     try {
@@ -252,7 +252,7 @@ export function SettingsPage() {
         return;
       }
       const { added } = importSnapshot(data, { mode });
-      setImportMsg(`Imported ${added} records${decryptedNote}.${v.warnings.length > 0 ? ` ${v.warnings.length} warning(s) — see audit log.` : ''}`);
+      setImportMsg(`Imported ${added} records${decryptedNote}.${v.warnings.length > 0 ? ` ${v.warnings.length} warning(s); see audit log.` : ''}`);
     } catch (err: any) {
       setImportMsg(`Import failed: ${err?.message ?? err}`);
     } finally {
@@ -294,7 +294,7 @@ export function SettingsPage() {
             className="max-w-xs"
           >
             {SUPPORTED_CURRENCIES.map((c) => (
-              <option key={c.code} value={c.code}>{c.code} — {c.symbol}</option>
+              <option key={c.code} value={c.code}>{c.code} · {c.symbol}</option>
             ))}
           </Select>
         </Field>
@@ -475,21 +475,21 @@ export function SettingsPage() {
         <DensitySetting />
       </Section>
 
-      <Section title="Privacy mode" subtitle="Blur every dollar amount. ⌘. toggles. Local — never synced.">
+      <Section title="Privacy mode" subtitle="Blur every dollar amount. ⌘. toggles. Local; never synced.">
         <PrivacyToggle />
       </Section>
 
-      <Section title="App lock" subtitle="Optional PIN to unlock Monii Watch. Per-device — your synced data isn't affected.">
+      <Section title="App lock" subtitle="Optional PIN to unlock Monii Watch. Per-device; your synced data isn't affected.">
         <AppLockSettings />
       </Section>
 
-      <Section title="Household members" subtitle="Attribute transactions to members of a shared household. Solo users — leave empty.">
+      <Section title="Household members" subtitle="Attribute transactions to members of a shared household. Solo users can leave this empty.">
         <HouseholdSettings />
       </Section>
       </SettingsTab>
 
       <SettingsTab tab="sync" active={activeTab}>
-      <Section title="Sync" subtitle="Peer-to-peer over WebRTC. The signaling server only helps devices find each other — your data stays on your devices.">
+      <Section title="Sync" subtitle="Peer-to-peer over WebRTC. The signaling server only helps devices find each other; your data stays on your devices.">
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-[13px] font-medium">{settings.syncEnabled ? 'Sync is on' : 'Sync is off'}</div>
@@ -508,7 +508,7 @@ export function SettingsPage() {
         <ICloudSettings />
       </Section>
 
-      <Section title="Deal feeds" subtitle="Watch public deal feeds for sales matching your goal items. Only public APIs — nothing about you is sent anywhere.">
+      <Section title="Deal feeds" subtitle="Watch public deal feeds for sales matching your goal items. Only public APIs; nothing about you is sent anywhere.">
         <DealFeedsSettings />
       </Section>
 
@@ -591,7 +591,7 @@ export function SettingsPage() {
       </Section>
       {/* END MAINTAINER MODE */}
 
-      <Section title="Notifications" subtitle="Local — runs on your device, no push server.">
+      <Section title="Notifications" subtitle="Local; runs on your device, no push server.">
         <NotificationsSettings />
       </Section>
 
@@ -615,7 +615,7 @@ export function SettingsPage() {
 
       <Section title="About">
         <div className="text-[12.5px] text-fg-muted space-y-1">
-          <div>Monii Watch — envelope-method budgeting that syncs peer-to-peer.</div>
+          <div>Monii Watch: envelope-method budgeting that syncs peer-to-peer.</div>
           <div>v{__APP_VERSION__} · Local-first · No accounts required.</div>
         </div>
       </Section>
@@ -687,7 +687,7 @@ function DeductionSummary() {
   if (grossMonthly === 0 && settings.deductions.length === 0) {
     return (
       <div className="text-[12px] text-fg-subtle bg-surface-2/40 rounded-md p-3">
-        Enter your monthly income above and add deductions below — or upload a paystub for one-tap entry.
+        Enter your monthly income above and add deductions below, or upload a paystub for one-tap entry.
       </div>
     );
   }
@@ -844,7 +844,7 @@ function NotificationsSettings() {
         <div>
           <div className="text-[13px] font-medium">{settings.notificationsEnabled ? 'Notifications are on' : 'Notifications are off'}</div>
           <div className="text-[12px] text-fg-subtle">
-            {permState === 'unsupported' ? 'Browser doesn\'t support system notifications — in-app toasts only.'
+            {permState === 'unsupported' ? 'Browser doesn\'t support system notifications. In-app toasts only.'
               : permState === 'granted' ? 'System notifications enabled.'
               : permState === 'denied' ? 'Browser blocked notifications. Falls back to in-app toasts.'
               : 'Click Enable to grant browser permission.'}
@@ -1077,7 +1077,7 @@ function DealFeedsSettings() {
   return (
     <div className="space-y-3 text-[13px]">
       <div className="text-[11.5px] text-fg-subtle leading-snug">
-        Each feed is a public source — Wario64 on Bluesky, Reddit deal
+        Each feed is a public source: Wario64 on Bluesky, Reddit deal
         subs, Slickdeals. Posts are matched against the
         <strong> deal-tracker keywords</strong> you set on each goal
         category (Edit category → Goal extras). When a post matches
@@ -1215,7 +1215,7 @@ function ICloudSettings() {
   if (!available) {
     return (
       <div className="text-[12px] text-fg-subtle">
-        Cloud folder sync requires the desktop app — browsers can't write
+        Cloud folder sync requires the desktop app. Browsers can't write
         to arbitrary folders. Open Monii Watch from your Applications
         folder (macOS) or installed location (Windows / Linux) to use it.
       </div>
@@ -1268,7 +1268,7 @@ function ICloudSettings() {
       const m = await import('../sync/icloudProvider');
       const newPath = await m.pickFolder();
       if (!newPath) return;
-      if (newPath === folder) { toast.info('Same folder — no change.'); return; }
+      if (newPath === folder) { toast.info('Same folder; no change.'); return; }
       const probe = await m.probeFolder(newPath);
       if (!probe.ok) {
         toast.error(probe.error ?? 'New folder isn\'t writable.');
@@ -1288,9 +1288,9 @@ function ICloudSettings() {
       // state, in case the move skipped or failed.
       await m.forcePush();
       if (moved.moved) {
-        toast.success('Folder changed — existing snapshot moved.');
+        toast.success('Folder changed. Existing snapshot moved.');
       } else if (moved.reason === 'no source snapshot') {
-        toast.success('Folder changed — first sync will populate it.');
+        toast.success('Folder changed. First sync will populate it.');
       } else {
         toast.success(`Folder changed. ${moved.reason ?? ''}`.trim());
       }
@@ -1372,7 +1372,7 @@ function ICloudSettings() {
   async function restorePrevious() {
     if (!confirm(
       'Restore the previous snapshot? This applies the cloud copy from BEFORE the last push '
-      + 'on top of your local data. Yjs will merge — recent local edits are kept, but recent '
+      + 'on top of your local data. Yjs will merge: recent local edits are kept, but recent '
       + 'changes from other devices may be lost. Continue?'
     )) return;
     setBusy('restoring');
@@ -1400,7 +1400,7 @@ function ICloudSettings() {
       return 'Looks like the cloud storage is FULL. Free up space in your cloud account (or in the local folder) and try again.';
     }
     if (m.includes('permission denied') || m.includes('access denied') || m.includes('eacces')) {
-      return 'Permission denied. The cloud-storage app may have restricted access — try Verify access or pick a different folder.';
+      return 'Permission denied. The cloud-storage app may have restricted access. Try Verify access or pick a different folder.';
     }
     if (m.includes('network') || m.includes('offline') || m.includes('timed out') || m.includes('connection')) {
       return 'Network issue. Check that your cloud-storage app is online and the device has internet.';
@@ -1416,8 +1416,8 @@ function ICloudSettings() {
             Pick any folder that a cloud service automatically syncs
             (on this OS that's typically <strong>{platformHint}</strong>).
             Monii Watch writes an encrypted snapshot to the folder; the
-            cloud service handles propagating it to your other devices —
-            no OAuth, no accounts, nothing for you to wire up.
+            cloud service handles propagating it to your other devices.
+            No OAuth, no accounts, nothing for you to wire up.
             {suggested && (
               <>
                 <br />
@@ -1428,12 +1428,12 @@ function ICloudSettings() {
             <br />
             <span className="text-fg-subtle/80">
               Want Google Drive? Install <strong>Drive for desktop</strong> (Google's official app),
-              which mounts your Drive as a regular folder — then point this here.
+              which mounts your Drive as a regular folder. Then point this here.
             </span>
           </div>
           {!syncRoom && (
             <div className="text-[11.5px] text-warning bg-warning/10 px-3 py-2 rounded mb-2">
-              Set up your pairing phrase first (Sync section above) — Cloud folder sync uses it as the encryption key.
+              Set up your pairing phrase first (Sync section above). Cloud folder sync uses it as the encryption key.
             </div>
           )}
           <Button onClick={pickAndStart} disabled={!syncRoom || !!busy}>
@@ -1449,7 +1449,7 @@ function ICloudSettings() {
             <span>
               {lastSyncedAt
                 ? `Last sync: ${new Date(lastSyncedAt).toLocaleString()}`
-                : 'No sync yet — first push will happen on the next change.'}
+                : 'No sync yet. First push will happen on the next change.'}
             </span>
             {snapshotBytes !== null && (
               <span className="text-fg-subtle/80">
@@ -1640,7 +1640,7 @@ function AppLockSettings() {
         <>
           <div className="text-[12px] text-fg-muted leading-relaxed">
             Locks Monii Watch with a PIN on cold start and after a chosen
-            timeout in the background. Local-per-device — different
+            timeout in the background. Local-per-device: different
             devices unlock independently. The synced data is unaffected.
           </div>
           <Button onClick={() => setStep('set')}>
@@ -1772,7 +1772,7 @@ function LayoutToggle() {
     <div className="mt-4 border-t border-border pt-3">
       <div className="text-[12px] font-medium mb-1">Layout (iPad)</div>
       <div className="text-[11.5px] text-fg-subtle mb-2 leading-snug">
-        Both layouts work on iPad. Saved on this device only — your phone and your iPad can pick differently.
+        Both layouts work on iPad. Saved on this device only, so your phone and your iPad can pick differently.
       </div>
       <div className="grid grid-cols-3 gap-2">
         {opts.map((o) => (

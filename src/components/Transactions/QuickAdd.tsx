@@ -155,7 +155,7 @@ export function QuickAdd({ accountId }: Props) {
     const dollars = (Math.abs(amount) / 100).toFixed(2);
     const occurrences = allTxns.filter((t) => t.payeeId === p.id && !t.transferAccountId && t.amount < 0).length;
     toast({
-      message: `${payeeName} charged $${dollars} — ${occurrences}× on a ${cadence} cadence. Schedule it?`,
+      message: `${payeeName} charged $${dollars}: ${occurrences}× on a ${cadence} cadence. Schedule it?`,
       tone: 'info',
       duration: 8000,
       action: {

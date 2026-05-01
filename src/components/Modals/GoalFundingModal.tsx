@@ -157,7 +157,7 @@ export function GoalFundingModal({ open, onClose }: { open: boolean; onClose: ()
       {initialSuggestions.length === 0 ? (
         <div className="text-[13px] text-fg-subtle text-center py-6">
           {rta <= 0
-            ? 'No money to allocate yet — Ready-to-Assign is at zero.'
+            ? 'No money to allocate yet. Ready-to-Assign is at zero.'
             : 'No underfunded goals to fund. All your goals are on track.'}
         </div>
       ) : (

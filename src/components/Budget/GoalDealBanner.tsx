@@ -107,7 +107,7 @@ export function GoalDealBanner() {
             </div>
             <div className="text-[12px] text-fg-muted mt-0.5">
               {kind === 'goal-met'
-                ? <>You have <strong className="text-positive">{fmt(available)}</strong> available — target was {fmt(currentPrice)}.</>
+                ? <>You have <strong className="text-positive">{fmt(available)}</strong> available; target was {fmt(currentPrice)}.</>
                 : <>Current price <strong>{fmt(currentPrice)}</strong> · you have <strong className="text-positive">{fmt(available)}</strong> available.</>}
             </div>
             <div className="flex flex-wrap gap-3 mt-1.5 text-[11.5px]">

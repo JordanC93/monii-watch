@@ -98,7 +98,7 @@ export function CategoryDetailPage() {
             <TrendingUp size={16} className="text-accent flex-shrink-0 mt-0.5" />
             <div className="flex-1 text-[12.5px]">
               <div className="font-medium">
-                Highly variable — {variability!.toFixed(1)}× swing between low and high months
+                Highly variable. {variability!.toFixed(1)}× swing between low and high months
               </div>
               <div className="text-fg-subtle mt-0.5">
                 Highest: <strong>{fmt(stats.max)}</strong> in {formatMonthShort(monthly[stats.maxMonthIdx].month)}

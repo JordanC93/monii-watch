@@ -70,7 +70,7 @@ export function PrivacyPage() {
             </li>
             <li className="flex items-start gap-2">
               <span className="text-positive mt-0.5">•</span>
-              <span><strong>A cloud folder of your choosing</strong> (only when you enable Cloud folder sync). Encrypted blobs only — the cloud provider can't read them.</span>
+              <span><strong>A cloud folder of your choosing</strong> (only when you enable Cloud folder sync). Encrypted blobs only; the cloud provider can't read them.</span>
             </li>
           </ul>
         </div>
@@ -98,7 +98,7 @@ export function PrivacyPage() {
           </div>
           <p className="text-fg-muted mb-3">
             Because all data is local, the standard rights are
-            mechanically satisfied — there's no central server to
+            mechanically satisfied. There's no central server to
             request from.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -123,7 +123,7 @@ export function PrivacyPage() {
             <div className="bg-surface-2/40 rounded-lg p-3 sm:col-span-2">
               <div className="font-medium text-[12.5px] mb-1">Right to correction</div>
               <div className="text-[11.5px] text-fg-muted">
-                Edit anything directly in the app — accounts,
+                Edit anything directly in the app: accounts,
                 transactions, categories, settings. Recent changes are
                 also undoable via Cmd+Z and viewable in
                 Settings → Audit log.

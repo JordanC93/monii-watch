@@ -27,7 +27,7 @@ export function QuickAddBar({ accountId }: Props) {
   function submit() {
     const parsed = parseLine(text, categories);
     if (!parsed) {
-      toast.warn('Format: "Apr 12 Starbucks 4.50 dining" — date is optional, amount required.');
+      toast.warn('Format: "Apr 12 Starbucks 4.50 dining". Date is optional, amount required.');
       return;
     }
     createTransaction({

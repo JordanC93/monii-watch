@@ -47,7 +47,7 @@ export function MaintainerHelpPage() {
           <ArrowLeft size={14} /> Back
         </button>
         <div className="text-[10.5px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-warning/15 text-warning">
-          Pre-v1 — removed for release
+          Pre-v1 (removed for release)
         </div>
       </div>
 
@@ -108,7 +108,7 @@ rustup target add aarch64-apple-ios aarch64-apple-ios-sim`}</Pre>
 npm run ios:init`}</Pre>
           Generates <code>src-tauri/gen/apple/</code> with an Xcode project (not committed).
         </li>
-        <li>Open the generated <code>Info.plist</code> and merge the keys from <code>src-tauri/ios-config/Info.plist.snippets.xml</code> into the top-level <code>&lt;dict&gt;</code> (camera / photo / local-network usage strings — Apple rejects builds without them).</li>
+        <li>Open the generated <code>Info.plist</code> and merge the keys from <code>src-tauri/ios-config/Info.plist.snippets.xml</code> into the top-level <code>&lt;dict&gt;</code> (camera / photo / local-network usage strings; Apple rejects builds without them).</li>
         <li>Day-to-day:
           <Pre>{`npm run ios:dev                      # iOS Simulator with hot reload
 npm run ios:dev -- --device          # physical iPhone via USB
@@ -120,9 +120,9 @@ npm run ios:open                     # open Xcode project`}</Pre>
         </li>
         <li>Distribution paths:
           <ul className="list-disc pl-5 mt-1 space-y-0.5">
-            <li><strong>TestFlight / App Store</strong> — needs Apple Developer ($99/yr), Xcode → Product → Archive → Distribute</li>
-            <li><strong>Personal sideload</strong> — free Apple ID, drag IPA onto device in Xcode → Devices, re-sign every 7 days</li>
-            <li><strong>AltStore / SideStore</strong> — AirDrop the IPA, install via AltStore, ~5-day re-sign</li>
+            <li><strong>TestFlight / App Store</strong>: needs Apple Developer ($99/yr), Xcode → Product → Archive → Distribute</li>
+            <li><strong>Personal sideload</strong>: free Apple ID, drag IPA onto device in Xcode → Devices, re-sign every 7 days</li>
+            <li><strong>AltStore / SideStore</strong>: AirDrop the IPA, install via AltStore, ~5-day re-sign</li>
           </ul>
         </li>
       </ol>
@@ -155,9 +155,9 @@ function DriveHelp() {
           Copy the client ID.
         </li>
         <li>In Monii Watch → Settings → Sync → expand <strong>Google Drive (advanced)</strong> → paste client ID → Connect.</li>
-        <li>On every other device: same OAuth client ID + <strong>same pairing phrase</strong> (it's the AES-GCM encryption key — without it the new device can't decrypt the existing snapshot).</li>
+        <li>On every other device: same OAuth client ID + <strong>same pairing phrase</strong> (it's the AES-GCM encryption key, and without it the new device can't decrypt the existing snapshot).</li>
       </ol>
-      <Tip>Each install origin needs its own Authorized Origin + Redirect URI on the same OAuth client. PWA URL, Tauri custom-scheme URL, localhost dev — add them all.</Tip>
+      <Tip>Each install origin needs its own Authorized Origin + Redirect URI on the same OAuth client. PWA URL, Tauri custom-scheme URL, localhost dev: add them all.</Tip>
     </Section>
   );
 }
@@ -216,7 +216,7 @@ git push origin main v0.2.0`}</Pre>
         <li>Edit notes if you want, click <strong>Publish release</strong>. Existing desktop installs see the new version on next Settings → Updates check.</li>
       </ol>
 
-      <Tip>iOS doesn't auto-update — Apple rejects apps with their own update mechanism. iOS users get updates via TestFlight / App Store / re-sideload (whichever distribution path you used).</Tip>
+      <Tip>iOS doesn't auto-update because Apple rejects apps with their own update mechanism. iOS users get updates via TestFlight / App Store / re-sideload (whichever distribution path you used).</Tip>
     </Section>
   );
 }

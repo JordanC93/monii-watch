@@ -191,7 +191,7 @@ export function ReportsPage() {
             <Activity size={14} className="text-accent" /> Financial Health Scorecard
           </div>
           <div className="text-[11.5px] text-fg-subtle mb-3">
-            Six dimensions — savings rate, emergency fund, debt-to-income, credit utilization, subscription bloat, variable spend. Each indicator suggests one concrete next step.
+            Six dimensions: savings rate, emergency fund, debt-to-income, credit utilization, subscription bloat, variable spend. Each indicator suggests one concrete next step.
           </div>
           <FinancialHealth />
         </div>
@@ -314,7 +314,7 @@ export function ReportsPage() {
       <div className="glass-panel p-4 sm:p-5" style={cardStyle('what-if')}>
         <div className="text-[14px] font-semibold mb-1">What if?</div>
         <div className="text-[11.5px] text-fg-subtle mb-3">
-          Drag the sliders to see how a spending change or income change would affect your forecast — sandbox, nothing is saved.
+          Drag the sliders to see how a spending change or income change would affect your forecast. Sandbox; nothing is saved.
         </div>
         <WhatIf />
       </div>
@@ -364,7 +364,7 @@ export function ReportsPage() {
           <CalendarDays size={14} className="text-accent" /> Day of week
         </div>
         <div className="text-[11.5px] text-fg-subtle mb-3">
-          Where the discretionary money goes — Friday/Saturday spikes are the typical culprit. No judgment, just awareness.
+          Where the discretionary money goes. Friday/Saturday spikes are the typical culprit. No judgment, just awareness.
         </div>
         <ErrorBoundary variant="card" scope="day-of-week">
           <DayOfWeekHeatmap />
@@ -374,7 +374,7 @@ export function ReportsPage() {
       <div className="glass-panel p-4 sm:p-5" style={cardStyle('category-heatmap')}>
         <div className="text-[14px] font-semibold mb-1">Category Heatmap</div>
         <div className="text-[11.5px] text-fg-subtle mb-3">
-          12 months × top spending categories — color-shaded by spend. Spot seasonal patterns instantly.
+          12 months × top spending categories, color-shaded by spend. Spot seasonal patterns instantly.
         </div>
         <CategoryHeatmap />
       </div>
@@ -382,7 +382,7 @@ export function ReportsPage() {
       <div className="glass-panel p-4 sm:p-5" style={cardStyle('bills-trend')}>
         <div className="text-[14px] font-semibold mb-1">Bills &amp; Spending Over Time</div>
         <div className="text-[11.5px] text-fg-subtle mb-3">
-          See how your utility bills, groceries, gas — anything that varies month-to-month — are trending. Defaulted to your scheduled categories; toggle others below.
+          See how your utility bills, groceries, gas, and anything that varies month-to-month is trending. Defaulted to your scheduled categories; toggle others below.
         </div>
         <BillsTrend months={Math.max(range, 12)} />
       </div>

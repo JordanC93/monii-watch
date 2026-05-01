@@ -75,7 +75,7 @@ export function CreditUtilizationAlert() {
             </div>
             <div className="text-[11.5px] text-fg-subtle">
               Utilization {Math.round(a.utilization * 100)}% ({fmt(a.balance)} / {fmt(a.limit)}).
-              Pay <strong>{fmt(a.payToTarget)}</strong> to drop under 30% before reporting — credit-score impact.
+              Pay <strong>{fmt(a.payToTarget)}</strong> to drop under 30% before reporting for a credit-score boost.
             </div>
           </div>
           <button

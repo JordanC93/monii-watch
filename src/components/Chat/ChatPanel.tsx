@@ -253,7 +253,7 @@ export function ChatPanel() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder='Type a command — e.g. "spent $12 at Chipotle on dining"'
+              placeholder='Type a command, e.g. "spent $12 at Chipotle on dining"'
               className="flex-1 h-10 px-3 rounded-lg bg-surface-3 border border-border text-fg text-[13px] focus:outline-none focus:border-accent"
             />
             <button

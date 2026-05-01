@@ -58,7 +58,7 @@ export function TaxCalculator() {
         </div>
         <div className="text-[12px] text-fg-subtle leading-snug">
           Quick US federal estimate using 2025 brackets and the standard deduction.
-          State tax is a flat rate you supply. <strong>Planning aid only — not tax advice.</strong>
+          State tax is a flat rate you supply. <strong>Planning aid only; not tax advice.</strong>
         </div>
       </div>
 

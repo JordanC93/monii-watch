@@ -186,9 +186,9 @@ export function TransactionTable({ accountId, filter, showAccount }: Props) {
           <HelpHint title="Cleared state" side="bottom">
             Click the circle on a row to cycle:
             <ul className="mt-1 space-y-0.5">
-              <li>○ <strong>Uncleared</strong> — pending, not yet at the bank.</li>
-              <li>✓ <strong>Cleared</strong> — matches your bank statement.</li>
-              <li>✓ <strong>Reconciled</strong> (filled green) — frozen as part of a bank reconciliation.</li>
+              <li>○ <strong>Uncleared</strong>: pending, not yet at the bank.</li>
+              <li>✓ <strong>Cleared</strong>: matches your bank statement.</li>
+              <li>✓ <strong>Reconciled</strong> (filled green): frozen as part of a bank reconciliation.</li>
             </ul>
             Use Reconcile (top of the account page) when your statement arrives.
           </HelpHint>

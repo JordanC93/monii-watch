@@ -74,7 +74,7 @@ export function WhatIf() {
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-[12px] text-fg-muted">
         <Sliders size={13} className="text-accent" />
-        Drag the sliders to model how your forecast changes. Nothing is saved — this is a sandbox.
+        Drag the sliders to model how your forecast changes. Nothing is saved; this is a sandbox.
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -68,7 +68,7 @@ export function AddGoalModal({ open, onClose }: { open: boolean; onClose: () => 
     try {
       const dataUrl = await resizeImageToDataUrl(file, { maxEdge: 96 });
       if (dataUrl) setCustomImage(dataUrl);
-      else toast.error('Could not read that image — try a different file.');
+      else toast.error('Could not read that image. Try a different file.');
     } catch (err: any) {
       toast.error(`Image upload failed: ${err?.message ?? err}`);
     }
@@ -156,7 +156,7 @@ export function AddGoalModal({ open, onClose }: { open: boolean; onClose: () => 
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="PlayStation 5, Vacation to Japan, House down payment…"
+              placeholder="e.g. New laptop"
               className="w-full mt-0.5"
             />
           </div>
@@ -270,7 +270,7 @@ export function AddGoalModal({ open, onClose }: { open: boolean; onClose: () => 
           <div>
             <label className="text-[11.5px] text-fg-subtle">Group</label>
             <Select value={groupId} onChange={(e) => setGroupId(e.target.value)} className="mt-0.5">
-              <option value="">Auto — "Goals" group</option>
+              <option value="">Auto: "Goals" group</option>
               {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
             </Select>
           </div>

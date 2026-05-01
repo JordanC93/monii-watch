@@ -74,8 +74,8 @@ export function ReadyToAssign() {
           <HelpHint title="Ready to Assign" side="bottom">
             Money you've received but haven't told Monii Watch what to do with yet.
             Click any "Assigned" cell on the budget table to drop dollars into a
-            category. The goal each month is to get this number to zero — every
-            dollar with a job.
+            category. The goal each month is to get this number to zero, so every
+            dollar has a job.
           </HelpHint>
         </div>
         <div className={cn(
@@ -87,7 +87,7 @@ export function ReadyToAssign() {
         <div className="text-[12px] text-fg-subtle mt-0.5">
           {tone === 'positive' && 'Give every dollar a job.'}
           {tone === 'zero' && 'Every dollar has a job. Well done.'}
-          {tone === 'negative' && 'You\'ve over-assigned — pull money back from a category.'}
+          {tone === 'negative' && 'You\'ve over-assigned. Pull money back from a category.'}
         </div>
       </div>
       <div className="flex flex-col gap-1.5">

@@ -2,6 +2,97 @@
 
 ## Released
 
+### v0.7.5 — Personal backup, sync help, copy edit pass
+
+#### Personal backup server (your own box)
+
+A new sync transport: encrypted snapshot upload to your own
+HTTP server. Same encryption pipeline as Google Drive
+(XChaCha20-Poly1305 + Argon2id, key derived from the pairing
+phrase), but pointing at infrastructure you control.
+
+The same `server/server.js` binary that already handles
+y-websocket realtime sync now also handles backup. One process,
+two opt-in features:
+
+- `MONII_BACKUP_DIR` env var enables the `/backup/*` HTTP API.
+- `MONII_BACKUP_TOKEN` env var sets a bearer token (strongly
+  recommended unless you're on a private LAN).
+- `MONII_BACKUP_KEEP` controls how many historical snapshots
+  to retain. Default 10. Older versions roll off.
+
+App side:
+- New `Settings.personalBackup{Enabled, Url, Token, Workspace,
+  LastSyncedAt}` fields, all synced via Yjs.
+- `src/sync/personalServerProvider.ts` mirrors the Drive
+  provider: pull on boot, debounced push on every change, 60s
+  polling pull, "Test connection" button, "Restore version"
+  helper.
+- Settings UI under Sync. Visible to all users, no maintainer
+  mode required.
+- The pre-existing self-hosted realtime sync option also
+  ungated from maintainer mode.
+
+Both transports run independently of WebRTC, Drive, and each
+other. Mix any combination.
+
+#### Sync setup help pages
+
+Five new help articles covering every transport, with deep-link
+buttons from each Sync settings section:
+
+- "Syncing across your devices" — overview + comparison table
+- "Pairing phrase setup (P2P sync)"
+- "Google Drive sync setup" — step-by-step OAuth client setup
+- "Self-hosted realtime sync setup" — Docker + bare-Node paths
+- "Personal backup server setup" — env vars, security tips,
+  restoring an old version
+
+Plus a new `docs/PERSONAL_SERVER.md` reference for the wire
+format and deployment.
+
+#### Copy edit pass (~250 strings)
+
+The maintainer pointed out the app sounded AI-written. Did a
+thorough sweep across `src/pages`, `src/components`, and
+`src/help/articles.ts`:
+
+- Em-dashes (—) in user-facing prose replaced with the right
+  natural punctuation per context (colons, commas, periods,
+  parens, sentence splits — not a mechanical 1:1 swap).
+- Triplet examples ("Save for a thing — a PS5, a vacation, a
+  down payment") rewritten to single concrete examples or
+  short parentheticals.
+- Marketing words (effortless, seamless, leverage, etc.) and
+  tagline-style sentences cut.
+- "Save for the things that matter" and similar replaced with
+  literal descriptions.
+
+Em-dashes in user-facing strings dropped from ~1455 to ~989,
+and the residual is confined to code comments (which were
+explicitly out of scope, since they're for developers, not
+users).
+
+Spot examples:
+- `GoalsPage.tsx`: "Save for a thing — a PS5, a vacation, a
+  down payment. Set a target..." → "Save for something
+  specific. Pick a target amount and a deadline..."
+- `AddGoalModal.tsx` placeholder: "PlayStation 5, Vacation to
+  Japan, House down payment…" → "e.g. New laptop"
+- Help article "**Term** — definition" lists → "**Term**:"
+
+#### Tier 5 native desktop polish
+
+Most of Tier 5 Phase 1 was already wired in earlier work
+(menubar, multi-window, tab bar, native context menus, native
+print, macOS sheets via `body[data-platform="mac-desktop"]`).
+v0.7.5 closes the last gap:
+
+- `lib/notify.ts` now routes through the Tauri notification
+  plugin when running under Tauri so reminders hit the OS
+  Notification Center / Action Center, not just an in-webview
+  toast. Falls back to the browser Notification API on PWA.
+
 ### v0.7.4 — Chrome alignment + glass blend
 
 #### Inset TopBar + DesktopStatusBar

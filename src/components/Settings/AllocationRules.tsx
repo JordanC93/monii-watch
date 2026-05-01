@@ -55,7 +55,7 @@ export function AllocationRules() {
   return (
     <div className="space-y-2">
       <div className="text-[11.5px] text-fg-subtle">
-        Auto-fill assignments on triggers. Manual overrides win — rules
+        Auto-fill assignments on triggers. Manual overrides win; rules
         only ADD on each fire.
       </div>
       {rules.map((r) => (

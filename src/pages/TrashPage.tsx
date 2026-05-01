@@ -40,7 +40,7 @@ export function TrashPage() {
     if (ok) {
       toast.success(`Restored ${e.description}`);
     } else {
-      toast.error(`Couldn't fully restore ${e.description} — some references are missing.`);
+      toast.error(`Couldn't fully restore ${e.description}. Some references are missing.`);
     }
   }
 

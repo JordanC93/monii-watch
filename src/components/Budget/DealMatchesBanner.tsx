@@ -171,7 +171,7 @@ export function DealMatchesBanner() {
       <div className="flex items-start gap-2">
         <Tag size={14} className="text-positive flex-shrink-0 mt-0.5" />
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-medium">Deal alert — your envelope can cover these</div>
+          <div className="text-[13px] font-medium">Deal alert: your envelope can cover these</div>
           <div className="text-[11.5px] text-fg-subtle">From the public deal feeds you've enabled.</div>
         </div>
       </div>
@@ -210,7 +210,7 @@ export function DealMatchesBanner() {
               <button
                 onClick={() => handleDismiss(r.categoryId, r.matchId, r.categoryName)}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded bg-surface-3 text-fg-muted text-[11.5px] hover:text-fg"
-                title="Wrong product — snooze just this post, keep watching for the right one"
+                title="Wrong product. Snooze just this post, keep watching for the right one"
               >
                 <X size={11} /> Wrong listing
               </button>

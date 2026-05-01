@@ -25,6 +25,8 @@ import { computeMonthBudget, computeMonthStats } from '../domain/budget';
 import { computeCreditCardSummary } from '../domain/creditCard';
 import { thisMonthIso, todayIso } from '../domain/date';
 import { toast } from './toast';
+import { sendNativeNotification } from './nativeDesktop';
+import { isTauri } from './device';
 
 const FIRED_KEYS = new Set<string>();
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -37,16 +39,30 @@ export async function notify(title: string, opts: {
   tag?: string;
   /** Renotify even if a notification with the same tag exists. */
   renotify?: boolean;
-  /** Click handler — called when the user taps the notification (system or toast). */
+  /** Click handler. Called when the user taps the notification (system or toast). */
   onClick?: () => void;
 } = {}): Promise<void> {
   const tag = opts.tag ?? `${title}|${opts.body ?? ''}`;
   if (FIRED_KEYS.has(tag) && !opts.renotify) return;
   FIRED_KEYS.add(tag);
 
+  // Tier 5 #14 — when running under Tauri (desktop / iOS / Android),
+  // route through the Tauri notification plugin so the OS Notification
+  // Center / Action Center / iOS notification tray gets a real entry,
+  // not just an in-webview toast. The browser `Notification` API is
+  // unreliable inside WKWebView.
+  if (isTauri()) {
+    try {
+      await sendNativeNotification(title, opts.body);
+      return;
+    } catch {
+      // Fall through to the web path on failure.
+    }
+  }
+
   // Permission check.
   if (typeof Notification === 'undefined') {
-    toast.success(opts.body ? `${title} — ${opts.body}` : title);
+    toast.success(opts.body ? `${title}: ${opts.body}` : title);
     return;
   }
   if (Notification.permission === 'default') {
@@ -67,8 +83,8 @@ export async function notify(title: string, opts: {
       // Fall through to toast on any failure.
     }
   }
-  // Denied or default-after-prompt — toast fallback.
-  toast.success(opts.body ? `${title} — ${opts.body}` : title);
+  // Denied or default-after-prompt: toast fallback.
+  toast.success(opts.body ? `${title}: ${opts.body}` : title);
 }
 
 /** Ask for notification permission once. Returns the resulting state. */
@@ -149,7 +165,7 @@ export function runNotificationChecks(): void {
       if (Date.now() < silence) continue;
       if (row.available < cur) continue;
       void notify('Deal alert', {
-        body: `${cat.name} is at ${formatCents(cur)} — you have ${formatCents(row.available)} available.`,
+        body: `${cat.name} is at ${formatCents(cur)}; you have ${formatCents(row.available)} available.`,
         tag: `deal:${cat.id}:${week}`,
       });
     }

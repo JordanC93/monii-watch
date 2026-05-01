@@ -64,7 +64,7 @@ export function UninstallModal({ open, onClose }: { open: boolean; onClose: () =
       URL.revokeObjectURL(url);
       toast.success('Backup downloaded. Keep it safe before continuing.');
     } catch (err) {
-      toast.error('Backup failed — see console for details.');
+      toast.error('Backup failed. See console for details.');
       console.error('[uninstall] backup failed', err);
     }
   }
@@ -168,7 +168,7 @@ export function UninstallModal({ open, onClose }: { open: boolean; onClose: () =
                 All accounts, transactions, budgets, goals, attached
                 receipts, and synced settings will be erased from this
                 device. <strong>Other paired devices keep their copies</strong>{' '}
-                until they sync — so wipe them too if that's the goal.
+                until they sync, so wipe them too if that's the goal.
               </div>
             </div>
           </div>
@@ -188,17 +188,17 @@ export function UninstallModal({ open, onClose }: { open: boolean; onClose: () =
             <ul className="space-y-1 text-fg-muted list-disc pl-5 text-[12.5px]">
               {isMac ? (
                 <>
-                  <li>Delete <code>~/Library/WebKit/com.moniiwatch.app/</code> — the WebKit data directory (contains a duplicate of the IndexedDB on disk, which we can't touch from inside the app's sandbox)</li>
+                  <li>Delete <code>~/Library/WebKit/com.moniiwatch.app/</code>, the WebKit data directory (contains a duplicate of the IndexedDB on disk, which we can't touch from inside the app's sandbox)</li>
                   <li>Delete <code>~/Library/Application Support/com.moniiwatch.app/</code></li>
                   <li>Move <code>/Applications/Monii Watch.app</code> to Trash</li>
                 </>
               ) : isWindows ? (
                 <>
-                  <li>Delete <code>%LOCALAPPDATA%\com.moniiwatch.app\</code> — WebView2 data directory</li>
-                  <li>Run the <strong>Add/Remove Programs</strong> uninstaller (which also asks "delete data?" — say YES this time)</li>
+                  <li>Delete <code>%LOCALAPPDATA%\com.moniiwatch.app\</code> (WebView2 data directory)</li>
+                  <li>Run the <strong>Add/Remove Programs</strong> uninstaller (which also asks "delete data?"; say YES this time)</li>
                 </>
               ) : (
-                <li>Delete <code>~/.local/share/com.moniiwatch.app/</code> — the WebKitGTK data directory</li>
+                <li>Delete <code>~/.local/share/com.moniiwatch.app/</code>, the WebKitGTK data directory</li>
               )}
             </ul>
             {!isTauriApp && (
@@ -244,7 +244,7 @@ export function UninstallModal({ open, onClose }: { open: boolean; onClose: () =
           />
           <p className="text-[11.5px] text-fg-subtle">
             After this completes, the app will close. You'll then need
-            to drag the .app to the Trash {isMac && '(or run the cleanup script — see docs/UNINSTALL.md)'}.
+            to drag the .app to the Trash {isMac && '(or run the cleanup script; see docs/UNINSTALL.md)'}.
           </p>
         </div>
       )}
@@ -288,13 +288,13 @@ rm -rf ~/Library/Saved\\ Application\\ State/com.moniiwatch.app.savedState`}</pr
                 <li>Open <strong>Settings → Apps → Installed apps</strong></li>
                 <li>Find <strong>Monii Watch</strong> → <strong>Uninstall</strong></li>
                 <li>When the dialog asks "delete the application data?", click <strong>Yes</strong> (the default is No, which leaves orphan data)</li>
-                <li>Open Run (Win+R), paste <code>%LOCALAPPDATA%\com.moniiwatch.app</code> — if the folder still exists, delete it</li>
+                <li>Open Run (Win+R), paste <code>%LOCALAPPDATA%\com.moniiwatch.app</code>. If the folder still exists, delete it</li>
               </ol>
             )}
             {!isTauriApp && (
               <p className="text-fg-muted text-[12.5px]">
                 Browser PWA: this wipe is sufficient. The app icon on your home
-                screen (if any) can be removed normally — long-press → Remove.
+                screen (if any) can be removed normally: long-press → Remove.
               </p>
             )}
           </div>

@@ -209,11 +209,11 @@ function CardTile({ summary, fmt }: { summary: CreditCardSummary; fmt: (cents: n
                 Balance ÷ credit limit. Credit scoring models reward keeping
                 this low:
                 <ul className="mt-1 space-y-0.5">
-                  <li>≤ 10% — Excellent</li>
-                  <li>≤ 30% — Good</li>
-                  <li>≤ 50% — Watch</li>
-                  <li>≤ 100% — High</li>
-                  <li>{'>'} 100% — Over limit</li>
+                  <li>≤ 10%: Excellent</li>
+                  <li>≤ 30%: Good</li>
+                  <li>≤ 50%: Watch</li>
+                  <li>≤ 100%: High</li>
+                  <li>{'>'} 100%: Over limit</li>
                 </ul>
               </HelpHint>
             </span>

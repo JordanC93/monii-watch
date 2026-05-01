@@ -75,7 +75,7 @@ export function SubscriptionUsagePrompt() {
             }}
             className="flex items-center gap-1 px-2 py-0.5 rounded bg-warning/10 text-warning hover:bg-warning/20"
           >
-            <ExternalLink size={11} /> Cancel — open site
+            <ExternalLink size={11} /> Cancel · open site
           </button>
           {/* Tier 12 #9 — add a one-day-before reminder to the user's
               calendar so they don't blow past the next charge if they

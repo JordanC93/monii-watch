@@ -313,7 +313,7 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
           memo: r.rawDescription ? `From statement · ${r.type ?? ''}`.trim() : 'From statement',
         });
       }
-      if (inputs.length === 0) { setError('No rows selected — pick at least one to import.'); return; }
+      if (inputs.length === 0) { setError('No rows selected. Pick at least one to import.'); return; }
       const { created } = bulkCreateTransactions(inputs);
       console.info(`[upload] imported ${created} statement rows into account ${draft.accountId}`);
       toast.success(`Imported ${created} transaction${created === 1 ? '' : 's'}`);
@@ -458,7 +458,7 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
             <ImagePlus size={28} className="mx-auto text-accent mb-2" />
             <div className="text-[13.5px] font-semibold mb-1">Pick a file (image or PDF)</div>
             <div className="text-[11.5px] text-fg-subtle">
-              On-device extraction — your file never leaves the browser. You can also <strong>paste</strong> an image or PDF straight into the chat panel.
+              On-device extraction; your file never leaves the browser. You can also <strong>paste</strong> an image or PDF straight into the chat panel.
             </div>
             <div className="text-[11px] text-fg-subtle mt-2">JPG · PNG · WebP · HEIC · PDF</div>
           </button>
@@ -656,7 +656,7 @@ function CardMatchBanner({
         <CreditCard size={13} className="text-warning flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <div className="font-medium">
-            Receipt has {networkLabel ? `${networkLabel} ` : ''}{masked} — which account?
+            Receipt has {networkLabel ? `${networkLabel} ` : ''}{masked}. Which account?
           </div>
           <div className="text-[11px] text-fg-subtle mt-0.5">
             {candidates.length > 1
@@ -708,7 +708,7 @@ function ReceiptForm({ draft, previewUrl, accounts, categories, fmt, onChange, h
             />
             <span>
               Save receipt image with the transaction
-              <span className="text-fg-subtle"> — searchable later, ~50–80 KB resized</span>
+              <span className="text-fg-subtle"> · searchable later, ~50–80 KB resized</span>
             </span>
           </label>
         )}
@@ -803,7 +803,7 @@ function CcPaymentForm({ draft, accounts, fmt, onChange }: { draft: any; account
         </div>
       </div>
       <div className="text-[10.5px] text-fg-subtle">
-        Saved as a transfer — your budget account is debited and the credit card balance moves toward zero. The category isn't touched (the spending was recorded when the card was originally swiped).
+        Saved as a transfer. Your budget account is debited and the credit card balance moves toward zero. The category isn't touched (the spending was recorded when the card was originally swiped).
       </div>
     </div>
   );
@@ -859,7 +859,7 @@ function PaystubForm({
       </div>
       {variance > 200 && (
         <div className="text-[11px] text-warning bg-warning/10 px-2 py-1.5 rounded">
-          Heads up — gross − deductions = {fmt(computedNet)}, but parsed net was {fmt(netCents)} ({fmt(variance)} off). Adjust as needed.
+          Heads up: gross − deductions = {fmt(computedNet)}, but parsed net was {fmt(netCents)} ({fmt(variance)} off). Adjust as needed.
         </div>
       )}
 
@@ -1021,7 +1021,7 @@ function StatementForm({
           {allChecked ? 'Uncheck all' : 'Check all'}
         </label>
         <div className="text-fg-subtle">
-          Sub-extracted vendor names ({draft.rows.length}) — review and edit before importing.
+          Sub-extracted vendor names ({draft.rows.length}). Review and edit before importing.
         </div>
       </div>
 
@@ -1056,7 +1056,7 @@ function StatementForm({
       <div className="text-[10.5px] text-fg-subtle">
         Each row creates one transaction in the chosen account. Rows tagged
         <Banknote size={10} className="inline mx-1" /> are cash withdrawals,
-        <Users size={10} className="inline mx-1" /> are peer payments (Zelle/Venmo) — categorize as gift / family / loan as needed.
+        <Users size={10} className="inline mx-1" /> are peer payments (Zelle/Venmo). Categorize as gift / family / loan as needed.
         Income rows go to <strong>Ready to Assign</strong> automatically.
       </div>
     </div>
@@ -1109,7 +1109,7 @@ function StatementRow({
         </div>
         {row.dupOfId && (
           <div className="text-[10px] text-warning truncate mt-0.5" title="Looks like a duplicate of an existing transaction">
-            ⚠ Likely duplicate — auto-deselected
+            ⚠ Likely duplicate, auto-deselected
           </div>
         )}
         <div className="text-[10px] text-fg-subtle truncate sm:hidden mt-0.5">

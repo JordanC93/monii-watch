@@ -45,7 +45,7 @@ export function YearInReviewModal({ open, onClose, year }: { open: boolean; onCl
     return (
       <Modal open onClose={close} title={`Your ${year}`} size="md">
         <div className="text-center py-8 text-fg-subtle text-[13px]">
-          No transactions for {year} yet — come back at the end of the year for your wrap-up.
+          No transactions for {year} yet. Come back at the end of the year for your wrap-up.
         </div>
       </Modal>
     );

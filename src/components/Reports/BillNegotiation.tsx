@@ -54,7 +54,7 @@ export function BillNegotiation() {
                 onClick={() => recordBillNegotiationDismiss(c.subscription.payeeId, true)}
                 className="flex items-center gap-1 px-2 py-0.5 rounded bg-positive/10 text-positive hover:bg-positive/20"
               >
-                <Check size={11} /> Done — re-prompt next year
+                <Check size={11} /> Done · re-prompt next year
               </button>
               <button
                 onClick={() => recordBillNegotiationDismiss(c.subscription.payeeId, false)}

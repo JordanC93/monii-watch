@@ -89,6 +89,15 @@ async function bootstrap() {
       .catch((err) => console.warn('[drive] failed to start', err));
   }
 
+  // v0.7.5 — optional Personal Server backup transport. Lazy-imported,
+  // opt-in. Same encryption pipeline as Drive; talks to the user's
+  // own server instead of Google's.
+  if (getSettings().personalBackupEnabled && getSettings().personalBackupUrl && getSettings().syncRoom) {
+    import('./sync/personalServerProvider')
+      .then((m) => m.startPersonalBackupSync())
+      .catch((err) => console.warn('[personal-backup] failed to start', err));
+  }
+
   // Tier 12 #7 — optional iCloud Drive sync (lazy-imported, opt-in,
   // Tauri-only). Reuses the pairing phrase as the encryption key.
   if (getSettings().icloudEnabled && getSettings().icloudFolderPath && getSettings().syncRoom) {

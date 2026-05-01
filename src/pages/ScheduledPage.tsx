@@ -43,7 +43,7 @@ export function ScheduledPage() {
           <CalendarClock size={36} className="mx-auto text-fg-subtle mb-3" />
           <div className="text-[14px] font-semibold mb-1">Nothing scheduled yet</div>
           <div className="text-[12.5px] text-fg-subtle mb-4 max-w-md mx-auto">
-            Schedule rent, paychecks, subscriptions — anything that repeats. Monii Watch
+            Schedule rent, paychecks, subscriptions, anything that repeats. Monii Watch
             will create the transaction for you when it comes due.
           </div>
           <Button variant="primary" onClick={() => openModal({ type: 'scheduledNew' })}>

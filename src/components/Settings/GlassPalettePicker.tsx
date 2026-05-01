@@ -119,7 +119,7 @@ export function GlassPalettePicker() {
       {showCustom && (
         <div className="mt-2 p-3 rounded-lg bg-surface-2/40 border border-border">
           <div className="text-[11px] uppercase tracking-wider text-fg-subtle mb-2">
-            Custom colors — applied live
+            Custom colors (applied live)
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {([0, 1, 2, 3] as const).map((i) => {

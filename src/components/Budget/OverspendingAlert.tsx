@@ -91,7 +91,7 @@ export function OverspendingAlert() {
           )}
           title={canCover
             ? `Pull ${fmt(willCover)} from Ready to Assign`
-            : 'No money in Ready to Assign — assign or earn more first'}
+            : 'No money in Ready to Assign. Assign or earn more first'}
         >
           <Wand2 size={13} />
           {canCover ? `Cover ${fmt(willCover)}` : 'Cover (need RTA)'}
@@ -99,7 +99,7 @@ export function OverspendingAlert() {
       </div>
       {canCover && remainingAfter > 0 && (
         <div className="text-[11.5px] text-fg-subtle mt-2 ml-12">
-          RTA only covers part of the deficit — {fmt(remainingAfter)} will still be overspent after covering.
+          RTA only covers part of the deficit. {fmt(remainingAfter)} will still be overspent after covering.
         </div>
       )}
     </div>

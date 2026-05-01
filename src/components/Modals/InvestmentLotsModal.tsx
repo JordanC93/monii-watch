@@ -94,7 +94,7 @@ export function InvestmentLotsModal({ open, onClose, accountId, positionId }: Pr
             onSell={(date, pricePerShare, strategy, sharesToSell, specificLotId) => {
               const allocations = pickLotsForSale(position, sharesToSell, strategy, specificLotId);
               if (!allocations) {
-                toast.error('Not enough shares — adjust amount or pick a different lot.');
+                toast.error('Not enough shares. Adjust amount or pick a different lot.');
                 return;
               }
               const result = recordInvestmentSale(
@@ -118,7 +118,7 @@ function LotsTable({ lots, fmt, pricePerShareCents }: { lots: InvestmentLot[]; f
   if (lots.length === 0) {
     return (
       <div className="text-fg-subtle text-center py-8 text-[12.5px]">
-        No lots tracked yet. Add a lot from the "Add lot" tab — useful for tax-loss harvesting + per-purchase realized gain/loss.
+        No lots tracked yet. Add a lot from the "Add lot" tab. Useful for tax-loss harvesting + per-purchase realized gain/loss.
       </div>
     );
   }
@@ -289,7 +289,7 @@ function SellForm({
       <div>
         <label className="text-[11.5px] text-fg-subtle">Lot selection strategy</label>
         <Select value={strategy} onChange={(e) => setStrategy(e.target.value as SaleStrategy)} className="mt-0.5">
-          <option value="fifo">FIFO (oldest first — default)</option>
+          <option value="fifo">FIFO (oldest first, default)</option>
           <option value="lifo">LIFO (newest first)</option>
           <option value="specific">Specific lot</option>
         </Select>
@@ -309,7 +309,7 @@ function SellForm({
       <div className="flex items-start gap-2 p-2 rounded bg-warning/10 text-warning text-[11px]">
         <AlertTriangle size={11} className="mt-0.5 flex-shrink-0" />
         <span>
-          Lot selection has tax implications — long-term lots (held ≥ 365 days) are taxed lower than short-term. Pick "Specific lot" to control which one sells.
+          Lot selection has tax implications. Long-term lots (held ≥ 365 days) are taxed lower than short-term. Pick "Specific lot" to control which one sells.
         </span>
       </div>
       <Button onClick={go}><ArrowDownToLine size={13} /> Record sale</Button>

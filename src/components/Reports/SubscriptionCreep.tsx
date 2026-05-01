@@ -27,7 +27,7 @@ export function SubscriptionCreep() {
   if (creeps.length === 0) {
     return (
       <div className="text-[12.5px] text-fg-subtle">
-        No price increases detected. Subscriptions are holding steady — nice.
+        No price increases detected. Subscriptions are holding steady. Nice.
       </div>
     );
   }

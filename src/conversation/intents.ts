@@ -89,7 +89,7 @@ const setMonthlyIncome: Intent<{ amount: number; cadence: 'monthly' | 'yearly' |
     function commit(monthly: number, note: string): IntentResult {
       setSettingsField('monthlyIncome', monthly);
       return {
-        reply: `Got it — saved monthly income as ${ctx.formatMoney(monthly)}.${note} Change it anytime in Settings → General.`,
+        reply: `Got it. Saved monthly income as ${ctx.formatMoney(monthly)}.${note} Change it anytime in Settings → General.`,
         effect: { kind: 'set-setting', field: 'monthlyIncome', value: monthly },
       };
     }
@@ -127,7 +127,7 @@ const setMonthlyIncome: Intent<{ amount: number; cadence: 'monthly' | 'yearly' |
               resume: (r2) => {
                 if (/\bmonth/i.test(r2) || r2 === '__monthly__') return commit(monthlyEq, '');
                 if (/\byear|annual/i.test(r2) || r2 === '__yearly__') return commit(yearlyEq, ` That's ${ctx.formatMoney(amount)}/year ÷ 12.`);
-                return { reply: `Cancelled — nothing was saved.` };
+                return { reply: `Cancelled. Nothing was saved.` };
               },
             },
           };
@@ -315,7 +315,7 @@ const addExpense: Intent<{ amount: number; vendor: string; categoryText?: string
             const acct = openAccts.find((a) => a.name.toLowerCase() === reply.trim().toLowerCase())
               ?? findAccountByText(reply, openAccts);
             if (!acct) {
-              return { reply: `Couldn't match "${reply}" to an account. Cancelled — nothing was saved.` };
+              return { reply: `Couldn't match "${reply}" to an account. Cancelled, nothing was saved.` };
             }
             return continueWithAccount(acct);
           },
@@ -567,7 +567,7 @@ const creditUtilization: Intent<{ cardText: string | null }> = {
       if (s.utilization === null) return { reply: `${acct.name}: balance ${ctx.formatMoney(s.balanceOwed)} but no credit limit set. Open Edit account to add it.` };
       const status = utilizationStatus(s.utilization);
       return {
-        reply: `${acct.name}: ${(s.utilization * 100).toFixed(0)}% utilization (${ctx.formatMoney(s.balanceOwed)} of ${ctx.formatMoney(s.creditLimit!)}) — ${status.label}.`,
+        reply: `${acct.name}: ${(s.utilization * 100).toFixed(0)}% utilization (${ctx.formatMoney(s.balanceOwed)} of ${ctx.formatMoney(s.creditLimit!)}); ${status.label}.`,
         effect: { kind: 'lookup', subject: acct.name + ' utilization', value: `${(s.utilization * 100).toFixed(0)}%` },
       };
     }
@@ -577,7 +577,7 @@ const creditUtilization: Intent<{ cardText: string | null }> = {
     if (tot.utilization === null) return { reply: `No credit limits configured yet. Open Edit account on a card to add a limit.` };
     const status = utilizationStatus(tot.utilization);
     return {
-      reply: `Total credit utilization: ${(tot.utilization * 100).toFixed(0)}% (${ctx.formatMoney(tot.totalBalance)} of ${ctx.formatMoney(tot.totalLimit)}) — ${status.label}. Open Credit Cards for the per-card breakdown.`,
+      reply: `Total credit utilization: ${(tot.utilization * 100).toFixed(0)}% (${ctx.formatMoney(tot.totalBalance)} of ${ctx.formatMoney(tot.totalLimit)}); ${status.label}. Open Credit Cards for the per-card breakdown.`,
       effect: { kind: 'lookup', subject: 'credit utilization', value: `${(tot.utilization * 100).toFixed(0)}%` },
     };
   },
@@ -605,7 +605,7 @@ const creditDueDate: Intent<{ cardText: string | null }> = {
     const targets = cardText
       ? [findAccountByText(cardText, cards)].filter(Boolean) as typeof cards
       : cards;
-    if (targets.length === 0) return { reply: `Couldn't find "${cardText}" — have: ${cards.map((c) => c.name).join(', ')}.`, needsClarification: true };
+    if (targets.length === 0) return { reply: `Couldn't find "${cardText}". Have: ${cards.map((c) => c.name).join(', ')}.`, needsClarification: true };
     const lines = targets.map((a) => {
       const s = computeCreditCardSummary(a, txns, todayIso());
       const due = s.daysUntilDue;
@@ -698,7 +698,7 @@ const goalStatus: Intent<{ categoryText: string }> = {
     const available = slot?.available ?? 0;
     const proj = computeGoalProjection(cat, available, assignments);
     if (!proj) {
-      return { reply: `${cat.name} has a goal of ${ctx.formatMoney(cat.goal.amount)}/month — currently ${ctx.formatMoney(slot?.assigned ?? 0)} assigned this month.` };
+      return { reply: `${cat.name} has a goal of ${ctx.formatMoney(cat.goal.amount)}/month. Currently ${ctx.formatMoney(slot?.assigned ?? 0)} assigned this month.` };
     }
     const pct = Math.round(proj.ratio * 100);
     if (proj.remainingAmount === 0) {
@@ -708,10 +708,10 @@ const goalStatus: Intent<{ categoryText: string }> = {
       `${cat.name}: ${ctx.formatMoney(proj.currentAmount)} of ${ctx.formatMoney(proj.targetAmount)} (${pct}%) · ${ctx.formatMoney(proj.remainingAmount)} to go.`,
     ];
     if (proj.projectedDate && proj.monthsToFinish !== null) {
-      const paceLabel = proj.pace ? ` — ${proj.pace.replace('-', ' ')}` : '';
+      const paceLabel = proj.pace ? `, ${proj.pace.replace('-', ' ')}` : '';
       lines.push(`At ${ctx.formatMoney(proj.monthlyRate)}/mo you'll hit it ${formatDate(proj.projectedDate)} (${proj.monthsToFinish} mo)${paceLabel}.`);
     } else if (proj.monthlyRate === 0) {
-      lines.push(`No saving rate yet — assign money to this category to see a projection.`);
+      lines.push(`No saving rate yet. Assign money to this category to see a projection.`);
     }
     if (settings.payFrequency !== 'unset') {
       const perCheck = perPaycheckAmount(proj.monthlyRate, settings.payFrequency);
@@ -796,7 +796,7 @@ const listSubscriptions: Intent<{}> = {
       return { reply: `I haven't spotted any recurring charges yet. Need at least two charges from the same payee on a regular cadence.` };
     }
     const monthly = found.reduce((s, d) => s + Math.round(annualCost(d) / 12), 0);
-    const lines = found.slice(0, 8).map((d) => `• ${d.payeeName} — ${ctx.formatMoney(d.averageAmount)} ${d.cadence}`);
+    const lines = found.slice(0, 8).map((d) => `• ${d.payeeName}: ${ctx.formatMoney(d.averageAmount)} ${d.cadence}`);
     const more = found.length > 8 ? `\n…and ${found.length - 8} more` : '';
     return {
       reply: `Found ${found.length} subscription${found.length === 1 ? '' : 's'} (≈ ${ctx.formatMoney(monthly)}/month):\n${lines.join('\n')}${more}\n\nOpen Reports for the full list and "Schedule this" buttons.`,
@@ -948,7 +948,7 @@ const stopWatchingItem: Intent<{ categoryText: string }> = {
       dealKeywords: [],
     }));
     return {
-      reply: `Stopped watching ${cat.name}. The goal target stays — only the deal-feed match keywords were cleared.`,
+      reply: `Stopped watching ${cat.name}. The goal target stays; only the deal-feed match keywords were cleared.`,
       effect: { kind: 'set-setting', field: `${cat.name}.dealKeywords`, value: 'cleared' },
     };
   },
@@ -1108,7 +1108,7 @@ const biggestPayee: Intent<{ scope: 'this-year' | 'this-month' }> = {
     const sorted = Array.from(totals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
     const lines = sorted.map(([id, cents]) => {
       const p = payees.find((p) => p.id === id);
-      return `• ${p?.name ?? 'Unknown'} — ${ctx.formatMoney(cents)}`;
+      return `• ${p?.name ?? 'Unknown'}: ${ctx.formatMoney(cents)}`;
     });
     return {
       reply: `Top payees ${scope === 'this-month' ? 'this month' : 'this year'}:\n${lines.join('\n')}`,
@@ -1152,7 +1152,7 @@ const healthScore: Intent<{}> = {
   run(_, _ctx): IntentResult {
     const { accounts, txns, payees, settings } = snapshot();
     const sc = computeHealthScore(accounts, txns, payees, settings);
-    const lines = sc.indicators.map((i) => `• ${i.label} — ${i.value} (${i.band})`);
+    const lines = sc.indicators.map((i) => `• ${i.label}: ${i.value} (${i.band})`);
     return {
       reply: `Overall: ${sc.overall}/100 (${sc.band}).\n${lines.join('\n')}\n\nOpen Reports → Financial Health for the full breakdown with action suggestions.`,
       effect: { kind: 'lookup', subject: 'health score', value: `${sc.overall}/100` },
@@ -1176,7 +1176,7 @@ const help: Intent<{}> = {
       .map((i) => `• ${i.examples[0]}`)
       .join('\n');
     return {
-      reply: `Try things like:\n${lines}\n\nNo AI — I match on keywords, so use the same words as your category and account names.`,
+      reply: `Try things like:\n${lines}\n\nNo AI here. I match on keywords, so use the same words as your category and account names.`,
     };
   },
 };

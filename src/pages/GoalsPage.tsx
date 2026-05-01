@@ -84,7 +84,7 @@ export function GoalsPage() {
     <div className="max-w-5xl mx-auto">
       <MobilePageHeader
         title="Goals"
-        subtitle={subtitleParts.join(' · ') || 'Save for the things that matter.'}
+        subtitle={subtitleParts.join(' · ') || 'Track what you\'re saving for'}
         right={
           <Button variant="primary" size="sm" onClick={() => openModal({ type: 'addGoal' })}>
             <Plus size={14} /> New
@@ -166,9 +166,9 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         <Target size={36} className="mx-auto text-fg-subtle mb-3" />
         <div className="text-[14px] font-semibold mb-1">No goals yet</div>
         <div className="text-[12.5px] text-fg-subtle max-w-md mx-auto mb-4">
-          Save for a thing — a PS5, a vacation, a down payment. Set a target
-          amount and (optionally) a deadline; Monii Watch tracks your progress
-          and tells you when you'll get there at your current saving rate.
+          Save for something specific. Pick a target amount and a deadline,
+          and Monii Watch tracks your progress and tells you when you'll get
+          there at your current saving rate.
         </div>
         <Button variant="primary" onClick={onAdd}>
           <Plus size={14} /> Create your first goal
@@ -410,7 +410,7 @@ function GoalTile({
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-positive">Deal alert!</div>
                 <div className="text-fg">
-                  Current price <strong>{fmt(dealAlert.currentPrice)}</strong> · you have <strong>{fmt(available)}</strong> available — you can buy it now.
+                  Current price <strong>{fmt(dealAlert.currentPrice)}</strong> · you have <strong>{fmt(available)}</strong> available. You can buy it now.
                 </div>
                 <div className="flex flex-wrap gap-2 mt-1.5">
                   {category.link && (

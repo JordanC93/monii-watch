@@ -145,19 +145,19 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
       body: (
         <>
           <p>
-            <strong>Step 1 — Money comes in.</strong> Paychecks, refunds,
+            <strong>Step 1: Money comes in.</strong> Paychecks, refunds,
             gifts. Monii Watch calls this the <strong>Ready to Assign</strong>{' '}
-            pool — the green number at the top of the budget.
+            pool, the green number at the top of the budget.
           </p>
           <p className="mt-2">
-            <strong>Step 2 — You decide its job.</strong> Drop dollars into
+            <strong>Step 2: You decide its job.</strong> Drop dollars into
             categories: rent, groceries, fun money, savings goals. Each
             category is an envelope; you can only spend what you put in it.
           </p>
           <p className="mt-2">
-            <strong>Step 3 — Spend from the envelope.</strong> When a
+            <strong>Step 3: Spend from the envelope.</strong> When a
             transaction lands on a category, that envelope's "Available"
-            number drops. If it goes red, you've overspent — Monii Watch offers
+            number drops. If it goes red, you've overspent, and Monii Watch offers
             a one-tap "cover from Ready to Assign" button to fix it.
           </p>
           <p className="mt-2 text-fg-subtle text-[12.5px]">
@@ -174,7 +174,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
       body: (
         <>
           <p>
-            Optional but useful — Monii Watch uses this for the tax estimator
+            Optional but useful. Monii Watch uses this for the tax estimator
             and planning hints. Stays on your device.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">
@@ -218,7 +218,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
           <p>
             Monii Watch gave you some demo categories to play with. If your
             life looks like one of these, we can add a more useful starting
-            set on top — you can always edit, rename, or remove anything.
+            set on top. You can always edit, rename, or remove anything.
           </p>
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
             {PRESETS.map((p) => (
@@ -244,7 +244,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
           {presetPicked && (
             <div className="mt-3 text-[11.5px] text-fg-muted bg-surface-2/50 rounded-md p-2">
               We'll add <strong>{PRESETS.find((p) => p.id === presetPicked)?.groups.reduce((n, g) => n + g.categories.length, 0)}</strong> categories
-              alongside your existing ones — duplicates by name are skipped.
+              alongside your existing ones. Duplicates by name are skipped.
             </div>
           )}
         </>
@@ -260,7 +260,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
         <>
           <p>
             Pick the bank or wallet you'll use most. You can add more later
-            — credit cards, savings, PayPal, anything.
+            (credit cards, savings, PayPal, whatever).
           </p>
           <div className="mt-4 space-y-2">
             <div>
@@ -318,7 +318,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
           {accounts.length > 0 && (
             <div className="mt-3 text-[11.5px] text-positive bg-positive/10 px-3 py-2 rounded-md flex items-center gap-2">
               <Check size={13} />
-              You already have {accounts.length} account{accounts.length === 1 ? '' : 's'} — feel free to skip.
+              You already have {accounts.length} account{accounts.length === 1 ? '' : 's'}; feel free to skip.
             </div>
           )}
         </>
@@ -353,7 +353,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
     },
     {
       icon: <MessageSquare size={28} className="text-accent" />,
-      title: 'Fast entry — chat',
+      title: 'Fast entry: chat',
       body: (
         <>
           <p>
@@ -371,12 +371,12 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
             For known merchants (Chipotle, Whole Foods, Starbucks, Netflix,
             ~80 common chains) the category is inferred automatically. For
             unknown ones the chat <strong>asks you</strong> instead of
-            guessing — every action that mutates anything is followed by a
+            guessing. Every action that mutates anything is followed by a
             toast with an Undo button.
           </p>
           <p className="mt-2 text-fg-subtle text-[12.5px]">
-            You can also paste a receipt photo or PDF directly into the chat
-            — on-device OCR handles it. Image data never leaves the browser.
+            You can also paste a receipt photo or PDF directly into the chat.
+            On-device OCR handles it. Image data never leaves the browser.
           </p>
         </>
       ),
@@ -392,7 +392,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
             to share this budget with.
           </p>
           <p className="mt-2">
-            Sync is peer-to-peer over WebRTC — your data flows directly
+            Sync is peer-to-peer over WebRTC. Your data flows directly
             between your devices and is encrypted with the pairing phrase.
             Public signaling servers help your devices find each other but
             never see your financial data.
@@ -415,19 +415,19 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
             from your data. Highlights:
           </p>
           <ul className="mt-2 space-y-1 text-[12.5px]">
-            <li>• <strong>Financial Health Scorecard</strong> — six
+            <li>• <strong>Financial Health Scorecard</strong>: six
               dimensions in green/yellow/red with concrete fixes</li>
-            <li>• <strong>Cash Flow Forecast</strong> — projects your
+            <li>• <strong>Cash Flow Forecast</strong>: projects your
               balance forward 30/60/90 days</li>
-            <li>• <strong>Year over Year</strong> — this YTD vs same
+            <li>• <strong>Year over Year</strong>: this YTD vs same
               range last year</li>
-            <li>• <strong>Day of week</strong> — which days you spend most</li>
-            <li>• <strong>Tax Summary</strong> — deductibles aggregated +
+            <li>• <strong>Day of week</strong>: which days you spend most</li>
+            <li>• <strong>Tax Summary</strong>: deductibles aggregated +
               CSV / PDF export</li>
           </ul>
           <p className="mt-3">
             On the Budget page, <strong>click any "Spent" number</strong> to
-            drill into that category — month-by-month chart, top payees,
+            drill into that category: month-by-month chart, top payees,
             recent transactions. Great for variable bills like electricity.
           </p>
           <p className="mt-2 text-fg-subtle text-[12.5px]">
@@ -478,22 +478,22 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
             several power-user features for thinking longer-term:
           </p>
           <ul className="mt-2 space-y-1.5 text-[12.5px]">
-            <li>• <strong>FIRE planner</strong> — visit{' '}
+            <li>• <strong>FIRE planner</strong>: visit{' '}
               <code>/fire</code> for retirement projections, Monte Carlo
               simulation, and tax-efficient withdrawal sequencing.</li>
-            <li>• <strong>Workspaces</strong> — separate budgets for
+            <li>• <strong>Workspaces</strong>: separate budgets for
               personal / LLC / household. Visit <code>/workspaces</code>{' '}
               to add one. Each workspace = its own data + sync room.</li>
-            <li>• <strong>Hard spending limits</strong> — set a cap per
+            <li>• <strong>Hard spending limits</strong>: set a cap per
               category (warn or block) with optional velocity alerts.
               Edit category → Hard limit.</li>
-            <li>• <strong>Calendar grid</strong> — visit{' '}
+            <li>• <strong>Calendar grid</strong>: visit{' '}
               <code>/calendar/grid</code> for a true day-by-day view of
               transactions.</li>
-            <li>• <strong>Recurring transfer auto-escalation</strong> —
+            <li>• <strong>Recurring transfer auto-escalation</strong>:
               "raise my 401k contribution 1% each year." Configure on any
               scheduled transfer.</li>
-            <li>• <strong>Goal price-drop tracker</strong> — paste a
+            <li>• <strong>Goal price-drop tracker</strong>: paste a
               product page; the app extracts the price and pings you
               when it drops to your envelope balance.</li>
           </ul>

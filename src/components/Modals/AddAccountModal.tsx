@@ -85,7 +85,7 @@ export function AddAccountModal({ open, onClose }: { open: boolean; onClose: () 
             className="w-full mt-1 text-right tabular"
           />
           <div className="text-[11.5px] text-fg-subtle mt-1">
-            Today's balance — used as the starting transaction. Leave blank for $0.
+            Today's balance, used as the starting transaction. Leave blank for $0.
           </div>
         </div>
       </div>

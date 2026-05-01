@@ -77,7 +77,7 @@ export function CashFlowForecast() {
         <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/40 text-[12.5px]">
           <AlertTriangle size={14} className="text-warning flex-shrink-0 mt-0.5" />
           <div>
-            <div className="font-medium text-warning">Heads up — projected to go negative</div>
+            <div className="font-medium text-warning">Heads up: projected to go negative</div>
             <div className="text-fg-muted">
               Around <strong>{format(parseISO(goesNegative.date), 'MMM d')}</strong>, your on-budget balance is projected to dip below zero. Consider deferring a non-essential bill, slowing variable spend, or moving funds in.
             </div>

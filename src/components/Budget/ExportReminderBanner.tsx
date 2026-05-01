@@ -86,7 +86,7 @@ export function ExportReminderBanner() {
           Time for a fresh backup{daysSince !== null && daysSince > 30 ? ` (last one ${daysSince} days ago)` : ''}
         </div>
         <div className="text-[11.5px] text-fg-subtle">
-          Monii Watch is local-first — exports are your safety net. We'll quiet down for another 30 days after you back up.
+          Monii Watch is local-first; exports are your safety net. We'll quiet down for another 30 days after you back up.
         </div>
         <div className="flex flex-wrap gap-1.5 mt-1.5 text-[11.5px]">
           <button

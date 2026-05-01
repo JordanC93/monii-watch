@@ -134,9 +134,9 @@ function FirePageContent({ inputs, netWorth, annualContribution }: {
             How much you'd need invested today to retire and live on {fmt(inputs.targetAnnualSpending)}/year.
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <FireTargetTile label="Lean (3% rule)" value={fmt(target.leanFireNumber)} note="Conservative — sustains 40+ yr retirement" />
+            <FireTargetTile label="Lean (3% rule)" value={fmt(target.leanFireNumber)} note="Conservative; sustains 40+ yr retirement" />
             <FireTargetTile label="FIRE (4% rule)" value={fmt(target.fireNumber25x)} note="Trinity Study standard" emphasized />
-            <FireTargetTile label="Fat (5% rule)" value={fmt(target.fatFireNumber)} note="Aggressive — shorter horizon" />
+            <FireTargetTile label="Fat (5% rule)" value={fmt(target.fatFireNumber)} note="Aggressive; shorter horizon" />
           </div>
           <div className="mt-3 pt-3 border-t border-border">
             <div className="flex justify-between text-[12px] mb-1.5">
@@ -188,7 +188,7 @@ function FirePageContent({ inputs, netWorth, annualContribution }: {
               <AlertTriangle size={14} className="text-warning flex-shrink-0 mt-0.5" />
               <div className="text-[11.5px] text-fg-muted">
                 At your current pace, you'll reach <strong>{fmt(projection.netWorthAtRetirement)}</strong> by
-                age {inputs.targetRetirementAge} — short of the {fmt(target.fireNumber25x)} target. Either
+                age {inputs.targetRetirementAge}, short of the {fmt(target.fireNumber25x)} target. Either
                 save more, plan for a later retirement, or reduce the spending target.
               </div>
             </div>
@@ -318,7 +318,7 @@ function FireSetupCard({ collapsed = false }: { collapsed?: boolean }) {
         <Cog size={14} /> FIRE assumptions
       </div>
       <div className="text-[11.5px] text-fg-subtle">
-        These power the projection. Update when your situation changes — they're saved
+        These power the projection. Update when your situation changes; they're saved
         automatically.
       </div>
 

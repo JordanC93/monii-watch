@@ -85,7 +85,7 @@ export function EditCategoryModal({ open, onClose, categoryId }: { open: boolean
     try {
       const dataUrl = await resizeImageToDataUrl(file, { maxEdge: 96 });
       if (dataUrl) setCustomImage(dataUrl);
-      else toast.error('Could not read that image — try a different file.');
+      else toast.error('Could not read that image. Try a different file.');
     } catch (err: any) {
       toast.error(`Image upload failed: ${err?.message ?? err}`);
     }
@@ -348,7 +348,7 @@ export function EditCategoryModal({ open, onClose, categoryId }: { open: boolean
               Monii Watch will scan public deal feeds (Wario64 Bluesky,
               Slickdeals, Reddit deal subs) and ping you when a post
               matches all keywords AND a price ≤ what you've saved
-              shows up. Be specific — "soundbar" is too broad; "Sonos
+              shows up. Be specific. "soundbar" is too broad; "Sonos
               Beam Gen 2" is great. Enable feeds in Settings → Deal feeds.
             </div>
           </div>

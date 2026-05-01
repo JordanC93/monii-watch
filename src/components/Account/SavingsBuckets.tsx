@@ -48,7 +48,7 @@ export function SavingsBuckets({ account, currentBalance }: { account: Account; 
         </Button>
       </div>
       <div className="text-[11.5px] text-fg-muted leading-snug mb-3">
-        Split this account's <strong className="text-fg">{fmt(currentBalance)}</strong> balance into virtual envelopes so you know what each chunk is saving for. Pure metadata — no transactions move.
+        Split this account's <strong className="text-fg">{fmt(currentBalance)}</strong> balance into virtual envelopes so you know what each chunk is saving for. Pure metadata; no transactions move.
       </div>
 
       {/* Allocation summary */}

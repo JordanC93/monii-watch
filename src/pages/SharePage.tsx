@@ -55,7 +55,7 @@ export function SharePage() {
       if (data.expiresAt < Date.now()) throw new Error('This link has expired. Ask the sender for a new one.');
       setSummary(data);
     } catch (err: any) {
-      setError(err?.message ?? 'Could not decrypt — check the passphrase.');
+      setError(err?.message ?? 'Could not decrypt. Check the passphrase.');
     } finally {
       setWorking(false);
     }
@@ -73,7 +73,7 @@ export function SharePage() {
             <Lock size={16} className="text-accent" /> Read-only share link
           </div>
           <p className="text-[12.5px] text-fg-muted">
-            Enter the passphrase the sender shared with you. Decryption happens in your browser — nothing is sent to a server.
+            Enter the passphrase the sender shared with you. Decryption happens in your browser; nothing is sent to a server.
           </p>
           <Input
             value={pass}

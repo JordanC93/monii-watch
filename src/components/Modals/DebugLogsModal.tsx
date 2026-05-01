@@ -60,7 +60,7 @@ export function DebugLogsModal({ open, onClose }: { open: boolean; onClose: () =
     const text = exportLogsAsText();
     navigator.clipboard.writeText(text).then(
       () => { setCopied(true); setTimeout(() => setCopied(false), 1500); },
-      () => alert('Copy failed — try Download instead.'),
+      () => alert('Copy failed. Try Download instead.'),
     );
   }
 
@@ -130,7 +130,7 @@ export function DebugLogsModal({ open, onClose }: { open: boolean; onClose: () =
             {entries.length === 0 ? (
               <div className="p-6 text-center text-fg-subtle text-[12.5px] font-sans">
                 {listLogs().length === 0
-                  ? 'No logs captured yet — interact with the app and any console output will appear here.'
+                  ? 'No logs captured yet. Interact with the app and any console output will appear here.'
                   : 'No entries match this filter.'}
               </div>
             ) : (

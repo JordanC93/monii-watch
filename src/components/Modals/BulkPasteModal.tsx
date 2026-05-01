@@ -29,7 +29,7 @@ export function BulkPasteModal({ open, onClose, accountId }: { open: boolean; on
     if (!text.trim()) return;
     const result = classifyDocument(text);
     if (result.kind !== 'statement' || result.statement.rows.length === 0) {
-      toast.error('Could not parse — try one transaction per line: "Apr 12 2026 Starbucks -$4.50"');
+      toast.error('Could not parse. Try one transaction per line: "Apr 12 2026 Starbucks -$4.50"');
       return;
     }
     // Stash the pasted text + pending receipt-modal File on a window
@@ -59,7 +59,7 @@ export function BulkPasteModal({ open, onClose, accountId }: { open: boolean; on
     >
       <div className="space-y-3">
         <div className="text-[12.5px] text-fg-muted leading-snug">
-          Paste a block of transactions — one per line. Same format as the bank-screenshot OCR: date · payee · type · amount.
+          Paste a block of transactions, one per line. Same format as the bank-screenshot OCR: date · payee · type · amount.
         </div>
         <div>
           <label className="text-[11.5px] text-fg-subtle">Account to import into</label>

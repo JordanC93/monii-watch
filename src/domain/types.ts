@@ -934,6 +934,32 @@ export type Settings = {
   googleDriveFileId: string;
   /** Unix ms of the last successful Drive sync (read OR write). */
   googleDriveLastSyncedAt: number;
+  /**
+   * Personal-server backup transport (Tier 14, v0.7.5). When enabled,
+   * the app uploads an encrypted snapshot of the Yjs state to a
+   * user-configured HTTP endpoint at debounced intervals, and pulls
+   * on boot. Wire format + setup are described in
+   * `docs/PERSONAL_SERVER.md`. The server-side handler ships in
+   * `server/server.js` (the same binary that hosts the optional
+   * y-websocket sync hub).
+   *
+   * Encryption uses the same XChaCha20-Poly1305 + Argon2id pipeline
+   * as the Drive transport. The server holds opaque ciphertext.
+   *
+   * Off by default. Independent of WebRTC / WebSocket / Drive — runs
+   * in parallel with whichever others are also enabled.
+   */
+  personalBackupEnabled: boolean;
+  /** Base URL of the backup server, e.g. `https://backup.example.com`.
+   *  The provider posts to `<url>/backup/<workspace>/snapshot.bin`. */
+  personalBackupUrl: string;
+  /** Optional bearer token sent in `Authorization: Bearer <token>`.
+   *  Strongly recommended on anything that isn't a private LAN. */
+  personalBackupToken: string;
+  /** Workspace slug to use in the URL path. Defaults to "default". */
+  personalBackupWorkspace: string;
+  /** Unix ms of the last successful personal-backup sync. */
+  personalBackupLastSyncedAt: number;
   theme: ThemeName;
   /** ISO yyyy-mm-dd of the budget's "today" — overridable for testing. Empty = real today. */
   todayOverride: string;

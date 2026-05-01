@@ -236,7 +236,7 @@ export function BudgetTable() {
           <HelpHint title="Available" side="bottom">
             Assigned + Activity, accumulated across every prior month. This is
             what's actually left in the envelope. Negative (red) means you
-            overspent — use the "Cover from RTA" banner or move money in
+            overspent. Use the "Cover from RTA" banner or move money in
             from another category.
           </HelpHint>
         </div>
@@ -514,7 +514,7 @@ function BudgetCategoryRowImpl({
           {sandboxActive && isSandboxOverridden && (
             <span
               className="ml-1 inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-warning/20 text-warning text-[9.5px] uppercase tracking-wider"
-              title="Sandbox override — not yet applied to your live budget"
+              title="Sandbox override; not yet applied to your live budget"
             >
               <FlaskConical size={9} /> SBX
             </span>
@@ -570,7 +570,7 @@ function BudgetCategoryRowImpl({
               tone,
             )}
             onClick={() => openModal({ type: 'moveMoney', fromCategoryId: category.id, month })}
-            title="Click to move money — or drag onto another row's pill"
+            title="Click to move money, or drag onto another row's pill"
             draggable
             onDragStart={(e) => {
               // Both MIME types — `text/x-monii-cat` for our own
@@ -638,7 +638,7 @@ function BudgetCategoryRowImpl({
           {sandboxActive && isSandboxOverridden && (
             <span
               className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-warning/20 text-warning text-[9.5px] uppercase tracking-wider"
-              title="Sandbox override — not yet applied to your live budget"
+              title="Sandbox override; not yet applied to your live budget"
             >
               <FlaskConical size={9} /> SBX
             </span>
@@ -654,7 +654,7 @@ function GoalIndicator({ goal }: { goal: ReturnType<typeof computeGoalProgress> 
   return (
     <span
       className={cn('flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-medium', tone, 'bg-surface-2/60')}
-      title={`${goal.label} — ${labelFor(goal.status)}`}
+      title={`${goal.label}: ${labelFor(goal.status)}`}
     >
       <Target size={10} />
       <GoalBar ratio={goal.ratio} status={goal.status} compact />

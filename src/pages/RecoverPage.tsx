@@ -85,7 +85,7 @@ export function RecoverPage() {
             <Stat label="Other workspaces on this device" value={String(workspaces.length - 1)} />
             <Stat label="Accounts loaded" value={String(accounts.length)} />
             <Stat label="Transactions loaded" value={String(txns.length)} />
-            <Stat label="Sync configured" value={settings.syncEnabled ? 'Yes — pairing phrase set' : 'No — local only'} />
+            <Stat label="Sync configured" value={settings.syncEnabled ? 'Yes (pairing phrase set)' : 'No (local only)'} />
             <Stat label="Drive sync configured" value={settings.googleDriveEnabled ? 'Yes' : 'No'} />
             <Stat label="Items in trash (last 30 days)" value={String(trashCount)} />
             <Stat label="Last auto-backup" value={settings.lastAutoBackupAt ? new Date(settings.lastAutoBackupAt).toLocaleString() : 'Never (auto-backup disabled)'} />
@@ -155,7 +155,7 @@ export function RecoverPage() {
           <div className="text-[14px] font-semibold mb-2">Last-resort recovery</div>
           <div className="text-[11.5px] text-fg-subtle mb-3">
             Use these only when the steps above don't work. Each one is
-            destructive in some way — read carefully.
+            destructive in some way; read carefully.
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Button variant="secondary" onClick={() => nav('/settings')}>
@@ -228,7 +228,7 @@ function SymptomGuide({
     'missing-account': {
       title: 'An account is missing',
       steps: [
-        { text: <>Did you delete it recently? Check the <strong>trash</strong> — accounts stay for 30 days before permanent removal.</>, cta: <Button size="sm" variant="primary" onClick={onTrash}><RotateCcw size={12} /> Open trash{trashCount > 0 ? ` (${trashCount})` : ''}</Button> },
+        { text: <>Did you delete it recently? Check the <strong>trash</strong>. Accounts stay for 30 days before permanent removal.</>, cta: <Button size="sm" variant="primary" onClick={onTrash}><RotateCcw size={12} /> Open trash{trashCount > 0 ? ` (${trashCount})` : ''}</Button> },
         { text: <>If sync is on, the account might exist on another device. Open <strong>Sync</strong> and confirm the pairing phrase matches.</>, cta: <Button size="sm" variant="secondary" onClick={onSync}><Cloud size={12} /> Sync settings</Button> },
         { text: <>Still missing? Try restoring from your most recent <strong>backup file</strong> (Settings → Import → merge mode keeps existing data).</>, cta: <Button size="sm" variant="secondary" onClick={onSettings}><Upload size={12} /> Settings</Button> },
       ],
@@ -237,7 +237,7 @@ function SymptomGuide({
       title: 'Transactions are missing',
       steps: [
         { text: <>Are you on the right account page? Some transactions might just be filtered out by the active <strong>Search</strong> filter.</> },
-        { text: <>Check the <strong>trash</strong> — bulk-delete and individual deletes are reversible for 30 days.</>, cta: <Button size="sm" variant="primary" onClick={onTrash}><RotateCcw size={12} /> Open trash</Button> },
+        { text: <>Check the <strong>trash</strong>. Bulk-delete and individual deletes are reversible for 30 days.</>, cta: <Button size="sm" variant="primary" onClick={onTrash}><RotateCcw size={12} /> Open trash</Button> },
         { text: <>If you imported a CSV recently, the rows may have landed in a different account. Use <strong>Search</strong> with no filter to see everything sorted by date.</> },
       ],
     },
@@ -252,9 +252,9 @@ function SymptomGuide({
     'sync-broken': {
       title: 'Sync isn\'t working',
       steps: [
-        { text: <>Open <strong>Sync settings</strong>. The pairing phrase MUST be identical on every device — even one different word breaks the room.</>, cta: <Button size="sm" variant="primary" onClick={onSync}><Cloud size={12} /> Sync settings</Button> },
+        { text: <>Open <strong>Sync settings</strong>. The pairing phrase MUST be identical on every device. Even one different word breaks the room.</>, cta: <Button size="sm" variant="primary" onClick={onSync}><Cloud size={12} /> Sync settings</Button> },
         { text: <>Public WebRTC signaling can stall on restrictive networks. Try opening Settings → Sync and toggling sync off + back on.</> },
-        { text: <>If you have a self-hosted server, confirm the URL is correct and the server is reachable from each device. Drive sync is independent — try toggling that on as a backup transport.</> },
+        { text: <>If you have a self-hosted server, confirm the URL is correct and the server is reachable from each device. Drive sync is independent; try toggling that on as a backup transport.</> },
       ],
     },
     'corrupted': {
@@ -269,8 +269,8 @@ function SymptomGuide({
     'wrong-workspace': {
       title: 'Wrong workspace open',
       steps: [
-        { text: <>Each workspace has its own data. Switching reloads the app — your other workspaces are still there, untouched.</>, cta: <Button size="sm" variant="primary" onClick={onWorkspaces}><Database size={12} /> Workspaces</Button> },
-        { text: <>If the workspace you want isn't listed, it was created on another device. Workspaces are per-device — create a matching one + pair via sync to share the data.</> },
+        { text: <>Each workspace has its own data. Switching reloads the app, but your other workspaces are still there, untouched.</>, cta: <Button size="sm" variant="primary" onClick={onWorkspaces}><Database size={12} /> Workspaces</Button> },
+        { text: <>If the workspace you want isn't listed, it was created on another device. Workspaces are per-device, so create a matching one and pair via sync to share the data.</> },
       ],
     },
   };

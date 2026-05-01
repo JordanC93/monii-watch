@@ -123,7 +123,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               </div>
               {!isCard && (
                 <div className="text-[11px] text-fg-subtle mt-2">
-                  Your data is safe — Monii saves locally. Try retrying, or go back to the budget.
+                  Your data is safe; Monii saves locally. Try retrying, or go back to the budget.
                 </div>
               )}
               <div className="flex flex-wrap gap-2 mt-3">
