@@ -2,6 +2,19 @@
 
 ## Released
 
+### v0.7.2 — v0.7.1 reissue (lock file fix)
+
+CI build fix only. v0.7.1's tag was created without committing
+the regenerated `package-lock.json` after the new Capacitor
+`optionalDependencies` were added — `npm ci` (strict mode) on
+the GitHub Actions runners refused to install with the lock
+out of sync, so all four desktop installers failed to build.
+
+Same feature set as v0.7.1 below; just shipped as v0.7.2 so the
+ghost v0.7.1 tag stays untouched (the maintainer prefers
+non-destructive history). Also bumped the QuickAdd Iron Rule
+#21 fix that landed in the v0.7.1 commit.
+
 ### v0.7.1 — Tags, lots, household, native iOS
 
 A "fan-out" release across several long-requested features.
