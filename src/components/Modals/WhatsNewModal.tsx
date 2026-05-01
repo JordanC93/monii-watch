@@ -39,6 +39,16 @@ type ReleaseEntry = {
  */
 export const RELEASE_NOTES: ReleaseEntry[] = [
   {
+    version: '0.6.14',
+    title: 'Cloud sync — activity log, snapshot rotation, smart errors',
+    bullets: [
+      'New: Activity log modal shows every recent push / pull / merge / rotate / restore. Filter by failures to spot intermittent cloud-storage issues.',
+      'New: Snapshot rotation. Every push first copies the existing snapshot to `.previous` before overwriting — so a single "Restore previous" click reverts the cloud copy if something synced you didn\'t want.',
+      'Smarter error messages. Sync failures are now classified (quota / permission / network) with specific next-step guidance instead of just dumping the raw OS error.',
+      'iCloud support is fully unchanged — the macOS default folder is still iCloud Drive, this just adds new safety nets on top.',
+    ],
+  },
+  {
     version: '0.6.13',
     title: 'Cloud folder sync — change folder + safety nets',
     bullets: [

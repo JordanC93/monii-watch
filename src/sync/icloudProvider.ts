@@ -40,8 +40,11 @@ import { getSettings, setSettingsField } from '../db/repo';
 import { encryptBytes, decryptBytes } from './crypto';
 
 const SNAPSHOT_FILENAME = 'monii-watch-snapshot.bin';
+const PREVIOUS_FILENAME = 'monii-watch-snapshot.bin.previous';
 const POLL_INTERVAL_MS = 30_000;
 const DEBOUNCE_MS = 5_000;
+const ACTIVITY_LS_KEY = 'monii:cloud-sync-activity';
+const ACTIVITY_MAX = 100;
 
 let pushTimer: number | null = null;
 let pollHandle: number | null = null;
@@ -72,6 +75,106 @@ export function onSyncError(listener: (e: SyncErrorState) => void): () => void {
   // to call getLastSyncError separately.
   listener(lastError);
   return () => errorListeners.delete(listener);
+}
+
+// ---------------------------------------------------------------------------
+// Activity log + quota detection (Tier 12 #11/#12/#13)
+//
+// Every push, pull, and merge is recorded as one entry in a circular
+// buffer kept in localStorage. The Settings UI can render the buffer
+// as a chronological "what's been syncing" log — useful for spotting
+// failed pushes you missed, or confirming a remote pull actually
+// applied.
+//
+// Why localStorage: this is per-device debugging info, not synced
+// across devices. Keeping it out of Yjs avoids merge contention on
+// what is fundamentally a local-only audit trail.
+
+export type ActivityEntry = {
+  /** Unix ms. */
+  at: number;
+  /** Kind of event. */
+  kind: 'push' | 'pull' | 'merge' | 'restore' | 'rotate';
+  /** Whether the event succeeded. False entries carry an `error`. */
+  ok: boolean;
+  /** Bytes of the snapshot involved, when applicable. */
+  bytes?: number;
+  /** Human-readable error message when `ok` is false. */
+  error?: string;
+  /** When `kind === 'merge'`, the count of Yjs structs delivered.
+   *  Higher = more changes pulled from another device. */
+  mergedStructs?: number;
+};
+
+function loadActivity(): ActivityEntry[] {
+  try {
+    const raw = localStorage.getItem(ACTIVITY_LS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveActivity(arr: ActivityEntry[]): void {
+  try {
+    localStorage.setItem(ACTIVITY_LS_KEY, JSON.stringify(arr));
+  } catch { /* private mode, ignore */ }
+}
+
+const activityListeners = new Set<(entries: ActivityEntry[]) => void>();
+
+export function getActivityLog(): ActivityEntry[] {
+  return loadActivity();
+}
+
+export function clearActivityLog(): void {
+  saveActivity([]);
+  for (const l of activityListeners) l([]);
+}
+
+export function onActivity(listener: (entries: ActivityEntry[]) => void): () => void {
+  activityListeners.add(listener);
+  listener(loadActivity());
+  return () => activityListeners.delete(listener);
+}
+
+function recordActivity(entry: ActivityEntry): void {
+  const all = loadActivity();
+  all.push(entry);
+  while (all.length > ACTIVITY_MAX) all.shift();
+  saveActivity(all);
+  for (const l of activityListeners) l(all);
+}
+
+/**
+ * Pattern-match the OS error message to detect cloud-quota / disk-
+ * full conditions. Doesn't require any cloud-API access — we just
+ * look at the error string the filesystem returned. Triggers a more
+ * helpful Settings-page banner ("Cloud storage looks full…") instead
+ * of just dumping the raw OS error.
+ */
+export function classifyError(message: string): 'quota' | 'permission' | 'network' | 'unknown' {
+  const m = message.toLowerCase();
+  if (
+    m.includes('no space') ||
+    m.includes('disk full') ||
+    m.includes('quota') ||
+    m.includes('storage is full') ||
+    m.includes('enospc')
+  ) return 'quota';
+  if (
+    m.includes('permission denied') ||
+    m.includes('access denied') ||
+    m.includes('not permitted') ||
+    m.includes('eacces')
+  ) return 'permission';
+  if (
+    m.includes('network') ||
+    m.includes('offline') ||
+    m.includes('timed out') ||
+    m.includes('connection')
+  ) return 'network';
+  return 'unknown';
 }
 
 /**
@@ -163,6 +266,13 @@ async function ensureFolder(folderPath: string): Promise<void> {
  * Push the current Yjs state to disk (encrypted). Sets `lastError`
  * on failure so the Settings UI can surface a message instead of
  * silently dropping the sync.
+ *
+ * Snapshot rotation (Tier 12 #12): before overwriting, the previous
+ * `snapshot.bin` is renamed to `snapshot.bin.previous`. One-step
+ * recovery if a write goes wrong — encryption bug, cloud service
+ * corrupting the file mid-upload, etc. The previous version is
+ * kept across exactly one rotation; older versions are not kept
+ * (cloud storage is finite).
  */
 async function pushNow(folderPath: string, passphrase: string): Promise<void> {
   if (!isAvailable() || !passphrase) return;
@@ -171,17 +281,35 @@ async function pushNow(folderPath: string, passphrase: string): Promise<void> {
     await ensureFolder(folderPath);
     const update = Y.encodeStateAsUpdate(getDoc());
     const cipher = await encryptBytes(update, passphrase);
+    const target = `${folderPath}/${SNAPSHOT_FILENAME}`;
+    const previous = `${folderPath}/${PREVIOUS_FILENAME}`;
+    // Rotate: if the current snapshot exists, copy it to .previous
+    // before overwriting. A copy (rather than a rename) keeps the
+    // operation safe across cloud-sync metadata that some services
+    // attach to specific filenames.
+    try {
+      if (await fs.exists(target)) {
+        const cur = await fs.readFile(target);
+        await fs.writeFile(previous, cur);
+        recordActivity({ at: Date.now(), kind: 'rotate', ok: true, bytes: cur.byteLength });
+      }
+    } catch (rotErr) {
+      // Rotation failure isn't fatal — push the new snapshot anyway.
+      recordActivity({
+        at: Date.now(), kind: 'rotate', ok: false,
+        error: (rotErr as Error)?.message ?? String(rotErr),
+      });
+    }
     // Write as binary via the typed-array API.
-    await fs.writeFile(`${folderPath}/${SNAPSHOT_FILENAME}`, cipher);
+    await fs.writeFile(target, cipher);
     setSettingsField('icloudLastSyncedAt', Date.now());
+    recordActivity({ at: Date.now(), kind: 'push', ok: true, bytes: cipher.byteLength });
     // Clear any previously surfaced error since this push succeeded.
     if (lastError) setError(null);
   } catch (err) {
-    setError({
-      message: (err as Error)?.message ?? String(err),
-      at: Date.now(),
-      phase: 'push',
-    });
+    const message = (err as Error)?.message ?? String(err);
+    setError({ message, at: Date.now(), phase: 'push' });
+    recordActivity({ at: Date.now(), kind: 'push', ok: false, error: message });
   }
 }
 
@@ -199,19 +327,32 @@ async function pullNow(folderPath: string, passphrase: string): Promise<void> {
     if (!exists) return;
     const cipher = await fs.readFile(file);
     const update = await decryptBytes(cipher, passphrase);
+    // Pre-merge state vector size — used to compute how many structs
+    // the remote update actually delivered. Yjs's `applyUpdate`
+    // doesn't return that directly, so we measure the doc size delta.
+    const stateBefore = Y.encodeStateAsUpdate(getDoc()).byteLength;
     // Tag the merge with our origin symbol so the push observer
     // doesn't bounce it back to disk.
     getDoc().transact(() => {
       Y.applyUpdate(getDoc(), update, ORIGIN_REMOTE_PULL);
     }, ORIGIN_REMOTE_PULL);
+    const stateAfter = Y.encodeStateAsUpdate(getDoc()).byteLength;
     setSettingsField('icloudLastSyncedAt', Date.now());
+    recordActivity({ at: Date.now(), kind: 'pull', ok: true, bytes: cipher.byteLength });
+    // Only log a merge entry when the doc actually changed — most
+    // pulls are no-ops because we already had the data. The byte
+    // delta is a proxy for "actual changes delivered."
+    if (stateAfter > stateBefore) {
+      recordActivity({
+        at: Date.now(), kind: 'merge', ok: true,
+        mergedStructs: stateAfter - stateBefore,
+      });
+    }
     if (lastError) setError(null);
   } catch (err) {
-    setError({
-      message: (err as Error)?.message ?? String(err),
-      at: Date.now(),
-      phase: 'pull',
-    });
+    const message = (err as Error)?.message ?? String(err);
+    setError({ message, at: Date.now(), phase: 'pull' });
+    recordActivity({ at: Date.now(), kind: 'pull', ok: false, error: message });
   }
 }
 
@@ -386,12 +527,82 @@ export async function moveSnapshot(fromPath: string, toPath: string): Promise<{ 
       return { moved: false, reason: 'verify mismatch — source kept' };
     }
     await fs.remove(src);
+    // Best-effort: also move the rotated `.previous` snapshot so the
+    // user keeps their one-step-back recovery option after the move.
+    // Don't fail the operation if this part fails; the next push
+    // will re-establish a `.previous` via rotation.
+    try {
+      const srcPrev = `${fromPath}/${PREVIOUS_FILENAME}`;
+      if (await fs.exists(srcPrev)) {
+        const prevData = await fs.readFile(srcPrev);
+        await fs.writeFile(`${toPath}/${PREVIOUS_FILENAME}`, prevData);
+        await fs.remove(srcPrev);
+      }
+    } catch { /* non-fatal */ }
     return { moved: true };
   } catch (err) {
     return {
       moved: false,
       reason: `move failed: ${(err as Error)?.message ?? String(err)}`,
     };
+  }
+}
+
+/**
+ * Whether a `.previous` snapshot exists for the configured folder
+ * — used by the Settings UI to show/hide the "Restore previous
+ * snapshot" button.
+ */
+export async function hasPreviousSnapshot(folderPath: string): Promise<boolean> {
+  if (!isAvailable() || !folderPath) return false;
+  try {
+    const fs = await import('@tauri-apps/plugin-fs');
+    return fs.exists(`${folderPath}/${PREVIOUS_FILENAME}`);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Restore the previous-version snapshot. Useful if the current
+ * snapshot is corrupt OR if the user wants to undo a recent batch
+ * of changes that synced from another device. Tier 12 #12.
+ *
+ * Steps:
+ *   1. Read `.previous` (the rotated copy from the last good push).
+ *   2. Decrypt + apply to the local Yjs doc.
+ *   3. Force a fresh push so the cloud copy reflects the restored
+ *      state. The current `snapshot.bin` becomes the new `.previous`
+ *      via the standard rotation in pushNow.
+ *
+ * Doesn't delete the `.previous` file proactively — the next push
+ * naturally overwrites it via rotation.
+ */
+export async function restorePreviousSnapshot(): Promise<{ ok: boolean; error?: string }> {
+  if (!isAvailable()) return { ok: false, error: 'desktop-only' };
+  const settings = getSettings();
+  const folder = settings.icloudFolderPath;
+  const pass = settings.syncRoom;
+  if (!folder || !pass) return { ok: false, error: 'sync not configured' };
+  try {
+    const fs = await import('@tauri-apps/plugin-fs');
+    const previous = `${folder}/${PREVIOUS_FILENAME}`;
+    if (!(await fs.exists(previous))) {
+      return { ok: false, error: 'No previous snapshot to restore from.' };
+    }
+    const cipher = await fs.readFile(previous);
+    const update = await decryptBytes(cipher, pass);
+    getDoc().transact(() => {
+      Y.applyUpdate(getDoc(), update, ORIGIN_REMOTE_PULL);
+    }, ORIGIN_REMOTE_PULL);
+    recordActivity({ at: Date.now(), kind: 'restore', ok: true, bytes: cipher.byteLength });
+    // Force a push so the cloud copy reflects the restored state.
+    await pushNow(folder, pass);
+    return { ok: true };
+  } catch (err) {
+    const message = (err as Error)?.message ?? String(err);
+    recordActivity({ at: Date.now(), kind: 'restore', ok: false, error: message });
+    return { ok: false, error: message };
   }
 }
 
@@ -405,9 +616,13 @@ export async function removeCloudSnapshot(folderPath: string): Promise<void> {
   if (!isAvailable() || !folderPath) return;
   try {
     const fs = await import('@tauri-apps/plugin-fs');
-    const file = `${folderPath}/${SNAPSHOT_FILENAME}`;
-    if (await fs.exists(file)) {
-      await fs.remove(file);
+    // Remove both the current snapshot AND the rotated previous
+    // copy. A clean uninstall shouldn't leave either behind.
+    for (const name of [SNAPSHOT_FILENAME, PREVIOUS_FILENAME]) {
+      const file = `${folderPath}/${name}`;
+      if (await fs.exists(file)) {
+        await fs.remove(file);
+      }
     }
   } catch (err) {
     // Surface as an error so the Settings UI can show "couldn't

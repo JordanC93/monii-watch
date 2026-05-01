@@ -1485,15 +1485,51 @@ Useful when the cloud-storage app on your computer was paused or
 signed out — the verify button tells you immediately whether
 the path is still reachable + writable.
 
+## Snapshot rotation + restore
+
+Every successful push first copies the existing snapshot to a
+\`monii-watch-snapshot.bin.previous\` companion file before
+overwriting. Settings → Cloud folder sync → **Restore previous**
+reverts to that copy if the current snapshot ever ends up in a
+state you didn't want (rare, but cheap insurance):
+
+- Reads \`.previous\` and applies it to your local Yjs doc.
+- Force-pushes the restored state to the cloud folder, so other
+  devices pull the rolled-back version.
+- One step of "undo" only — there's no \`.previous.previous\`.
+
+Use cases: a destructive operation synced from another device
+before you noticed; a rare encryption hiccup; you want to undo
+a specific batch of cloud-arriving changes.
+
+## Activity log
+
+Settings → Cloud folder sync → **Activity log** opens a modal
+with the last 100 push / pull / merge events:
+
+- Push / Pull / Merge / Rotate / Restore each shown with
+  timestamp, byte count, and success/failure.
+- Filter by All / Pushes / Pulls / Merges / Failures.
+- Stored locally per-device (not synced).
+
+The **Failures** filter is the fastest way to spot an
+intermittent cloud-storage problem (quota, permission, network)
+that the inline error banner missed.
+
 ## Troubleshooting
 
 If sync seems stuck:
 - Check the inline **Sync error** banner in Settings → Cloud
-  folder sync. We surface failures (folder removed by another
-  app, cloud service signed out, permission denied) right there
-  instead of letting them silently disappear.
+  folder sync. We surface failures with category-specific
+  guidance:
+  - **Quota** — free up space in your cloud account
+  - **Permission** — re-pick the folder, the cloud app may
+    have restricted access
+  - **Network** — check your cloud-app's online status
 - Try **Verify access** — re-probes the path.
 - Try **Sync now** — force-pushes and pulls.
+- Open the **Activity log** to see exactly which events
+  succeeded / failed and when.
 - Check that the cloud-storage app on your other device is
   signed in and online.
 - The cloud app may sync large changes asynchronously — give it

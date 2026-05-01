@@ -1158,6 +1158,10 @@ function ICloudSettings() {
   const [snapshotBytes, setSnapshotBytes] = useState<number | null>(null);
   // Busy spinner for change-folder + disable flows.
   const [busy, setBusy] = useState<string | null>(null);
+  // Whether `.previous` exists, controls the Restore-previous button.
+  const [hasPrevious, setHasPrevious] = useState(false);
+  // Open the activity log modal.
+  const openModal = useUI((s) => s.openModal);
 
   useEffect(() => {
     let unsub: (() => void) | undefined;
@@ -1169,13 +1173,19 @@ function ICloudSettings() {
     return () => { unsub?.(); };
   }, []);
 
-  // Refresh the snapshot size when the folder or last-sync changes.
+  // Refresh the snapshot size + previous-snapshot existence when
+  // the folder or last-sync changes.
   useEffect(() => {
-    if (!enabled || !folder) { setSnapshotBytes(null); return; }
+    if (!enabled || !folder) {
+      setSnapshotBytes(null);
+      setHasPrevious(false);
+      return;
+    }
     void import('../sync/icloudProvider').then(async (m) => {
       try {
         const r = await m.probeFolder(folder);
         setSnapshotBytes(r.existingSnapshotBytes ?? null);
+        setHasPrevious(await m.hasPreviousSnapshot(folder));
       } catch { /* ignore */ }
     });
   }, [enabled, folder, lastSyncedAt]);
@@ -1338,6 +1348,51 @@ function ICloudSettings() {
     return `${(b / 1024 / 1024).toFixed(1)} MB`;
   }
 
+  /**
+   * Restore the previous snapshot (Tier 12 #12). Confirms first —
+   * this overwrites local state with whatever was in the cloud
+   * before the last push, which may include changes the user has
+   * made on other devices since.
+   */
+  async function restorePrevious() {
+    if (!confirm(
+      'Restore the previous snapshot? This applies the cloud copy from BEFORE the last push '
+      + 'on top of your local data. Yjs will merge — recent local edits are kept, but recent '
+      + 'changes from other devices may be lost. Continue?'
+    )) return;
+    setBusy('restoring');
+    try {
+      const m = await import('../sync/icloudProvider');
+      const r = await m.restorePreviousSnapshot();
+      if (r.ok) {
+        toast.success('Restored from previous snapshot.');
+      } else {
+        toast.error(r.error ?? 'Restore failed.');
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Pattern-match the error to give the user a specific next-step
+   * hint (quota, permission, network) instead of just dumping the
+   * raw OS error message.
+   */
+  function errorHint(message: string): string {
+    const m = message.toLowerCase();
+    if (m.includes('no space') || m.includes('quota') || m.includes('storage is full') || m.includes('enospc')) {
+      return 'Looks like the cloud storage is FULL. Free up space in your cloud account (or in the local folder) and try again.';
+    }
+    if (m.includes('permission denied') || m.includes('access denied') || m.includes('eacces')) {
+      return 'Permission denied. The cloud-storage app may have restricted access — try Verify access or pick a different folder.';
+    }
+    if (m.includes('network') || m.includes('offline') || m.includes('timed out') || m.includes('connection')) {
+      return 'Network issue. Check that your cloud-storage app is online and the device has internet.';
+    }
+    return 'Try Verify access or Sync now to retry. If the cloud app is paused / signed out, fixing that and retrying usually clears it.';
+  }
+
   return (
     <div className="space-y-3">
       {!enabled ? (
@@ -1401,9 +1456,7 @@ function ICloudSettings() {
                 </div>
                 <div className="text-fg-muted">{syncError.message}</div>
                 <div className="text-fg-subtle/80 mt-0.5">
-                  Try Verify access or Sync now to retry. If the cloud app
-                  is paused / signed out, fixing that and retrying usually
-                  clears it.
+                  {errorHint(syncError.message)}
                 </div>
               </div>
             </div>
@@ -1419,6 +1472,26 @@ function ICloudSettings() {
             <Button size="sm" variant="secondary" onClick={changeFolder} disabled={!!busy}>
               <Cloud size={13} /> {busy === 'changing' ? 'Moving…' : 'Change folder'}
             </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => openModal({ type: 'cloudSyncActivity' })}
+              disabled={!!busy}
+              title="Chronological log of every push / pull / merge"
+            >
+              <FileText size={13} /> Activity log
+            </Button>
+            {hasPrevious && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={restorePrevious}
+                disabled={!!busy}
+                title="Restore the snapshot from BEFORE the last push (one step of undo)"
+              >
+                <RefreshCw size={13} className="-scale-x-100" /> {busy === 'restoring' ? 'Restoring…' : 'Restore previous'}
+              </Button>
+            )}
             <Button size="sm" variant="ghost" onClick={() => disable(false)} disabled={!!busy}>
               Disable
             </Button>
@@ -1436,7 +1509,7 @@ function ICloudSettings() {
             </Button>
           </div>
           <div className="text-[10.5px] text-fg-subtle leading-snug">
-            <strong>Change folder</strong> moves the existing encrypted snapshot to the new location atomically (verifies the copy before deleting the source). <strong>Disable</strong> stops syncing but leaves the snapshot in place — re-enabling later picks up where you left off. <strong>Disable + remove cloud copy</strong> stops syncing AND deletes the snapshot from the cloud folder.
+            <strong>Change folder</strong> moves the existing encrypted snapshot to the new location atomically (verifies the copy before deleting the source). <strong>Restore previous</strong> reverts to the snapshot from before the last push (one-step undo for sync mishaps). <strong>Activity log</strong> shows every recent push/pull/merge so you can spot intermittent issues. <strong>Disable</strong> stops syncing but leaves the snapshot in place. <strong>Disable + remove cloud copy</strong> stops syncing AND deletes the snapshot from the cloud folder.
           </div>
         </div>
       )}

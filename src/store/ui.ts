@@ -80,7 +80,8 @@ export type ModalState =
   | { type: 'goalPriceUpdate'; categoryId: string }
   | { type: 'whatsNew' }
   | { type: 'auditLog' }
-  | { type: 'tipJar' };
+  | { type: 'tipJar' }
+  | { type: 'cloudSyncActivity' };
 
 export const useUI = create<State>((set, get) => ({
   commandOpen: false,

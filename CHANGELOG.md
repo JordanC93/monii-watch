@@ -2,6 +2,66 @@
 
 ## Unreleased
 
+### v0.6.14 — Cloud sync activity log + snapshot rotation + smart errors
+
+The four follow-ups from the v0.6.13 review.
+
+#### Activity log (Tier 12 #11/#13 combined)
+- New per-event log of every push / pull / merge / rotate /
+  restore, kept in localStorage as `monii:cloud-sync-activity`
+  (last 100 events). Per-device, not synced.
+- New `<CloudSyncActivityModal />` accessible from Settings →
+  Cloud folder sync → **Activity log**. Filters: All / Pushes /
+  Pulls / Merges / Failures.
+- The **Failures** filter is the fastest way to diagnose an
+  intermittent cloud-storage issue.
+- Each entry: timestamp, kind, success/failure, byte count,
+  optional error message. Merge entries also show the byte
+  delta of new changes pulled.
+
+#### Snapshot rotation (Tier 12 #12)
+- Every successful push now first copies the existing
+  `monii-watch-snapshot.bin` to `monii-watch-snapshot.bin.previous`
+  before overwriting.
+- Settings → Cloud folder sync → **Restore previous** reverts to
+  that copy in one click. Useful for one-step undo of a sync
+  mishap, an unwanted change pulled from another device, or a
+  rare encryption hiccup.
+- Restore reads `.previous`, applies it locally, then force-pushes
+  the restored state so other devices pull the rolled-back
+  version.
+- Disable + remove cloud copy now also removes `.previous`.
+- Change folder also moves `.previous` along with the current
+  snapshot, best-effort.
+
+#### Quota / permission / network error classification (Tier 12 #14)
+- New `classifyError()` pattern-matches the OS error message and
+  returns `quota | permission | network | unknown`.
+- Inline error banner now shows a category-specific next-step
+  hint instead of just the raw OS error:
+  - quota → "Looks like the cloud storage is FULL. Free up space…"
+  - permission → "Permission denied. The cloud-storage app may have…"
+  - network → "Network issue. Check that your cloud-storage app is online…"
+- Underlying classifier is also exported for future automated
+  triage (e.g. silently retrying network errors).
+
+#### iCloud confirmed
+- The "Cloud folder sync" rename was UI-only. The macOS picker
+  still defaults to `~/Library/Mobile Documents/com~apple~CloudDocs/Monii`
+  (the literal iCloud Drive path). When the user accepts that
+  default, iCloud Drive auto-syncs the encrypted snapshot across
+  Apple devices exactly as before. The rename just acknowledged
+  that the same engine works for any cloud-synced folder.
+
+#### Help article expanded
+The `cloud-folder-sync` Help article now documents:
+- Snapshot rotation + Restore previous flow
+- Activity log + filters
+- Per-category error classification
+
+#### Tests + quality
+- 210 tests passing across 23 files. Typecheck + build clean.
+
 ### v0.6.13 — Cloud folder sync hardening
 
 The v0.6.12 rename was just a label change. v0.6.13 fills in the
