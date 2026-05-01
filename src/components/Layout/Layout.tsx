@@ -50,31 +50,31 @@ export function Layout({ children }: { children: ReactNode }) {
       <GlassBackdrop />
 
       {/*
-        macOS title-bar drag strip — sits at the very top of the window
-        on the Mac desktop build only. 28 px tall, transparent. The OS
-        draws the traffic lights inside this strip; the strip itself is
-        the drag region (drag = move window, dbl-click = maximize).
+        macOS title-bar drag is now INTEGRATED into the sidebar header
+        and TopBar — no separate strip above. The Mac convention is for
+        the traffic lights to overlap the leading edge of the topmost
+        UI row (Mail.app, Linear, Notion, Things all do this), not sit
+        in their own empty strip above the content. The previous
+        separate-strip approach made the whole top of the app look like
+        it "protruded" — 28 px of empty space above otherwise-aligned
+        content.
 
-        Implemented as a regular flex-col child rather than position:fixed
-        so it (a) actually reserves space, pushing all UI elements
-        cleanly below the title-bar zone, and (b) registers as a drag
-        region with WebKit reliably (position:fixed elements behave
-        unpredictably with -webkit-app-region: drag on Tauri's
-        WKWebView).
+        Wiring:
+          - Sidebar.tsx: header has `data-tauri-drag-region`; on
+            macOS+Tauri the CSS rule reserves ~75 px of left-padding
+            so the traffic lights have somewhere to live without
+            covering the budget icon.
+          - TopBar.tsx: outer header has `data-tauri-drag-region`.
+            The inner content stays inert (buttons keep their click
+            handlers because `-webkit-app-region: no-drag` is
+            inherited correctly through Tauri's WKWebView).
 
         On every other host (Windows / Linux / iOS / browser PWA) the
-        CSS rule sets `display: none` so the strip collapses and the UI
-        is pixel-identical to before. Scoping is via `data-host-os` /
-        `data-host-tauri` attributes set in main.tsx.
+        CSS rules are scoped behind `[data-host-os="macos"][data-host-tauri="1"]`
+        so the layout is pixel-identical to non-Mac targets.
       */}
-      <div
-        data-tauri-drag-region
-        className="mac-titlebar-drag flex-shrink-0"
-        aria-hidden
-      />
 
-      {/* Main row: sidebar + content area side by side. Lives below the
-          drag strip when on Mac, full window otherwise. */}
+      {/* Main row: sidebar + content area side by side. */}
       <div className="flex flex-1 min-h-0">
         {/* Sidebar (regular layout) */}
         {isRegular && (

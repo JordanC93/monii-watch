@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+### v0.6.17 — Unified macOS title bar + Updates moved to General
+
+#### Real fix for the "TopBar protrudes" issue
+v0.6.16 made the two header rows the same height, but the
+underlying complaint was that 28 px of empty drag-strip sat
+ABOVE both headers, which made the whole top of the app feel
+disconnected from the rest of the chrome.
+
+The Mac convention is what Mail.app, Linear, Things, Notion
+all do: traffic lights overlap the leading edge of the topmost
+UI row, not float in their own empty strip. v0.6.17 adopts that
+pattern.
+
+Implementation:
+- The standalone `<div className="mac-titlebar-drag" />` was
+  removed from Layout.tsx.
+- The Sidebar header now carries `data-tauri-drag-region` +
+  `app-drag` (CSS class). On macOS+Tauri only, this sets
+  `-webkit-app-region: drag`, plus `mac-titlebar-leading-inset`
+  reserves 75 px of left padding so the OS-drawn traffic lights
+  have somewhere to live without overlapping the budget icon.
+- The TopBar's outer `<header>` carries the same drag region
+  attributes; the inner content row gets `app-no-drag` so
+  buttons stay clickable.
+- All new CSS rules are scoped behind
+  `[data-host-os="macos"][data-host-tauri="1"]` so non-Mac
+  hosts (Windows / Linux / browser PWA) are pixel-identical
+  to before.
+
+Result: on macOS, the top of the app is a single 56-px row
+(traffic lights overlapping the sidebar's left + the rest of
+the header content). On every other platform, the layout is
+unchanged.
+
+#### Updates moved to General tab
+Most users want to know "am I on the latest version" without
+hunting through the More tab. The Updates section is now at the
+bottom of Settings → General, where it's easier to find. The
+`More` tab gets slightly shorter as a result.
+
 ### v0.6.16 — TopBar alignment fix
 
 The page-title bar (containing the back button + page title +

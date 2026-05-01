@@ -132,14 +132,19 @@ export function TopBar({
     <header
       data-no-meniscus
       data-material="regular"
-      className="flex-shrink-0 flex items-center gap-1.5 border-b border-border bg-surface/80 backdrop-blur sticky top-0 z-20 glass-panel rounded-none"
+      data-tauri-drag-region
+      className="flex-shrink-0 flex items-center gap-1.5 border-b border-border bg-surface/80 backdrop-blur sticky top-0 z-20 glass-panel rounded-none app-drag"
       style={{
         paddingTop: 'env(safe-area-inset-top, 0)',
         paddingLeft: 'max(0.5rem, env(safe-area-inset-left, 0))',
         paddingRight: 'max(0.5rem, env(safe-area-inset-right, 0))',
       }}
     >
-      <div className="h-14 flex items-center gap-1 w-full">
+      {/* Inner row is `app-no-drag` so the buttons inside (back, month
+          picker, palette, chat) remain clickable. The drag region sits
+          on the OUTER header — empty space + double-click on the bar
+          drags / zooms the window the way macOS users expect. */}
+      <div className="h-14 flex items-center gap-1 w-full app-no-drag">
         {/* Back button when inside a sub-route. iOS-style — chevron only,
             no label, taps to nav back. */}
         {showBack && (

@@ -897,18 +897,51 @@ input[type='number'] { -moz-appearance: textfield; }
  *
  * Hidden (display: none) on every other host: Windows, Linux, iOS,
  * Android, and the browser PWA. Pixel-identical to before for them.
+ *
+ * NOTE (v0.6.17): the legacy 28-px standalone drag strip was retired
+ * in favor of an integrated drag region on the sidebar header +
+ * TopBar (the Mail.app / Linear / Things convention). The
+ * `.mac-titlebar-drag` class is kept as a no-op selector so any
+ * stragglers don't error; the new behavior lives in the
+ * `.app-drag` / `.app-no-drag` / `.mac-titlebar-leading-inset`
+ * rules below.
  */
 .mac-titlebar-drag {
   display: none;
 }
-[data-host-os="macos"][data-host-tauri="1"] .mac-titlebar-drag {
-  display: block;
-  height: 28px;
-  width: 100%;
-  background: transparent;
-  /* Both signals that "this is the title-bar drag region":
-   *   -webkit-app-region: drag  → universal WebKit (Slack, Notion, VSCode all use this)
-   *   data-tauri-drag-region    → Tauri-aware fallback
-   * The element ALSO has the data attribute set in JSX. */
+
+/*
+ * macOS drag region — applied to the topmost header rows (sidebar
+ * header + TopBar). On macOS+Tauri, `-webkit-app-region: drag`
+ * makes the area act as the window drag handle. On every other
+ * host, the rule is a no-op so the layout is unchanged.
+ *
+ * Children with `.app-no-drag` opt OUT of the drag region so they
+ * remain clickable (icons, buttons, links inside the header).
+ */
+.app-drag, .app-no-drag {
+  /* No-op on non-Mac hosts — kept inert. */
+}
+[data-host-os="macos"][data-host-tauri="1"] .app-drag {
   -webkit-app-region: drag;
+}
+[data-host-os="macos"][data-host-tauri="1"] .app-no-drag,
+[data-host-os="macos"][data-host-tauri="1"] .app-drag button,
+[data-host-os="macos"][data-host-tauri="1"] .app-drag a,
+[data-host-os="macos"][data-host-tauri="1"] .app-drag input,
+[data-host-os="macos"][data-host-tauri="1"] .app-drag select {
+  -webkit-app-region: no-drag;
+}
+
+/*
+ * Reserve ~75 px of left padding on the macOS sidebar header so
+ * the OS-drawn traffic lights have somewhere to live without
+ * overlapping the budget icon. macOS' standard inset is 13 px
+ * from the left edge, three buttons × 12 px + 8 px gaps ≈ 60 px,
+ * so 75 px leaves a small breathing margin before the icon.
+ *
+ * No-op on every other host (where there are no traffic lights).
+ */
+[data-host-os="macos"][data-host-tauri="1"] .mac-titlebar-leading-inset {
+  padding-left: 75px;
 }

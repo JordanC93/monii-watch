@@ -104,10 +104,17 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     <aside data-no-meniscus data-material="regular" style={{ width }} className="h-full flex-shrink-0 bg-surface border-r border-border flex flex-col text-[13px] glass-panel relative">
       {/* Header height matches the TopBar (h-14 = 56px) so the bottom
           borders + content line up across the sidebar/content split.
-          Without this the TopBar's smaller h-12 made it look like it
-          was "protruding" above the sidebar header. */}
-      <div className="px-4 h-14 flex items-center justify-between border-b border-border/60">
-        <div className="flex items-center gap-2">
+          The header is also a Mac drag region — `data-tauri-drag-region`
+          + the `app-drag` class which sets `-webkit-app-region: drag`
+          ONLY on macOS+Tauri. The `mac-titlebar-leading-inset` class
+          adds left padding equal to the traffic-lights width so the
+          OS-drawn dots have somewhere to live without overlapping the
+          budget icon. Both rules are no-ops on every other host. */}
+      <div
+        data-tauri-drag-region
+        className="px-4 h-14 flex items-center justify-between border-b border-border/60 app-drag mac-titlebar-leading-inset"
+      >
+        <div className="flex items-center gap-2 app-no-drag">
           <div className="w-7 h-7 rounded-md bg-gradient-to-br from-cyan-400 to-cyan-700 grid place-items-center text-white font-bold">$</div>
           <div>
             <div className="font-semibold text-[14px] leading-tight truncate max-w-[140px]">{settings.budgetName}</div>

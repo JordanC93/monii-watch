@@ -436,6 +436,12 @@ export function SettingsPage() {
       >
         <EmergencyFundSettings />
       </Section>
+
+      {/* Updates lives in the General tab — most users want to know
+          they're on the latest version without hunting through More. */}
+      <Section title="Updates" subtitle="Desktop app only. Browser builds always serve the latest version on reload.">
+        <DesktopUpdates />
+      </Section>
       </SettingsTab>
 
       <SettingsTab tab="display" active={activeTab}>
@@ -578,10 +584,6 @@ export function SettingsPage() {
 
       <Section title="Vacation mode" subtitle="Pause notifications, auto-cover overspending daily, paint a band on the calendar.">
         <VacationModeSettings />
-      </Section>
-
-      <Section title="Updates" subtitle="Desktop app only. Browser builds always serve the latest version on reload.">
-        <DesktopUpdates />
       </Section>
 
       <Section

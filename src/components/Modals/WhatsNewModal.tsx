@@ -39,6 +39,14 @@ type ReleaseEntry = {
  */
 export const RELEASE_NOTES: ReleaseEntry[] = [
   {
+    version: '0.6.17',
+    title: 'Unified macOS title bar + Updates moved to General',
+    bullets: [
+      'macOS: the empty 28-px drag strip above the app is gone. The traffic lights now sit inside the sidebar header (Mail.app / Linear / Things convention) — no more "protruding" top.',
+      'Settings → Updates moved from the More tab to the General tab so it\'s easier to find.',
+    ],
+  },
+  {
     version: '0.6.16',
     title: 'TopBar / sidebar header alignment fix',
     bullets: [
