@@ -354,6 +354,41 @@ server/                  Self-hosted y-websocket sync server (Docker Compose
     through v0.5.13 across one session — fine when the user
     consented, less fine as a default).
 
+23. **Any change to `package.json` MUST be followed by `npm install`
+    and a commit of the regenerated `package-lock.json` BEFORE
+    tagging a release.** CI (`.github/workflows/release.yml`) uses
+    `npm ci`, which is a strict reproducible install — it refuses
+    to run when the lock file isn't in sync with `package.json`.
+    Out-of-sync lock = every desktop installer build (Mac arm64,
+    Mac x86, Windows, Linux) fails at the very first step before
+    Vite or Cargo even run. We hit this with v0.7.1 when Capacitor
+    `optionalDependencies` were added without refreshing the lock.
+
+    The trap fires for ALL three dep buckets: `dependencies`,
+    `devDependencies`, AND `optionalDependencies`. `npm ci` checks
+    every entry. `optionalDependencies` doesn't get you a free
+    pass.
+
+    The trap also fires on script changes that pull in implicit
+    deps (e.g. adding `"cap:add:ios": "cap add ios"` doesn't
+    require a lock update — but adding `@capacitor/cli` to
+    `devDependencies` to satisfy that script does).
+
+    Default workflow when touching `package.json`:
+      1. Edit `package.json`.
+      2. `npm install` — regenerates the lock with all
+         transitive deps resolved + locked.
+      3. `npm run typecheck && npm run test && npm run build` —
+         the same checks CI runs, locally first.
+      4. Commit BOTH files together (`git add package.json
+         package-lock.json`).
+      5. Only then tag.
+
+    If you skip step 2, the local dev environment may still work
+    (because your local `node_modules` already has the package),
+    but a fresh CI runner with no cache will explode. The bug is
+    invisible until release time.
+
 ## Theme system
 
 CSS variables per `[data-theme="..."]` block in
