@@ -34,7 +34,15 @@ export function DesktopStatusBar() {
   return (
     <div
       data-no-print
-      className="hidden md:flex items-center gap-3 px-3 h-7 border-t border-border bg-surface text-[11px] tabular text-fg-subtle flex-shrink-0"
+      // glass-panel + data-no-meniscus mirrors BottomNav / TopBar /
+      // Sidebar — picks up the per-theme `--surface`/`--surface-alpha`
+      // recipe so the bar reads as a translucent strip on glass while
+      // staying solid on light/dark/oled. data-no-meniscus suppresses
+      // the bright `::before` edge ring that would otherwise paint a
+      // white shadow against the screen edge.
+      data-no-meniscus
+      data-material="regular"
+      className="hidden md:flex items-center gap-3 px-3 h-7 border-t border-border glass-panel rounded-none bg-surface/95 backdrop-blur text-[11px] tabular text-fg-subtle flex-shrink-0"
     >
       {selectedTxns.length > 0 ? (
         <span className="text-fg-muted">
