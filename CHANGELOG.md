@@ -2,6 +2,48 @@
 
 ## Released
 
+### v0.7.18 — Receipt last-4 detector picks up Unicode bullets
+
+The receipt scanner's last-4 patterns assumed asterisk-style
+masks (`****1234`, `XXXX-XXXX-XXXX-1234`), which is what older
+US bank statements print. Modern receipts from PayPal, Venmo,
+Apple Pay, and most issuer email templates use Unicode bullet
+characters instead (`••5713`, `••••5713`). None of the patterns
+matched, so the matcher returned NONE and the auto-route
+prompt never appeared even when the user had a saved account
+with that exact last-4.
+
+Fix: extended the mask character class to include `•` (U+2022
+BULLET), `●` (U+25CF BLACK CIRCLE), and `·` (U+00B7 MIDDLE DOT)
+alongside the existing `*` / `X` / `#`. Also added a new
+"account-type prefix" pattern that matches shapes like
+`Checking ••5713` / `Savings ••••5713` / `Credit Card ****1234`,
+plus a low-priority bare `Checking 5713` fallback for receipts
+that drop the mask entirely.
+
+The position-of-LAST-match logic in `extractLast4` is unchanged,
+so a receipt with a header reference to one card and a payment
+summary at the bottom referencing a different card still routes
+to the payment-summary card.
+
+The match → confidence decision matrix already aligned with the
+maintainer's "75%-or-above should ask" requirement:
+
+- 1 candidate, network match → HIGH (silent auto-route, "Wrong?"
+  escape hatch)
+- 1 candidate, no network info → MEDIUM (Yes / No prompt)
+- 1 candidate, network mismatch → LOW (pick from list)
+- 2+ candidates, network disambiguates to one → HIGH
+- 2+ candidates, can't disambiguate → LOW (pick from list)
+
+So a PayPal receipt with `Checking ••5713` against a single
+matching Checking account on file lands at MEDIUM, which now
+fires the "Looks like Chase Checking. Yes / No" prompt the
+maintainer was missing.
+
+24 new unit tests in `cardMatch.test.ts` cover every pattern
+shape and the full PayPal-receipt regression case.
+
 ### v0.7.17 — Sidebar drag insertion line
 
 Replaced the full-row ring used as the drop indicator with a

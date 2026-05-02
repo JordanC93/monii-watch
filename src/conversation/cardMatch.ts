@@ -34,20 +34,55 @@ export type CardMatchResult = {
  * Common shapes for last-4 on receipts. The order matters — more
  * specific patterns try first to avoid matching transaction IDs or
  * receipt numbers that happen to be 4 digits.
+ *
+ * Mask characters tolerated:
+ *   *       (asterisk, classic ASCII)
+ *   X / x   (literal X used by many issuers)
+ *   #       (some templates)
+ *   •       (U+2022 BULLET, used by Apple Pay receipts, PayPal,
+ *            Venmo, modern issuer emails)
+ *   ●       (U+25CF BLACK CIRCLE, similar usage)
+ *   ·       (U+00B7 MIDDLE DOT, less common but seen on bank PDFs)
+ *   .       (period, only when a clear masking run of 3+)
+ *
+ * The character class `[*xX#•●·]` matches any of those individual
+ * mask glyphs. Patterns require at least 2 in a row so we don't
+ * misread an asterisk-as-emphasis or single bullet point as a card
+ * mask.
  */
+const MASK_CHARS = '*xX#•●·';
+const MASK_RUN_2 = `[${MASK_CHARS}]{2,}`;
+const MASK_RUN_3 = `[${MASK_CHARS}]{3,}`;
+const MASK_RUN_4 = `[${MASK_CHARS}]{4}`;
+const ACCOUNT_TYPE_WORD = '(?:checking|savings|saving|credit(?:\\s*card)?|debit(?:\\s*card)?|card|acct|account)';
+
 const LAST4_PATTERNS: RegExp[] = [
   // "Card ending in 1234" / "ending 1234"
   /\b(?:card\s+)?(?:ending(?:\s+in)?|ends?\s+in)\s*[#:]?\s*(\d{4})\b/i,
-  // "Card: VISA ****1234" / "Card #****1234"
-  /(?:card|acct|account)[\s#:]*[a-z]*[\s]*\*{2,}[\s\-]?(\d{4})\b/i,
-  // "VISA ****1234" / "MasterCard XXXX1234"
-  /(?:visa|mastercard|master\s*card|amex|american\s*express|discover|debit|credit)\s*[\*xX#]{2,}[\s\-]?(\d{4})\b/i,
-  // "************1234" - bare masked PAN
-  /[\*xX]{6,}[\s\-]?(\d{4})\b/,
-  // "XXXX-XXXX-XXXX-1234"
-  /[xX*]{4}[\s\-][xX*]{4}[\s\-][xX*]{4}[\s\-](\d{4})\b/,
+  // "Checking ••5713" / "Savings ••••5713" / "Credit Card ****1234".
+  // Optional separator (space, dash, colon) between the type word and
+  // the mask run, and between the mask run and the 4 digits. Catches
+  // the modern PayPal / Apple Pay / bank-app shape where the mask is
+  // a Unicode bullet rather than asterisks.
+  new RegExp(`\\b${ACCOUNT_TYPE_WORD}[\\s#:\\-]*${MASK_RUN_2}[\\s\\-]?(\\d{4})\\b`, 'i'),
+  // Same as above but with the mask AFTER the digits ("5713 ••••")
+  // is rare on US receipts; skip for now.
+  // "Card: VISA ****1234" / "Card #****1234" / "Card: ••••5713"
+  new RegExp(`(?:card|acct|account)[\\s#:]*[a-z]*[\\s]*${MASK_RUN_2}[\\s\\-]?(\\d{4})\\b`, 'i'),
+  // "VISA ****1234" / "MasterCard XXXX1234" / "Visa ••••1234"
+  new RegExp(`(?:visa|mastercard|master\\s*card|amex|american\\s*express|discover|debit|credit)\\s*${MASK_RUN_2}[\\s\\-]?(\\d{4})\\b`, 'i'),
+  // "************1234" — bare masked PAN
+  new RegExp(`${MASK_RUN_3}[\\s\\-]?(\\d{4})\\b`),
+  // "XXXX-XXXX-XXXX-1234" — full grouped mask
+  new RegExp(`${MASK_RUN_4}[\\s\\-]${MASK_RUN_4}[\\s\\-]${MASK_RUN_4}[\\s\\-](\\d{4})\\b`),
   // "Acct: ...1234" (3+ leading dots)
   /(?:acct|account)\s*[#:]?\s*\.{3,}\s*(\d{4})\b/i,
+  // Bare "Checking 5713" / "Savings #5713" / "Acct 5713". Lowest
+  // priority because it's the most ambiguous (any 4-digit number
+  // after the type word would match). The position-of-LAST-match
+  // logic in `extractLast4` keeps the actual payment line over a
+  // stray reference earlier in the document.
+  new RegExp(`\\b${ACCOUNT_TYPE_WORD}\\s*[#:]?\\s*(\\d{4})\\b`, 'i'),
 ];
 
 const NETWORK_PATTERNS: Array<{ network: NonNullable<Account['cardNetwork']>; re: RegExp }> = [
