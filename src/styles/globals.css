@@ -641,6 +641,33 @@ a:focus-visible,
   border-radius: 6px;
 }
 
+/* HelpHint popover material.
+ *
+ * v0.7.11 — own opaque surface instead of relying on glass-panel.
+ * The previous version used `glass-panel` which on the glass theme
+ * is ~6% surface alpha; underlying text bled through and made the
+ * help body unreadable. This rule gives the popover its own solid
+ * background regardless of theme, with a small backdrop-blur on
+ * glass to keep it feeling cohesive with the rest of the UI. */
+.help-hint-popover {
+  background-color: rgb(var(--elevated));
+  border: 1px solid rgb(var(--border));
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.12),
+    0 8px 24px -4px rgba(0, 0, 0, 0.28),
+    0 24px 48px -12px rgba(0, 0, 0, 0.32);
+}
+html[data-theme='glass'] .help-hint-popover {
+  /* Slightly translucent on glass + a heavy blur so the popover still
+     reads as a glass element, but with enough opacity to keep the
+     body copy crisp against any background. */
+  background-color: rgb(var(--elevated) / 0.92);
+  backdrop-filter: blur(24px) saturate(170%);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+}
+
 /* Sidebar accounts list — Liquid Glass theme only.
  *
  * The accounts list is the `flex-1 overflow-y-auto` scroll area inside

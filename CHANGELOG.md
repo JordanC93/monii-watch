@@ -2,6 +2,41 @@
 
 ## Released
 
+### v0.7.11 — HelpHint popover fixes (mobile fit + glass readability)
+
+The HelpHint component (the small "?" buttons added to the
+Scheduled Transaction modal in v0.7.10) had two real bugs that
+showed up as soon as the maintainer used them:
+
+**Mobile overflow.** The popover used `absolute left-1/2
+-translate-x-1/2` so it centered on its parent. When the parent
+icon sat near the screen edge the popover ran off the viewport,
+and on small phones the popover wider than 80vw didn't fit at
+all — sometimes "breaking the page" because of the parent's
+overflow context.
+
+**Glass-theme readability.** The popover used the `glass-panel`
+material recipe, which on the glass theme is ~6% surface alpha.
+Whatever was behind the popover (form fields, body copy) bled
+through, making the help text itself hard to read.
+
+Two fixes:
+
+- **Portal + bounds-aware positioning.** The popover now
+  `createPortal`s to `document.body` so it escapes any parent
+  overflow or stacking context. On viewports ≥ 640 px it
+  positions itself relative to the trigger button (computed
+  from `getBoundingClientRect`) and clamps to the viewport with
+  a 12 px gutter. On viewports < 640 px (mobile / narrow
+  panels) it renders as a centered fixed sheet with a backdrop
+  dimmer and an explicit close button — always fits.
+- **Opaque surface.** The popover gets its own
+  `.help-hint-popover` class with a solid `--elevated`
+  background and a real border. On the glass theme it stays
+  92 % opaque with a heavy backdrop-blur so it still feels
+  cohesive with the rest of the UI, but body copy reads
+  cleanly against any background.
+
 ### v0.7.10 — Glass backdrop, finally fixed + Scheduled Transaction copy
 
 **Glass backdrop:** the conic-gradient approach had a fundamental
