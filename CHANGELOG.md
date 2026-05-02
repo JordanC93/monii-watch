@@ -2,6 +2,43 @@
 
 ## Released
 
+### v0.7.12 — Inline sidebar drag-reorder + glass button polish
+
+**Inline sidebar drag-reorder.** Previously you had to open the
+Customize modal to rearrange sidebar nav items. Now drag any nav
+entry up or down to reorder it in place. The Customize modal
+stays for hide/show + reset to default. Reordering writes to
+`Settings.sidebarOrder` like before, so the change syncs across
+devices via Yjs.
+
+Visual feedback while dragging:
+
+- The item you're dragging fades to 40% opacity.
+- The current drop target gets a 2 px accent ring along its
+  edges so you can see exactly where the item will land.
+
+Native click navigation on the underlying `NavLink` is preserved
+because `draggable` on a parent doesn't intercept ordinary clicks
+on children, only actual drag gestures.
+
+**Glass theme button polish.** The earlier rule applied the
+"raised pillow" glass treatment only to primary (accent-fill)
+buttons; secondary, elevated, and danger buttons stayed flat,
+which made them read as solid rectangles pasted onto the aurora.
+
+v0.7.12 extends the rule to cover:
+
+- `bg-surface-2` / `bg-surface-3` / `bg-elevated` (the secondary /
+  ghost / muted variants) get a lower-contrast pillow so they
+  feel like raised controls without competing with primary.
+- `bg-negative` (danger) gets the same pillow as primary but with
+  slightly muted specular so the red fill remains the loudest cue.
+
+The base background colors are unchanged. The pillow is a
+top-light, bottom-dark gradient layered on top, plus inset top
+highlight + inset bottom shadow — same recipe Apple uses on HIG
+button styles.
+
 ### v0.7.11 — HelpHint popover fixes (mobile fit + glass readability)
 
 The HelpHint component (the small "?" buttons added to the

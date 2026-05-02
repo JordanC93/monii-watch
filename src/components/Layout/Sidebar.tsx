@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Wallet, BarChart3, Settings as SettingsIcon, Search, ListChecks, Plus, RefreshCw, RefreshCwOff, Loader2, CalendarClock, CreditCard, Trophy, Pin, Wrench, Plane, Calendar, TrendingUp, Wand2, Image as ImageIcon, ChevronDown, ChevronRight, BookOpen, Tag, LayoutDashboard, Flame, Briefcase } from 'lucide-react';
 import { useBudget } from '../../store/budget';
+import { setSettingsField } from '../../db/repo';
 import { useUI } from '../../store/ui';
 import { cn } from '../../lib/cn';
 import { Money } from '../ui/Money';
@@ -112,13 +113,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       <nav className="px-2 py-1 space-y-0.5 flex-shrink-0">
         {orderedNav(settings.sidebarOrder ?? []).map((entry) => (
-          <NavItem
+          <DraggableNavItem
             key={entry.key}
-            to={entry.to}
-            icon={entry.icon}
-            label={entry.label}
+            entry={entry}
             onClick={handleClick}
-            end={entry.end}
           />
         ))}
         {/* MAINTAINER MODE — pre-v1 only. REMOVE FOR v1. */}
@@ -366,6 +364,103 @@ function NavItem({ to, icon, label, onClick, end = true }: { to: string; icon: R
     >
       {icon} <span>{label}</span>
     </NavLink>
+  );
+}
+
+/**
+ * Drag-aware wrapper around NavItem (v0.7.12). Lets the user reorder
+ * the sidebar nav inline by dragging an entry up or down, instead of
+ * having to open the Customize modal first.
+ *
+ * The HTML5 drag-and-drop API is on the wrapper div; the inner
+ * NavLink keeps its native click-to-navigate behavior. `draggable` on
+ * a parent doesn't block clicks on children — only actual drag
+ * gestures fire the dnd events. The `dragstart` payload uses the
+ * settings registry's key, NOT the route, so the reorder logic is
+ * route-agnostic.
+ *
+ * Drop target highlight: when a drag is in flight and this row is
+ * NOT the source, a 2px accent border appears at the top edge to
+ * preview where the dragged item will land.
+ */
+function DraggableNavItem({ entry, onClick }: { entry: NavEntry; onClick?: () => void }) {
+  const settings = useBudget((s) => s.settings);
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
+  const [overKey, setOverKey] = useState<string | null>(null);
+  // The drag state is hoisted to a module-level ref via window so all
+  // DraggableNavItem instances share it without prop-drilling. Cheap;
+  // only one drag is ever in flight.
+  type Bridge = { key: string | null; setOver: (k: string | null) => void };
+  const bridge = (window as any).__moniiNavDrag as Bridge | undefined;
+  if (!bridge) {
+    (window as any).__moniiNavDrag = { key: null, setOver: () => {} } satisfies Bridge;
+  }
+  const ref = (window as any).__moniiNavDrag as Bridge;
+
+  function reorder(fromKey: string, toKey: string) {
+    if (fromKey === toKey) return;
+    const all = orderedNav(settings.sidebarOrder ?? []).map((e) => e.key);
+    const fromIdx = all.indexOf(fromKey);
+    const toIdx = all.indexOf(toKey);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const next = all.slice();
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    // Build the persisted order. Preserve hidden flags from the
+    // existing settings; default any new keys to visible.
+    const existing = new Map((settings.sidebarOrder ?? []).map((s) => [s.key, s]));
+    const out = next.map((key, i) => ({
+      key,
+      order: i,
+      hidden: existing.get(key)?.hidden ?? false,
+    }));
+    setSettingsField('sidebarOrder', out);
+  }
+
+  const isDragging = draggingKey === entry.key;
+  const isDropTarget = !!overKey && overKey === entry.key && draggingKey !== entry.key;
+
+  return (
+    <div
+      draggable
+      onDragStart={(e) => {
+        ref.key = entry.key;
+        setDraggingKey(entry.key);
+        // dataTransfer is required for Firefox to fire dragover/drop.
+        try { e.dataTransfer.setData('text/plain', entry.key); } catch {}
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      onDragEnd={() => {
+        ref.key = null;
+        setDraggingKey(null);
+        setOverKey(null);
+      }}
+      onDragOver={(e) => {
+        if (!ref.key || ref.key === entry.key) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (overKey !== entry.key) setOverKey(entry.key);
+      }}
+      onDragLeave={() => {
+        if (overKey === entry.key) setOverKey(null);
+      }}
+      onDrop={(e) => {
+        if (!ref.key) return;
+        e.preventDefault();
+        const fromKey = ref.key;
+        ref.key = null;
+        setDraggingKey(null);
+        setOverKey(null);
+        reorder(fromKey, entry.key);
+      }}
+      className={cn(
+        'rounded-md transition-opacity',
+        isDragging && 'opacity-40',
+        isDropTarget && 'ring-2 ring-accent ring-inset',
+      )}
+    >
+      <NavItem to={entry.to} icon={entry.icon} label={entry.label} onClick={onClick} end={entry.end} />
+    </div>
   );
 }
 
