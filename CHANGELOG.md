@@ -2,6 +2,48 @@
 
 ## Released
 
+### v0.7.13 — HelpHint + glass buttons, take 2
+
+Two follow-ups based on dogfood feedback.
+
+**HelpHint reverts to the subtle popover.** v0.7.11 turned the
+mobile rendering into a centered fixed sheet with a backdrop
+dimmer. The maintainer prefers the original pop-up-beside-the-icon
+behavior on every viewport. v0.7.13 keeps that subtle popover
+style across the board, while keeping the two genuinely useful
+fixes from the rewrite:
+
+- Portal rendering, so the popover escapes parent overflow /
+  stacking contexts that used to clip it.
+- Bounds-aware positioning, so it can't run off the screen even
+  when the trigger is near a corner. Auto-flips above when there
+  isn't room below.
+
+The opacity-floor fix is also kept, with a stronger blur on glass:
+40 px backdrop-filter + 88 % opaque elevated surface. Anything
+under the popover gets a proper haze / mist effect; the body
+copy stays sharp. Same idea you wanted: read the help even when
+the popover lands on top of other text.
+
+**Glass button styling, take 2.** v0.7.12 added a pillow gradient
+overlay to secondary / elevated / surface buttons but kept the
+underlying `bg-surface-2` opaque, which on glass still rendered
+as a solid dark slab pasted onto the aurora — just with a tiny
+highlight. v0.7.13 makes the secondary buttons properly glass-y:
+
+- Override `background-color` to a 55% translucent
+  `--surface-2` so the wallpaper shows through.
+- Add `backdrop-filter: blur(18px) saturate(160%)` so the area
+  behind the button is hazed, matching every other glass surface.
+- Layer the pillow gradient + inset highlights on top so the
+  button still feels raised.
+- Hover bumps to 65% translucent `--surface-3` with brighter
+  inset highlight.
+
+Primary (`bg-accent`) and danger (`bg-negative`) keep their
+opaque fills — they're meant to be visually loud, not to blend
+into the wallpaper.
+
 ### v0.7.12 — Inline sidebar drag-reorder + glass button polish
 
 **Inline sidebar drag-reorder.** Previously you had to open the

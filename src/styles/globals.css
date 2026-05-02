@@ -643,12 +643,14 @@ a:focus-visible,
 
 /* HelpHint popover material.
  *
- * v0.7.11 — own opaque surface instead of relying on glass-panel.
- * The previous version used `glass-panel` which on the glass theme
- * is ~6% surface alpha; underlying text bled through and made the
- * help body unreadable. This rule gives the popover its own solid
- * background regardless of theme, with a small backdrop-blur on
- * glass to keep it feeling cohesive with the rest of the UI. */
+ * v0.7.11 introduced an opaque surface so help body copy stays
+ * readable when the popover lands on top of other text — the
+ * previous `glass-panel` material was too transparent on glass.
+ *
+ * v0.7.13 keeps that opacity floor but turns the blur way up on the
+ * glass theme so the area immediately behind the popover gets a
+ * proper haze / mist effect. Anything underneath the popover is
+ * blurred + desaturated; the popover itself reads clearly. */
 .help-hint-popover {
   background-color: rgb(var(--elevated));
   border: 1px solid rgb(var(--border));
@@ -660,12 +662,20 @@ a:focus-visible,
     0 24px 48px -12px rgba(0, 0, 0, 0.32);
 }
 html[data-theme='glass'] .help-hint-popover {
-  /* Slightly translucent on glass + a heavy blur so the popover still
-     reads as a glass element, but with enough opacity to keep the
-     body copy crisp against any background. */
-  background-color: rgb(var(--elevated) / 0.92);
-  backdrop-filter: blur(24px) saturate(170%);
-  -webkit-backdrop-filter: blur(24px) saturate(170%);
+  /* 88% opacity is enough that body copy stays sharp without losing
+     the glass character entirely. The heavy blur (40 px) creates a
+     deep haze behind the popover so even text underneath reads as
+     ambient softness rather than competing legibility. Saturate
+     bumps the wallpaper colors a touch so the haze still picks up
+     the active palette. */
+  background-color: rgb(var(--elevated) / 0.88);
+  backdrop-filter: blur(40px) saturate(180%) brightness(0.92);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(0.92);
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.18),
+    0 8px 28px -4px rgba(0, 0, 0, 0.40),
+    0 28px 56px -12px rgba(0, 0, 0, 0.44),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 /* Sidebar accounts list — Liquid Glass theme only.
@@ -752,26 +762,50 @@ html[data-theme='glass'] button[class*="bg-accent"]:not([disabled]) {
     0 1px 1px rgba(0, 0, 0, 0.20);
 }
 
-/* Secondary / elevated / surface buttons — lighter pillow. v0.7.12:
- * was previously "stay flat", which left them looking pasted-on
- * against the glass aurora. The lower-contrast gradient keeps them
- * subordinate to primary buttons while still reading as "raised
- * controls" rather than rectangles of solid fill. The existing
- * Tailwind border classes (border-border) survive untouched —
- * we're only painting on top of the background-color. */
+/* Secondary / elevated / surface buttons.
+ *
+ * v0.7.12 added a pillow gradient overlay but kept the underlying
+ * `bg-surface-2` solid, which on glass theme rendered as an opaque
+ * dark purple slab — still pasted-on, just with a slight gradient
+ * highlight. v0.7.13 makes the buttons properly glass-y: override
+ * the background-color to a translucent surface tone, add a real
+ * backdrop-filter blur so the aurora bleeds through softly, then
+ * layer the pillow + inset highlights on top so they still feel
+ * raised. Result reads as "glass pill" instead of "solid block".
+ *
+ * Primary (bg-accent) and danger (bg-negative) keep their opaque
+ * fills — those are meant to be visually loud and shouldn't blend
+ * into the wallpaper. */
 html[data-theme='glass'] button[class*="bg-surface-2"]:not([disabled]),
 html[data-theme='glass'] button[class*="bg-surface-3"]:not([disabled]),
 html[data-theme='glass'] button[class*="bg-elevated"]:not([disabled]) {
+  background-color: rgb(var(--surface-2) / 0.55);
   background-image: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.10) 0%,
-    rgba(255, 255, 255, 0.02) 50%,
-    rgba(0, 0, 0, 0.08) 100%
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0.03) 50%,
+    rgba(0, 0, 0, 0.10) 100%
   );
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border-color: rgba(255, 255, 255, 0.10);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.10),
-    0 1px 1px rgba(0, 0, 0, 0.16);
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+    0 1px 1px rgba(0, 0, 0, 0.18);
+}
+/* Hover state — slightly more opaque + brighter highlight. Tailwind's
+ * hover:bg-surface-3 still activates the variant, but its color is
+ * whatever rgb(--surface-3) is. Override it here so the translucent
+ * effect carries into the hover state. */
+html[data-theme='glass'] button[class*="bg-surface-2"]:not([disabled]):hover,
+html[data-theme='glass'] button[class*="bg-surface-3"]:not([disabled]):hover,
+html[data-theme='glass'] button[class*="bg-elevated"]:not([disabled]):hover {
+  background-color: rgb(var(--surface-3) / 0.65);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.14),
+    0 1px 2px rgba(0, 0, 0, 0.20);
 }
 
 /* Danger buttons (red fill) — same pillow as primary, slightly muted
