@@ -3,6 +3,7 @@ import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
+import { HelpHint } from '../ui/HelpHint';
 import { useBudget } from '../../store/budget';
 import { moveAssignment } from '../../db/repo';
 import { computeMonthBudget } from '../../domain/budget';
@@ -54,11 +55,25 @@ export function MoveMoneyModal({ open, onClose, fromCategoryId, month, toCategor
       }
     >
       <div className="space-y-3">
-        <div className="text-[13px]">
-          Move money from <span className="font-semibold">{fromCat.name}</span> ({fmt(fromAvail)} available)
+        <div className="text-[13px] flex items-center gap-1.5">
+          <span>
+            Move money from <span className="font-semibold">{fromCat.name}</span> ({fmt(fromAvail)} available)
+          </span>
+          <HelpHint title="Move Money">
+            Reassigns money you'd already given to one envelope into a
+            different envelope in the same month. Doesn't move any real
+            cash between bank accounts. Use it when you over-funded one
+            category and need to cover another.
+          </HelpHint>
         </div>
         <div>
-          <label className="text-[12px] text-fg-muted">To category</label>
+          <label className="text-[12px] text-fg-muted flex items-center gap-1">
+            To category
+            <HelpHint title="To Category">
+              The envelope that will receive the money. Its Available
+              amount goes up by the same amount you take from the source.
+            </HelpHint>
+          </label>
           <Select value={toId} onChange={(e) => setToId(e.target.value)} className="mt-1">
             {categories.filter((c) => c.id !== fromCategoryId).map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>

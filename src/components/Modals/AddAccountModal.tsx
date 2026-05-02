@@ -3,6 +3,7 @@ import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
+import { HelpHint } from '../ui/HelpHint';
 import { ACCOUNT_TYPE_META } from '../../domain/types';
 import type { AccountType } from '../../domain/types';
 import { createAccount } from '../../db/repo';
@@ -50,7 +51,15 @@ export function AddAccountModal({ open, onClose }: { open: boolean; onClose: () 
           />
         </div>
         <div>
-          <label className="text-[12px] text-fg-muted">Type</label>
+          <label className="text-[12px] text-fg-muted flex items-center gap-1">
+            Type
+            <HelpHint title="Account Type">
+              Spending accounts (Checking, Savings, Cash) hold money you
+              budget. Credit cards and loans track money you owe. Tracking
+              accounts (Investments, Other) show up in your net worth but
+              aren't part of your monthly budget.
+            </HelpHint>
+          </label>
           <Select value={type} onChange={(e) => setType(e.target.value as AccountType)} className="mt-1">
             <optgroup label="Spending">
               <option value="checking">Checking</option>
@@ -74,8 +83,13 @@ export function AddAccountModal({ open, onClose }: { open: boolean; onClose: () 
           </div>
         </div>
         <div>
-          <label className="text-[12px] text-fg-muted">
+          <label className="text-[12px] text-fg-muted flex items-center gap-1">
             {isLiability ? 'Current balance owed' : 'Current balance'}
+            <HelpHint title={isLiability ? 'Current Balance Owed' : 'Current Balance'}>
+              {isLiability
+                ? 'How much you owe right now on this account. Enter as a positive number (we store it as a negative balance internally).'
+                : 'How much money is in this account right now. We turn this into the first transaction on the account so future totals match your real balance.'}
+            </HelpHint>
           </label>
           <Input
             value={balance}

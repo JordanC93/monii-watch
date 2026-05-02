@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { Clipboard, ArrowRight } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
+import { HelpHint } from '../ui/HelpHint';
 import { useBudget } from '../../store/budget';
 import { useUI } from '../../store/ui';
 import { classifyDocument } from '../../conversation/classify';
@@ -58,8 +59,18 @@ export function BulkPasteModal({ open, onClose, accountId }: { open: boolean; on
       }
     >
       <div className="space-y-3">
-        <div className="text-[12.5px] text-fg-muted leading-snug">
-          Paste a block of transactions, one per line. Same format as the bank-screenshot OCR: date · payee · type · amount.
+        <div className="text-[12.5px] text-fg-muted leading-snug flex items-start gap-1.5">
+          <span>
+            Paste a block of transactions, one per line. Same format as the bank-screenshot OCR: date · payee · type · amount.
+          </span>
+          <HelpHint title="Pasted Transactions">
+            One transaction per line. Each line should include a date, a
+            payee name, and an amount (negative for spending, positive
+            for income). After you click Parse, you'll see a review
+            screen where you can fix anything before importing. Already-
+            imported transactions are detected by date + amount + payee
+            so re-pasting won't duplicate them.
+          </HelpHint>
         </div>
         <div>
           <label className="text-[11.5px] text-fg-subtle">Account to import into</label>

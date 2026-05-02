@@ -3,6 +3,7 @@ import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
+import { HelpHint } from '../ui/HelpHint';
 import { IconPicker } from '../ui/IconPicker';
 import { CategoryAvatar } from '../ui/CategoryAvatar';
 import { useBudget } from '../../store/budget';
@@ -157,7 +158,14 @@ export function EditCategoryModal({ open, onClose, categoryId }: { open: boolean
             </div>
             <div className="grid grid-cols-2 gap-3 text-[11.5px]">
               <div>
-                <label className="text-fg-muted">Photo fit</label>
+                <label className="text-fg-muted flex items-center gap-1">
+                  Photo fit
+                  <HelpHint title="Photo Fit">
+                    "Fill" crops the photo to cover the whole tile.
+                    "Fit" shows the entire photo with letterboxing if
+                    needed. Pick whichever frames your image best.
+                  </HelpHint>
+                </label>
                 <div className="mt-1 flex gap-1 rounded-md border border-border overflow-hidden">
                   <button
                     type="button"
@@ -177,7 +185,14 @@ export function EditCategoryModal({ open, onClose, categoryId }: { open: boolean
               </div>
               <div>
                 <label className="text-fg-muted flex justify-between">
-                  <span>Opacity</span>
+                  <span className="flex items-center gap-1">
+                    Opacity
+                    <HelpHint title="Photo Opacity">
+                      How transparent the photo looks behind the tile.
+                      Lower values keep the photo subtle so the numbers
+                      stay readable. The icon and text always sit on top.
+                    </HelpHint>
+                  </span>
                   <span className="tabular text-fg-subtle">{Math.round(photoOpacity * 100)}%</span>
                 </label>
                 <input
@@ -194,7 +209,14 @@ export function EditCategoryModal({ open, onClose, categoryId }: { open: boolean
           </div>
         )}
         <div>
-          <label className="text-[12px] text-fg-muted">Group</label>
+          <label className="text-[12px] text-fg-muted flex items-center gap-1">
+            Group
+            <HelpHint title="Group">
+              Categories are organized into groups (Bills, Lifestyle,
+              Savings) so the budget table is easier to scan. Move this
+              category to a different group by picking it here.
+            </HelpHint>
+          </label>
           <Select value={groupId} onChange={(e) => setGroupId(e.target.value)} className="mt-1">
             {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
           </Select>
@@ -226,6 +248,14 @@ export function EditCategoryModal({ open, onClose, categoryId }: { open: boolean
             <Target size={14} className="text-fg-muted" />
             <div className="text-[12.5px] font-semibold">Goal</div>
             <div className="text-[11.5px] text-fg-subtle">— optional, helps you stay on track</div>
+            <HelpHint title="Goal">
+              Three flavors. <strong>Monthly</strong> sets a recurring
+              amount you want to assign each month (good for bills like
+              rent). <strong>Target</strong> is a balance you want this
+              envelope to reach and stay at (good for an emergency fund).
+              <strong> Target by date</strong> is a balance plus a
+              deadline; we calculate how much to save per month.
+            </HelpHint>
           </div>
           <div className="grid grid-cols-3 gap-2 mb-2">
             <GoalChip
@@ -313,7 +343,14 @@ export function EditCategoryModal({ open, onClose, categoryId }: { open: boolean
             Goal extras <span className="text-fg-subtle/70 normal-case tracking-normal">— useful when saving for a specific purchase</span>
           </div>
           <div>
-            <label className="text-[11.5px] text-fg-subtle">Link</label>
+            <label className="text-[11.5px] text-fg-subtle flex items-center gap-1">
+              Link
+              <HelpHint title="Link">
+                A link to whatever you're saving for. Tapping the goal
+                tile will open this URL. Useful for the product page of
+                the thing you want to buy.
+              </HelpHint>
+            </label>
             <Input
               value={link}
               onChange={(e) => setLink(e.target.value)}
@@ -383,8 +420,14 @@ function HardLimitField({ categoryId }: { categoryId: string }) {
 
   return (
     <div className="border-t border-border pt-3 space-y-2">
-      <div className="text-[11.5px] text-fg-subtle">
+      <div className="text-[11.5px] text-fg-subtle flex items-center gap-1">
         Hard spending limit <span className="text-fg-subtle/80">(optional, in addition to envelope)</span>
+        <HelpHint title="Hard Spending Limit">
+          A monthly cap on this category that's separate from the
+          envelope. Useful when you want a hard ceiling regardless of
+          how much you assigned. We'll warn you (or block you) when
+          you hit it.
+        </HelpHint>
       </div>
       <div className="flex items-center gap-2">
         <Input

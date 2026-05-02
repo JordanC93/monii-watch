@@ -2,6 +2,41 @@
 
 ## Released
 
+### v0.7.15 — HelpHint icons across the rest of the app
+
+Rolled the HelpHint pattern (the small "?" icons next to form
+labels that pop up a short explanation) out to the rest of the
+app. v0.7.10 added them to the Scheduled Transaction modal
+because that's where the maintainer first hit confusing labels;
+this release covers the other surfaces a first-time user
+naturally walks through.
+
+40 HelpHints added across 10 files:
+
+- **Add Account** (2): account type, current balance / amount owed
+- **Edit Account** (14): pin to top, last 4 digits, card network,
+  account type, APR, credit limit, statement closing day,
+  payment due day, loan rate, loan monthly payment, loan term,
+  loan first payment date, tax status, currency override
+- **Edit Category** (6): photo fit, photo opacity, group, goal,
+  link, hard spending limit
+- **Add Goal** (1): goal type
+- **Move Money** (2): intro paragraph, "to category"
+- **Reconcile** (2): reconciling intro, bank balance today
+- **Split editor** (1): what is a split
+- **Bulk paste** (1): pasted transactions intro with dedup behavior
+- **Settings → General** (6): pay frequency, last paycheck date,
+  variable paycheck amounts, income & deductions section,
+  auto-allocate paychecks, emergency fund section
+- **Emergency fund settings** (2): target months, linked category
+
+Also extended the `Field` and `Section` helpers in `SettingsPage`
+to accept a `hint={{title, body}}` prop, so adding more hints
+later is a one-liner instead of an inline JSX restructure.
+
+Skipped fields where the existing inline subtitle already does
+the explaining adequately. No double-up.
+
 ### v0.7.14 — Glass palette drives the accent color
 
 The active / selected color across the UI (primary buttons, the

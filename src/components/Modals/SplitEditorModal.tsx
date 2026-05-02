@@ -3,6 +3,7 @@ import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
+import { HelpHint } from '../ui/HelpHint';
 import { useBudget } from '../../store/budget';
 import { updateTransaction } from '../../db/repo';
 import { useFormatMoney } from '../../lib/format';
@@ -63,7 +64,7 @@ export function SplitEditorModal({ open, onClose, transactionId }: { open: boole
     <Modal
       open={open}
       onClose={onClose}
-      title="Split transaction"
+      title={<span className="flex items-center gap-1.5">Split transaction <HelpHint title="Split Transaction">A split lets you divide one charge across multiple categories. Useful for a Target run that's part Groceries, part Household, part Pet Supplies. Each line gets its own category and amount, and they should add up to the transaction total.</HelpHint></span>}
       size="lg"
       footer={
         <div className="flex items-center justify-between gap-2">

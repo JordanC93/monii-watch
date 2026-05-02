@@ -3,6 +3,7 @@ import { useBudget } from '../store/budget';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
+import { HelpHint } from '../components/ui/HelpHint';
 import { THEMES, setTheme } from '../store/theme';
 import { setSettingsField, exportSnapshot, importSnapshot, validateSnapshot, type Snapshot } from '../db/repo';
 import { SUPPORTED_CURRENCIES } from '../domain/money';
@@ -316,7 +317,19 @@ export function SettingsPage() {
             </span>
           </div>
         </Field>
-        <Field label="Pay frequency">
+        <Field label="Pay frequency" hint={{
+          title: 'Pay Frequency',
+          body: (
+            <>
+              How often you get paid. <strong>Weekly</strong> is every 7
+              days. <strong>Biweekly</strong> is every 2 weeks (so 26
+              checks per year, with two months getting 3 checks).
+              <strong> Semi-monthly</strong> is twice a month, usually on
+              fixed dates like the 1st and 15th (24 checks per year).
+              Drives the per-paycheck math everywhere.
+            </>
+          ),
+        }}>
           <div className="flex flex-col items-end gap-1">
             <Select
               value={settings.payFrequency}
@@ -335,7 +348,16 @@ export function SettingsPage() {
           </div>
         </Field>
         {settings.payFrequency !== 'unset' && (
-          <Field label="Last paycheck date">
+          <Field label="Last paycheck date" hint={{
+            title: 'Last Paycheck Date',
+            body: (
+              <>
+                The date of your most recent paycheck. We use it as an
+                anchor to project all your future paychecks. Just pick
+                the most recent payday and you're done.
+              </>
+            ),
+          }}>
             <div className="flex flex-col items-end gap-1">
               <Input
                 type="date"
@@ -355,7 +377,17 @@ export function SettingsPage() {
           </Field>
         )}
         {(settings.payFrequency === 'biweekly' || settings.payFrequency === 'semimonthly') && (
-          <Field label="Variable paycheck amounts">
+          <Field label="Variable paycheck amounts" hint={{
+            title: 'Variable Paycheck Amounts',
+            body: (
+              <>
+                Use this when your two paychecks per period aren't the
+                same size (for example one is $2,400 and the other is
+                $2,600). Leave blank if your checks are equal sized; the
+                budget math will divide your monthly income evenly.
+              </>
+            ),
+          }}>
             <div className="flex flex-col items-end gap-1">
               <div className="flex items-center gap-2">
                 <Input
@@ -414,6 +446,18 @@ export function SettingsPage() {
       <Section
         title="Income & Deductions"
         subtitle="Capture per-paycheck deductions so the Income summary shows real take-home, not gross. Upload a paystub from the chat panel for fastest entry."
+        hint={{
+          title: 'Deductions',
+          body: (
+            <>
+              The amounts your employer takes out of each paycheck before
+              you see the money: federal tax, state tax, Social Security,
+              health insurance, 401(k), etc. Tagging each line with its
+              kind lets the budget show your real take-home, not just the
+              raw paycheck.
+            </>
+          ),
+        }}
       >
         <DeductionSummary />
         <DeductionList
@@ -430,7 +474,15 @@ export function SettingsPage() {
           </Button>
         </div>
         <div className="border-t border-border pt-3 mt-2">
-          <div className="text-[12.5px] font-medium mb-1.5">Auto-allocate paychecks</div>
+          <div className="text-[12.5px] font-medium mb-1.5 flex items-center gap-1">
+            Auto-allocate paychecks
+            <HelpHint title="Auto-allocate Paychecks">
+              Rules that automatically assign portions of each paycheck
+              into specific envelopes. For example, "send 10% of every
+              paycheck to Emergency Fund". Saves you from manually
+              dividing the money on every payday.
+            </HelpHint>
+          </div>
           <AllocationRules />
         </div>
       </Section>
@@ -438,6 +490,17 @@ export function SettingsPage() {
       <Section
         title="Emergency fund"
         subtitle="Right-size a target based on your real spending. Pin a category as the emergency fund and we'll surface progress on Goals."
+        hint={{
+          title: 'Emergency Fund',
+          body: (
+            <>
+              A savings cushion for unexpected costs like a car repair,
+              medical bill, or surprise job loss. The common rule of
+              thumb is 3 to 6 months of essential expenses. We use your
+              actual spending history to recommend a target.
+            </>
+          ),
+        }}
       >
         <EmergencyFundSettings />
       </Section>
@@ -776,11 +839,14 @@ function DeductionList({
   );
 }
 
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function Section({ title, subtitle, children, hint }: { title: string; subtitle?: string; children: React.ReactNode; hint?: { title: string; body: React.ReactNode } }) {
   return (
     <div className="glass-panel p-4 sm:p-5">
       <div className="mb-3">
-        <div className="text-[14px] font-semibold">{title}</div>
+        <div className="text-[14px] font-semibold flex items-center gap-1.5">
+          {title}
+          {hint && <HelpHint title={hint.title}>{hint.body}</HelpHint>}
+        </div>
         {subtitle && <div className="text-[12px] text-fg-subtle">{subtitle}</div>}
       </div>
       <div className="space-y-3">{children}</div>
@@ -788,10 +854,13 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: { title: string; body: React.ReactNode } }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <label className="text-[12.5px] text-fg-muted">{label}</label>
+      <label className="text-[12.5px] text-fg-muted flex items-center gap-1">
+        {label}
+        {hint && <HelpHint title={hint.title}>{hint.body}</HelpHint>}
+      </label>
       <div>{children}</div>
     </div>
   );

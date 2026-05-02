@@ -4,6 +4,7 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
+import { HelpHint } from '../ui/HelpHint';
 import { CategoryAvatar } from '../ui/CategoryAvatar';
 import { IconPicker } from '../ui/IconPicker';
 import { useBudget } from '../../store/budget';
@@ -189,6 +190,16 @@ export function AddGoalModal({ open, onClose }: { open: boolean; onClose: () => 
 
         {/* Goal type + amount + deadline */}
         <div className="border-t border-border pt-3 space-y-2">
+          <div className="text-[11.5px] text-fg-subtle flex items-center gap-1">
+            Goal type
+            <HelpHint title="Goal Type">
+              <strong>Target</strong> sets a balance you want this
+              envelope to reach. <strong>By date</strong> adds a deadline
+              and we calculate the monthly savings rate. <strong>Annual</strong>
+              repeats every year on a chosen date (good for things like
+              property taxes or holiday gifts).
+            </HelpHint>
+          </div>
           <div className="grid grid-cols-3 gap-2">
             <button
               type="button"

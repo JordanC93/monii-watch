@@ -6,6 +6,7 @@
 import { useBudget } from '../../store/budget';
 import { setSettingsField } from '../../db/repo';
 import { Select } from '../ui/Select';
+import { HelpHint } from '../ui/HelpHint';
 import { useFormatMoney } from '../../lib/format';
 import { useMemo } from 'react';
 import type { Account, Transaction } from '../../domain/types';
@@ -35,7 +36,16 @@ export function EmergencyFundSettings() {
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
-          <label className="text-[12px] text-fg-muted">Target months of expenses</label>
+          <label className="text-[12px] text-fg-muted flex items-center gap-1">
+            Target months of expenses
+            <HelpHint title="Target Months">
+              How many months of your normal spending you want stashed
+              for emergencies. 3 months covers most short-term shocks; 6
+              months is the most-recommended starting point; 9 to 12 is
+              conservative and fits self-employed or single-income
+              households.
+            </HelpHint>
+          </label>
           <Select
             value={String(targetMonths)}
             onChange={(e) => setSettingsField('emergencyFundMonths', parseInt(e.target.value, 10))}
@@ -48,7 +58,15 @@ export function EmergencyFundSettings() {
           </Select>
         </div>
         <div>
-          <label className="text-[12px] text-fg-muted">Linked category</label>
+          <label className="text-[12px] text-fg-muted flex items-center gap-1">
+            Linked category
+            <HelpHint title="Linked Category">
+              The envelope you're using as your emergency fund. Once
+              linked, the Goals page shows a special tile tracking your
+              progress toward the target above. Leave unlinked if you'd
+              rather just see a target suggestion.
+            </HelpHint>
+          </label>
           <Select
             value={settings.emergencyFundCategoryId ?? ''}
             onChange={(e) => setSettingsField('emergencyFundCategoryId', e.target.value || undefined)}

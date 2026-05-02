@@ -3,6 +3,7 @@ import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
+import { HelpHint } from '../ui/HelpHint';
 import { useBudget } from '../../store/budget';
 import { updateAccount, closeAccount, deleteAccount } from '../../db/repo';
 import { ACCOUNT_TYPE_META, type AccountType } from '../../domain/types';
@@ -145,6 +146,11 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
           />
           Pin to top of sidebar
           <span className="text-fg-subtle text-[11px]">— useful for your daily-driver account</span>
+          <HelpHint title="Pin to Top">
+            Pinned accounts float to the top of the sidebar list, above the
+            other accounts in the same group. Use it for the account you
+            check most often.
+          </HelpHint>
         </label>
 
         {/* Tier 12 #16 — last-4 + network for receipt auto-routing.
@@ -157,7 +163,15 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[11px] text-fg-subtle">Last 4 digits</label>
+              <label className="text-[11px] text-fg-subtle flex items-center gap-1">
+                Last 4 digits
+                <HelpHint title="Last 4 Digits">
+                  When you upload a receipt that shows the last 4 digits of
+                  the card used (like ****1234), Monii Watch can route the
+                  charge to this account automatically. Never your full card
+                  number.
+                </HelpHint>
+              </label>
               <Input
                 value={last4}
                 onChange={(e) => setLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
@@ -168,7 +182,14 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
               />
             </div>
             <div>
-              <label className="text-[11px] text-fg-subtle">Card network</label>
+              <label className="text-[11px] text-fg-subtle flex items-center gap-1">
+                Card network
+                <HelpHint title="Card Network">
+                  Visa, Mastercard, Amex, etc. Only matters if two of your
+                  cards share the same last 4 digits, so receipt routing can
+                  pick the right one.
+                </HelpHint>
+              </label>
               <Select
                 value={cardNetwork ?? ''}
                 onChange={(e) => setCardNetwork((e.target.value || undefined) as typeof cardNetwork)}
@@ -193,7 +214,15 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
         </div>
 
         <div>
-          <label className="text-[12px] text-fg-muted">Type</label>
+          <label className="text-[12px] text-fg-muted flex items-center gap-1">
+            Type
+            <HelpHint title="Account Type">
+              Spending accounts (Checking, Savings, Cash) hold money you
+              budget. Credit cards and loans track money you owe. Tracking
+              accounts (Investments, Other) show in your net worth but
+              aren't part of your monthly budget.
+            </HelpHint>
+          </label>
           <Select value={type} onChange={(e) => setType(e.target.value as AccountType)} className="mt-1">
             <optgroup label="Spending">
               <option value="checking">Checking</option>
@@ -220,7 +249,15 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[11px] text-fg-subtle">APR %</label>
+                <label className="text-[11px] text-fg-subtle flex items-center gap-1">
+                  APR %
+                  <HelpHint title="APR">
+                    Annual Percentage Rate. The yearly interest the bank
+                    charges on a balance you don't pay off. Drives the
+                    debt-payoff planner and the monthly interest projection
+                    on the Credit Cards page.
+                  </HelpHint>
+                </label>
                 <Input
                   value={aprText}
                   onChange={(e) => setAprText(e.target.value)}
@@ -230,7 +267,14 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
                 />
               </div>
               <div>
-                <label className="text-[11px] text-fg-subtle">Credit limit</label>
+                <label className="text-[11px] text-fg-subtle flex items-center gap-1">
+                  Credit limit
+                  <HelpHint title="Credit Limit">
+                    The maximum balance the bank lets you carry on this
+                    card. Setting this turns on the utilization bar so you
+                    can see how close you are to your limit.
+                  </HelpHint>
+                </label>
                 <Input
                   value={limitText}
                   onChange={(e) => setLimitText(e.target.value)}
@@ -240,7 +284,14 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
                 />
               </div>
               <div>
-                <label className="text-[11px] text-fg-subtle">Statement closing day</label>
+                <label className="text-[11px] text-fg-subtle flex items-center gap-1">
+                  Statement closing day
+                  <HelpHint title="Statement Closing Day">
+                    The day of the month your card's billing cycle ends.
+                    Charges after that date land on next month's statement.
+                    Usually printed on your statement as "Closing Date".
+                  </HelpHint>
+                </label>
                 <Input
                   value={closingDay}
                   onChange={(e) => setClosingDay(e.target.value)}
@@ -250,7 +301,15 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
                 />
               </div>
               <div>
-                <label className="text-[11px] text-fg-subtle">Payment due day</label>
+                <label className="text-[11px] text-fg-subtle flex items-center gap-1">
+                  Payment due day
+                  <HelpHint title="Payment Due Day">
+                    The day of the month your minimum payment is due.
+                    Usually about 21 to 25 days after the statement closes.
+                    Powers the "due in X days" badge on the Credit Cards
+                    page.
+                  </HelpHint>
+                </label>
                 <Input
                   value={dueDay}
                   onChange={(e) => setDueDay(e.target.value)}
@@ -272,7 +331,14 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[11px] text-fg-subtle">Interest rate (APR %)</label>
+                <label className="text-[11px] text-fg-subtle flex items-center gap-1">
+                  Interest rate (APR %)
+                  <HelpHint title="Interest Rate">
+                    The yearly interest rate on the loan. Found on your
+                    loan papers. A 30-year mortgage is often 6 to 7%; an
+                    auto loan is often 4 to 9%.
+                  </HelpHint>
+                </label>
                 <Input
                   value={loanRateText}
                   onChange={(e) => setLoanRateText(e.target.value)}
@@ -282,7 +348,14 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
                 />
               </div>
               <div>
-                <label className="text-[11px] text-fg-subtle">Monthly payment</label>
+                <label className="text-[11px] text-fg-subtle flex items-center gap-1">
+                  Monthly payment
+                  <HelpHint title="Monthly Payment">
+                    Your scheduled monthly principal + interest payment.
+                    Don't include escrow (taxes / insurance) since those
+                    aren't paying down the loan itself.
+                  </HelpHint>
+                </label>
                 <Input
                   value={loanPaymentText}
                   onChange={(e) => setLoanPaymentText(e.target.value)}
@@ -292,7 +365,13 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
                 />
               </div>
               <div>
-                <label className="text-[11px] text-fg-subtle">Term (months)</label>
+                <label className="text-[11px] text-fg-subtle flex items-center gap-1">
+                  Term (months)
+                  <HelpHint title="Loan Term">
+                    Total length of the loan in months. A 30-year mortgage
+                    is 360 months. A 5-year auto loan is 60 months.
+                  </HelpHint>
+                </label>
                 <Input
                   value={loanTermText}
                   onChange={(e) => setLoanTermText(e.target.value)}
@@ -302,7 +381,14 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
                 />
               </div>
               <div>
-                <label className="text-[11px] text-fg-subtle">First payment date</label>
+                <label className="text-[11px] text-fg-subtle flex items-center gap-1">
+                  First payment date
+                  <HelpHint title="First Payment Date">
+                    The date of your very first scheduled payment on this
+                    loan. Used to anchor the amortization schedule so the
+                    payoff date lands on the right month.
+                  </HelpHint>
+                </label>
                 <Input
                   type="date"
                   value={loanFirstDate}
@@ -315,8 +401,15 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
         )}
         {isTracking && (
           <div className="border-t border-border pt-3 space-y-2">
-            <div className="text-[11.5px] text-fg-subtle">
+            <div className="text-[11.5px] text-fg-subtle flex items-center gap-1">
               Tax status <span className="text-fg-subtle/80">— affects after-tax net worth + withdrawal-order recommendations</span>
+              <HelpHint title="Tax Status">
+                What kind of account this is for tax purposes. A 401(k)
+                holds pre-tax money you'll owe income tax on when you
+                withdraw. A Roth account already paid the tax. The FIRE
+                planner uses this to figure out which accounts to draw
+                from first in retirement.
+              </HelpHint>
             </div>
             <Select
               value={taxStatus ?? ''}
@@ -335,8 +428,15 @@ export function EditAccountModal({ open, onClose, accountId }: { open: boolean; 
           </div>
         )}
         <div className="border-t border-border pt-3 space-y-2">
-          <div className="text-[11.5px] text-fg-subtle">
+          <div className="text-[11.5px] text-fg-subtle flex items-center gap-1">
             Currency override
+            <HelpHint title="Currency Override">
+              By default this account uses your budget's main currency.
+              Use this if the account holds a different currency (a Euro
+              checking account, a pound-denominated savings account). The
+              rate field below tells us how to convert it back to your
+              budget currency for net worth and totals.
+            </HelpHint>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
