@@ -394,25 +394,34 @@ function DraggableNavItem({ entry, onClick }: { entry: NavEntry; onClick?: () =>
   const settings = useBudget((s) => s.settings);
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
+  const [dropPos, setDropPos] = useState<'above' | 'below' | null>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
   // The drag state is hoisted to a module-level ref via window so all
   // DraggableNavItem instances share it without prop-drilling. Cheap;
   // only one drag is ever in flight.
-  type Bridge = { key: string | null; setOver: (k: string | null) => void };
-  const bridge = (window as any).__moniiNavDrag as Bridge | undefined;
-  if (!bridge) {
-    (window as any).__moniiNavDrag = { key: null, setOver: () => {} } satisfies Bridge;
+  type Bridge = { key: string | null };
+  if (!(window as any).__moniiNavDrag) {
+    (window as any).__moniiNavDrag = { key: null } satisfies Bridge;
   }
   const ref = (window as any).__moniiNavDrag as Bridge;
 
-  function reorder(fromKey: string, toKey: string) {
+  function reorder(fromKey: string, toKey: string, position: 'above' | 'below') {
     if (fromKey === toKey) return;
     const all = orderedNav(settings.sidebarOrder ?? []).map((e) => e.key);
     const fromIdx = all.indexOf(fromKey);
     const toIdx = all.indexOf(toKey);
     if (fromIdx < 0 || toIdx < 0) return;
+    // Compute the destination index. "above" means insert at the
+    // target's slot (target shifts down). "below" means insert after
+    // the target (target stays put). When the source is above the
+    // target, removing it shifts everything down by one, so the
+    // raw insertion index needs to be adjusted by -1 in those cases.
+    let insertAt = position === 'above' ? toIdx : toIdx + 1;
+    if (fromIdx < insertAt) insertAt -= 1;
     const next = all.slice();
     const [moved] = next.splice(fromIdx, 1);
-    next.splice(toIdx, 0, moved);
+    next.splice(insertAt, 0, moved);
+    if (next.every((k, i) => k === all[i])) return; // no-op
     // Build the persisted order. Preserve hidden flags from the
     // existing settings; default any new keys to visible.
     const existing = new Map((settings.sidebarOrder ?? []).map((s) => [s.key, s]));
@@ -429,6 +438,7 @@ function DraggableNavItem({ entry, onClick }: { entry: NavEntry; onClick?: () =>
 
   return (
     <div
+      ref={rowRef}
       draggable
       onDragStart={(e) => {
         ref.key = entry.key;
@@ -441,31 +451,64 @@ function DraggableNavItem({ entry, onClick }: { entry: NavEntry; onClick?: () =>
         ref.key = null;
         setDraggingKey(null);
         setOverKey(null);
+        setDropPos(null);
       }}
       onDragOver={(e) => {
         if (!ref.key || ref.key === entry.key) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        if (overKey !== entry.key) setOverKey(entry.key);
+        // Pick "above" or "below" based on whether the mouse is in
+        // the top or bottom half of the row. This matches the Finder /
+        // file-explorer convention where the insertion line tracks
+        // the cursor's vertical position.
+        const rect = rowRef.current?.getBoundingClientRect();
+        if (rect) {
+          const midY = rect.top + rect.height / 2;
+          const next = e.clientY < midY ? 'above' : 'below';
+          if (overKey !== entry.key || dropPos !== next) {
+            setOverKey(entry.key);
+            setDropPos(next);
+          }
+        }
       }}
       onDragLeave={() => {
-        if (overKey === entry.key) setOverKey(null);
+        if (overKey === entry.key) {
+          setOverKey(null);
+          setDropPos(null);
+        }
       }}
       onDrop={(e) => {
         if (!ref.key) return;
         e.preventDefault();
         const fromKey = ref.key;
+        const position = dropPos ?? 'below';
         ref.key = null;
         setDraggingKey(null);
         setOverKey(null);
-        reorder(fromKey, entry.key);
+        setDropPos(null);
+        reorder(fromKey, entry.key, position);
       }}
       className={cn(
-        'rounded-md transition-opacity sidebar-drag-row',
+        'relative rounded-md transition-opacity sidebar-drag-row',
         isDragging && 'opacity-40',
-        isDropTarget && 'ring-2 ring-accent ring-inset',
       )}
     >
+      {/* Insertion line. Renders only when this row is the active drop
+          target, positioned at the top or bottom edge depending on
+          which half of the row the cursor is in. The line sits 1 px
+          beyond the row edge so it lands cleanly between rows. */}
+      {isDropTarget && dropPos === 'above' && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1 right-1 -top-px h-[2px] rounded-full bg-accent shadow-[0_0_6px_rgb(var(--accent)/0.7)]"
+        />
+      )}
+      {isDropTarget && dropPos === 'below' && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1 right-1 -bottom-px h-[2px] rounded-full bg-accent shadow-[0_0_6px_rgb(var(--accent)/0.7)]"
+        />
+      )}
       <NavItem to={entry.to} icon={entry.icon} label={entry.label} onClick={onClick} end={entry.end} />
     </div>
   );

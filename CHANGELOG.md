@@ -2,6 +2,24 @@
 
 ## Released
 
+### v0.7.17 — Sidebar drag insertion line
+
+Replaced the full-row ring used as the drop indicator with a
+thin 2 px insertion line at the top OR bottom edge of the
+target row, picked based on whether the cursor is in the upper
+or lower half. This is the convention Finder, file explorers,
+and every reorderable list app uses, and it makes it
+unambiguous where the dragged item will land.
+
+The reorder logic was updated to match: dropping "above" the
+target inserts at the target's slot, "below" inserts after.
+When the source row is above the destination, the insertion
+index is decremented by one to compensate for the source being
+removed first.
+
+The line uses the active accent color with a subtle glow
+shadow so it reads against any backdrop.
+
 ### v0.7.16 — Sidebar drag-reorder + Customize button highlight fix
 
 Two bugs from v0.7.12 that the maintainer caught while using the
