@@ -2,6 +2,50 @@
 
 ## Released
 
+### v0.7.8 — Multi-window right-click fix + Cloud folder sync discoverability
+
+#### Right-click "Open in New Window" actually opens a new window
+
+The WKWebView (Mac) / WebView2 (Windows) default link context
+menu has an "Open Link in New Window" entry that talks to the
+native UIDelegate, NOT to JavaScript's `window.open`. Without
+a Tauri window-open handler, that request was getting routed to
+the OS's default browser, which has fresh localStorage. Result:
+the link opened in Safari / Chrome instead of a new app window,
+and looked like the theme had reset (because the browser
+session had no `monii:theme` stored).
+
+Fix: a global `contextmenu` listener on `<a>` elements with
+internal hrefs now suppresses the WebView's default menu and
+shows our own native menu (via `showNativeContextMenu`) with
+"Open", "Open in New Window", and "Copy Link". "Open in New
+Window" routes through `openNewDesktopWindow`, which spawns a
+real Tauri WebviewWindow that shares localStorage, IndexedDB,
+and Yjs state with the original. The user's theme is preserved.
+
+Bonus: Cmd+Click (Mac) / Ctrl+Click (Win/Linux) / middle-click
+on internal links also routes through the new-window helper, so
+keyboard-driven new-window opens behave the same way.
+
+#### Capabilities for new windows
+
+Both `default.json` and `desktop.json` now apply to `["main",
+"cb-*"]` instead of just `["main"]`. Windows opened via
+`cmd_open_new_window` get labels like `cb-1714665600000`, so the
+glob catches them. Without this, plugin commands (notification,
+fs, dialog, updater, etc.) would silently fail in any window
+beyond the first.
+
+#### Cloud folder sync discoverability
+
+The Cloud folder sync option (iCloud Drive / OneDrive / Dropbox
+/ Google Drive desktop app) was only visible on the dedicated
+Settings → Sync page, not in the SyncModal that opens from the
+sidebar's Configure button. Easy to miss when you came in from
+the sidebar entry point. v0.7.8 adds a clear shortcut card in
+the modal that reflects the current state and links to the
+full setup UI.
+
 ### v0.7.7 — Glass sidebar accounts fix (real cause this time)
 
 v0.7.6 misdiagnosed the bug. The actual cause was a CSS rule

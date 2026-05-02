@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Cross-platform capabilities — applies to every target (desktop, iOS, Android).",
-  "windows": ["main"],
+  "description": "Cross-platform capabilities, applies to every target (desktop, iOS, Android). Window labels: `main` is the original window; `cb-*` is any extra window opened via cmd_open_new_window so multi-window users get the same permissions as the main window.",
+  "windows": ["main", "cb-*"],
   "permissions": [
     "core:default",
     "shell:allow-open",

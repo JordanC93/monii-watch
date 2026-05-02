@@ -192,6 +192,93 @@ export default function App() {
     };
   }, []);
 
+  // Right-click on internal links: replace the WKWebView / WebView2
+  // default context menu with our own, so "Open in New Window" actually
+  // opens a Tauri WebviewWindow with shared localStorage (same theme,
+  // same data) instead of routing the request to the OS default
+  // browser, which has fresh storage and looks like a theme reset.
+  // Cmd / Ctrl / middle-click on links also routes through the new
+  // window helper so keyboard shortcuts behave the same way.
+  useEffect(() => {
+    function findInternalLink(target: EventTarget | null): HTMLAnchorElement | null {
+      let el = target as HTMLElement | null;
+      while (el && el !== document.body) {
+        if (el.tagName === 'A') {
+          const href = (el as HTMLAnchorElement).getAttribute('href') ?? '';
+          // Only intercept same-origin internal routes. External URLs and
+          // mailto / tel / blob links should keep their default behavior.
+          if (href.startsWith('/') && !href.startsWith('//')) {
+            return el as HTMLAnchorElement;
+          }
+          return null;
+        }
+        el = el.parentElement;
+      }
+      return null;
+    }
+
+    async function openLinkInNewWindow(href: string) {
+      try {
+        const m = await import('./lib/nativeDesktop');
+        await m.openNewDesktopWindow(href);
+      } catch {
+        // PWA / browser fallback: open in a new tab.
+        window.open(href, '_blank', 'noopener,noreferrer');
+      }
+    }
+
+    function onContext(e: MouseEvent) {
+      const link = findInternalLink(e.target);
+      if (!link) return;
+      const href = link.getAttribute('href') ?? '';
+      if (!href) return;
+      e.preventDefault();
+      (async () => {
+        try {
+          const m = await import('./lib/nativeDesktop');
+          const id = await m.showNativeContextMenu([
+            { id: 'open', label: 'Open' },
+            { id: 'open-new-window', label: 'Open in New Window' },
+            { id: 'copy-link', label: 'Copy Link', separatorBefore: true },
+          ]);
+          if (id === 'open') {
+            nav(href);
+          } else if (id === 'open-new-window') {
+            await openLinkInNewWindow(href);
+          } else if (id === 'copy-link') {
+            try { await navigator.clipboard.writeText(href); } catch {}
+          }
+        } catch {
+          // No native menu (browser PWA): just navigate as a normal click.
+          nav(href);
+        }
+      })();
+    }
+
+    function onAuxOrModified(e: MouseEvent) {
+      // Cmd+Click (Mac), Ctrl+Click (Win/Linux), middle-click → new window.
+      const isNewWindowIntent =
+        e.button === 1 || // middle-click
+        (e.button === 0 && (e.metaKey || e.ctrlKey));
+      if (!isNewWindowIntent) return;
+      const link = findInternalLink(e.target);
+      if (!link) return;
+      const href = link.getAttribute('href') ?? '';
+      if (!href) return;
+      e.preventDefault();
+      void openLinkInNewWindow(href);
+    }
+
+    document.addEventListener('contextmenu', onContext);
+    document.addEventListener('click', onAuxOrModified);
+    document.addEventListener('auxclick', onAuxOrModified);
+    return () => {
+      document.removeEventListener('contextmenu', onContext);
+      document.removeEventListener('click', onAuxOrModified);
+      document.removeEventListener('auxclick', onAuxOrModified);
+    };
+  }, [nav]);
+
   // Show the welcome tour on first run only.
   const onboardingCompleted = useBudget((s) => s.settings.onboardingCompleted);
   const lastSeenVersion = useBudget((s) => s.settings.lastSeenVersion);

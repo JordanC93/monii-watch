@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
@@ -159,6 +160,15 @@ export function SyncModal({ open, onClose }: { open: boolean; onClose: () => voi
           </Button>
         </div>
 
+        {/* Optional: Cloud folder sync (iCloud Drive / OneDrive /
+            Dropbox / Google Drive desktop client). The actual setup
+            UI lives on the Settings → Sync page (the file dialog
+            requires the desktop shell, the Tauri-only ICloudSettings
+            component handles the picker). The modal carries a
+            pointer so users opening sync from the sidebar can find
+            it. */}
+        <CloudFolderShortcut onClose={onClose} />
+
         {/* Optional: Google Drive (E2E encrypted) */}
         <DriveSection />
 
@@ -233,6 +243,55 @@ export function SyncModal({ open, onClose }: { open: boolean; onClose: () => voi
         )}
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Cloud folder sync shortcut. The full setup UI lives in the Settings
+ * page (the file-picker dialog needs the Tauri shell), so this card
+ * just shows the user the option exists, reflects whether it's
+ * already turned on, and links to the right place. v0.7.8: added so
+ * users opening the sync overlay from the sidebar can still
+ * discover this transport. Same audience as Drive (less-technical
+ * users who just want a no-OAuth sync option).
+ */
+function CloudFolderShortcut({ onClose }: { onClose: () => void }) {
+  const enabled = useBudget((s) => s.settings.icloudEnabled);
+  const folderPath = useBudget((s) => s.settings.icloudFolderPath);
+  const lastAt = useBudget((s) => s.settings.icloudLastSyncedAt);
+  const nav = useNavigate();
+
+  function go() {
+    onClose();
+    nav('/settings#sync');
+  }
+
+  return (
+    <div className="border border-border rounded-lg p-3 bg-surface-2/20 space-y-2">
+      <div className="flex items-start gap-3">
+        <HardDrive size={18} className="text-accent flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <div className="text-[12.5px] font-medium flex items-center gap-2">
+            Cloud folder sync (iCloud Drive, OneDrive, Dropbox)
+            {enabled && (
+              <span className="text-[10.5px] px-1.5 py-0.5 rounded bg-positive/15 text-positive">On</span>
+            )}
+          </div>
+          <div className="text-[11.5px] text-fg-muted mt-0.5 leading-snug">
+            Pick any folder your existing cloud service syncs (iCloud Drive on Mac, OneDrive on Windows, Dropbox, etc). Encrypted snapshots get written there and the cloud service handles the rest. No OAuth, no extra account.
+          </div>
+          {enabled && folderPath && (
+            <div className="text-[11px] text-fg-subtle mt-1 truncate" title={folderPath}>
+              Folder: <code className="px-1 rounded bg-surface-3 text-fg">{folderPath}</code>
+              {lastAt > 0 && <> · last sync {timeAgo(lastAt)}</>}
+            </div>
+          )}
+        </div>
+        <Button variant="secondary" size="sm" onClick={go}>
+          {enabled ? 'Manage' : 'Set up'}
+        </Button>
+      </div>
+    </div>
   );
 }
 

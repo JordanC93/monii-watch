@@ -3,7 +3,7 @@
   "identifier": "desktop",
   "description": "Desktop-only capabilities — references plugins we cfg-gate to non-mobile targets in Cargo.toml + lib.rs (updater, process). Scoped via `platforms` so iOS / Android builds skip it; otherwise the permission references resolve to nothing and Cargo fails. Also includes window-drag permissions that aren't in the cross-platform `core:default` set (start-dragging is gated separately because mobile targets have no analog).",
   "platforms": ["macOS", "windows", "linux"],
-  "windows": ["main"],
+  "windows": ["main", "cb-*"],
   "permissions": [
     "updater:default",
     "process:default",
