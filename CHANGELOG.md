@@ -2,6 +2,36 @@
 
 ## Released
 
+### v0.7.14 — Glass palette drives the accent color
+
+The active / selected color across the UI (primary buttons, the
+mobile FAB, the active bottom-nav pill, focus rings, links, all
+the small accents) now derives from whichever Liquid Glass
+palette you pick. Previously every glass palette shared the same
+fixed cyan-blue accent, which clashed with palettes like Sunset
+(orange wallpaper, cyan accent) and Forest (green wallpaper, cyan
+accent).
+
+Now:
+
+- Aurora → indigo-blue accent
+- Sunset → orange accent
+- Ocean → bright cyan accent
+- Forest → sage-green accent
+- Rose → pink-coral accent
+- Monochrome → keeps the default systemBlue (the wallpaper has
+  no color, so the active tint shouldn't disappear)
+- Custom → automatically picks the most-saturated of your four
+  user-chosen colors as the accent. Falls back to the first
+  color if every pick is essentially gray.
+
+Implementation: each `GlassPaletteDef` carries an `accent` RGB
+triplet. `applyGlassPalette()` writes it to `--accent` on
+`<html>`. Tailwind's `bg-accent` / `text-accent` / `bg-accent/12`
+utilities all read from that variable, so the change is automatic
+across every component without a per-element rule. Light / dark /
+oled themes are unaffected.
+
 ### v0.7.13 — HelpHint + glass buttons, take 2
 
 Two follow-ups based on dogfood feedback.
