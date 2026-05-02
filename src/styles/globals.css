@@ -678,6 +678,22 @@ html[data-theme='glass'] .help-hint-popover {
     inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
+/* Sidebar nav drag-reorder rows. WebKit-prefixed `user-drag: none` on
+ * the inner anchor as a safety net in case the React `draggable={false}`
+ * isn't enough on every webview build (Tauri's WKWebView in particular
+ * has been known to ignore the React-prop variant). The wrapper div
+ * itself is left draggable so the HTML5 dnd events fire there. */
+.sidebar-drag-row a {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+.sidebar-drag-row {
+  cursor: grab;
+}
+.sidebar-drag-row:active {
+  cursor: grabbing;
+}
+
 /* Sidebar accounts list — Liquid Glass theme only.
  *
  * The accounts list is the `flex-1 overflow-y-auto` scroll area inside
@@ -748,8 +764,10 @@ html[data-theme='glass'] .topbar-chrome-pill {
 /* Glass-theme buttons get a subtle vertical pillow (top-light, bottom-dark
  * gradient) so they feel raised, like Apple HIG buttons. */
 
-/* Primary buttons (accent fill) — strongest pillow. */
-html[data-theme='glass'] button[class*="bg-accent"]:not([disabled]) {
+/* Primary buttons (accent fill) — strongest pillow. `~=` for the
+ * same reason as the secondary rule below: avoids matching
+ * `hover:bg-accent` on buttons that aren't accent-filled at rest. */
+html[data-theme='glass'] button[class~="bg-accent"]:not([disabled]) {
   background-image: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.18) 0%,
@@ -776,9 +794,17 @@ html[data-theme='glass'] button[class*="bg-accent"]:not([disabled]) {
  * Primary (bg-accent) and danger (bg-negative) keep their opaque
  * fills — those are meant to be visually loud and shouldn't blend
  * into the wallpaper. */
-html[data-theme='glass'] button[class*="bg-surface-2"]:not([disabled]),
-html[data-theme='glass'] button[class*="bg-surface-3"]:not([disabled]),
-html[data-theme='glass'] button[class*="bg-elevated"]:not([disabled]) {
+/* `[class~="bg-surface-2"]` is whitespace-word match — matches a class
+ * list that contains the literal token `bg-surface-2`, NOT classes
+ * like `hover:bg-surface-2` where the colon prevents the word match.
+ * The earlier v0.7.13 selector used `[class*="bg-surface-2"]` (substring
+ * match) which over-applied to any button that had `hover:bg-surface-2`
+ * in its class list, painting the hover-state pillow as the resting
+ * state — that's what made the sidebar Customize button look
+ * permanently highlighted. */
+html[data-theme='glass'] button[class~="bg-surface-2"]:not([disabled]),
+html[data-theme='glass'] button[class~="bg-surface-3"]:not([disabled]),
+html[data-theme='glass'] button[class~="bg-elevated"]:not([disabled]) {
   background-color: rgb(var(--surface-2) / 0.55);
   background-image: linear-gradient(
     180deg,
@@ -794,13 +820,14 @@ html[data-theme='glass'] button[class*="bg-elevated"]:not([disabled]) {
     inset 0 -1px 0 rgba(0, 0, 0, 0.12),
     0 1px 1px rgba(0, 0, 0, 0.18);
 }
-/* Hover state — slightly more opaque + brighter highlight. Tailwind's
- * hover:bg-surface-3 still activates the variant, but its color is
- * whatever rgb(--surface-3) is. Override it here so the translucent
- * effect carries into the hover state. */
-html[data-theme='glass'] button[class*="bg-surface-2"]:not([disabled]):hover,
-html[data-theme='glass'] button[class*="bg-surface-3"]:not([disabled]):hover,
-html[data-theme='glass'] button[class*="bg-elevated"]:not([disabled]):hover {
+/* Hover state — slightly more opaque + brighter highlight. Same
+ * word-match gotcha here: only style buttons that actually have
+ * `bg-surface-2` (or 3 / elevated) as a resting class, then bump them
+ * on hover. Buttons with only `hover:bg-surface-2` (no resting bg)
+ * keep their original transparent style. */
+html[data-theme='glass'] button[class~="bg-surface-2"]:not([disabled]):hover,
+html[data-theme='glass'] button[class~="bg-surface-3"]:not([disabled]):hover,
+html[data-theme='glass'] button[class~="bg-elevated"]:not([disabled]):hover {
   background-color: rgb(var(--surface-3) / 0.65);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.24),
@@ -810,7 +837,7 @@ html[data-theme='glass'] button[class*="bg-elevated"]:not([disabled]):hover {
 
 /* Danger buttons (red fill) — same pillow as primary, slightly muted
  * specular so the warning color stays the loudest cue. */
-html[data-theme='glass'] button[class*="bg-negative"]:not([disabled]) {
+html[data-theme='glass'] button[class~="bg-negative"]:not([disabled]) {
   background-image: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.14) 0%,

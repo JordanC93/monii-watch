@@ -2,6 +2,38 @@
 
 ## Released
 
+### v0.7.16 — Sidebar drag-reorder + Customize button highlight fix
+
+Two bugs from v0.7.12 that the maintainer caught while using the
+sidebar.
+
+**Drag-reorder didn't work.** The `<NavLink>` from react-router
+renders as an `<a href>` element. Anchor elements with `href` are
+auto-draggable in browsers (the OS drags the URL by default), and
+that anchor drag was intercepting the wrapper's drag-and-drop
+events before our handlers could fire. Added `draggable={false}`
+on the NavLink plus a CSS-level `-webkit-user-drag: none` on the
+inner anchor as a Tauri WKWebView safety net. The wrapper stays
+draggable, so reorder gestures land on it.
+
+Also added grab / grabbing cursors so users can see the row is
+draggable on hover.
+
+**Customize button looked permanently highlighted.** v0.7.13's
+glass-button selector used `[class*="bg-surface-2"]` (substring
+match), which matched any class list containing the literal text
+"bg-surface-2" — including `hover:bg-surface-2` on buttons that
+were transparent at rest. The Customize button has only
+`hover:bg-surface-2` (it's transparent until hovered), but the
+selector was painting the hover-state pillow as the resting state.
+
+Fixed by switching `*=` (substring) to `~=` (whitespace-separated
+word match). `[class~="bg-surface-2"]` matches the exact token
+`bg-surface-2` in the class list but NOT `hover:bg-surface-2`,
+because the colon prevents the word match. Same fix applied to
+`bg-surface-3`, `bg-elevated`, `bg-accent`, and `bg-negative`
+selectors.
+
 ### v0.7.15 — HelpHint icons across the rest of the app
 
 Rolled the HelpHint pattern (the small "?" icons next to form

@@ -357,6 +357,13 @@ function NavItem({ to, icon, label, onClick, end = true }: { to: string; icon: R
       to={to}
       end={end}
       onClick={onClick}
+      // `draggable={false}` is critical when this NavLink lives inside
+      // the DraggableNavItem wrapper. Anchor elements with an href are
+      // auto-draggable in browsers (they drag the URL); without
+      // disabling that, the anchor drag intercepts the wrapper's
+      // drag event and the reorder never fires. We also disable
+      // CSS-level user-drag on Webkit via the parent's class.
+      draggable={false}
       className={({ isActive }) => cn(
         'flex items-center gap-2.5 px-2 py-1.5 rounded-md',
         isActive ? 'bg-surface-3 text-fg font-medium' : 'text-fg-muted hover:text-fg hover:bg-surface-2',
@@ -454,7 +461,7 @@ function DraggableNavItem({ entry, onClick }: { entry: NavEntry; onClick?: () =>
         reorder(fromKey, entry.key);
       }}
       className={cn(
-        'rounded-md transition-opacity',
+        'rounded-md transition-opacity sidebar-drag-row',
         isDragging && 'opacity-40',
         isDropTarget && 'ring-2 ring-accent ring-inset',
       )}
