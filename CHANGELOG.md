@@ -2,6 +2,31 @@
 
 ## Released
 
+### v0.7.9 — Glass backdrop center, second pass
+
+The v0.7.3 attempt at softening the rainbow-pinwheel singularity
+at the conic-gradient anchor was too tight (14% radius). When a
+page had no foreground UI sitting in front of the center area
+(Auto-rules, FIRE planner empty state, etc.), the convergence
+band around the softener was still visible.
+
+Two improvements:
+
+- **Wider softener with a smoother fade.** Extended the dark
+  radial wash from 14% to 38% radius, with five intermediate
+  stops so there's no perceptible edge to the softener itself.
+  Base color matches the page's deep midnight bg so it reads
+  as atmospheric haze rather than a dark spotlight.
+- **Eight-stop conic with lower alphas.** Added interpolation
+  stops at the midpoints between palette colors so adjacent
+  colors blend into pastel transitions rather than meeting as
+  hard arcs. Lowered alphas across the board (0.40 / 0.34 /
+  0.30 / 0.36 vs. v0.7.3's 0.50 / 0.42 / 0.38 / 0.46) for a
+  softer overall wash.
+
+The aurora drift animation, palette switcher, and overall
+character are unchanged.
+
 ### v0.7.8 — Multi-window right-click fix + Cloud folder sync discoverability
 
 #### Right-click "Open in New Window" actually opens a new window
