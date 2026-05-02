@@ -147,63 +147,41 @@ html[data-theme='glass']::before {
       transparent 35%,
       rgba(0, 0, 0, 0.30) 70%,
       rgba(0, 0, 0, 0.65) 100%),
-    /* v0.7.9 softener — a much larger, more gradual dark wash centered
-       on the conic anchor. Conic-gradients have a mathematical
-       singularity at their anchor where all four hue stops converge
-       to a single pixel; against the rest of the wash that reads as
-       a harsh rainbow pinwheel. The earlier v0.7.3 attempt at a tiny
-       14% halo wasn't wide enough to cover the visible color-clash
-       band when no foreground UI sits in front of it.
-       This version extends the fade out to ~38% radius with five
-       intermediate stops so there's no perceptible edge to the
-       softener itself. The base color (rgb 8 10 24) matches the
-       page's deep midnight bg so the softener reads as atmospheric
-       haze rather than a dark spotlight. */
-    radial-gradient(circle at 50% 55%,
-      rgba(8, 10, 24, 0.55) 0%,
-      rgba(8, 10, 24, 0.42) 5%,
-      rgba(8, 10, 24, 0.28) 12%,
-      rgba(8, 10, 24, 0.16) 20%,
-      rgba(8, 10, 24, 0.06) 30%,
-      transparent 38%),
-    /* Slow conic-gradient hue wash. Anchored at center, rotates the
-       hue around the page so the whole field feels like one flowing
-       material rather than many sources.
-       Reads palette colors from --glass-c1..c4 — set by
-       `applyGlassPalette()` from src/lib/glassPalettes.ts so the user
-       can pick a preset or custom 4-color set in Settings.
-       Eight stops (one per palette color, plus four interpolation
-       stops at the midpoints) so adjacent colors mix into pastel
-       blends rather than meeting as hard arcs. The wrap-around at
-       0deg / 360deg uses the same color so the seam is invisible.
-       Alphas are slightly lower than v0.7.3 (0.40 / 0.34 / 0.30 /
-       0.36) so the overall wash is softer and the convergence
-       contrast is reduced everywhere, not just at the center. */
-    conic-gradient(from var(--glass-hue-angle, 215deg) at 50% 55%,
-      rgb(var(--glass-c1, 58 72 200) / 0.40) 0deg,
-      rgb(var(--glass-c1, 58 72 200) / 0.36) 45deg,
-      rgb(var(--glass-c2, 110 70 200) / 0.34) 90deg,
-      rgb(var(--glass-c2, 110 70 200) / 0.32) 135deg,
-      rgb(var(--glass-c3, 180 70 160) / 0.30) 180deg,
-      rgb(var(--glass-c3, 180 70 160) / 0.32) 225deg,
-      rgb(var(--glass-c4, 40 130 200) / 0.36) 270deg,
-      rgb(var(--glass-c4, 40 130 200) / 0.38) 315deg,
-      rgb(var(--glass-c1, 58 72 200) / 0.40) 360deg),
-    /* Two enormous, heavily-overlapping radial washes — large enough that
-       neither reads as a discrete blob. The slight position offset gives
-       the conic the feeling of being "lit from above-left". */
-    radial-gradient(140% 110% at var(--glass-pos-1, 30%) var(--glass-pos-1y, 20%),
-      rgb(var(--glass-c2, 80 60 180) / 0.45),
+    /* v0.7.10 — replaced the conic-gradient hue wash with FOUR large,
+       heavily-overlapping radial blobs (one per palette color). The
+       previous conic approach had a mathematical singularity at its
+       anchor point where all hue stops converge to a single pixel.
+       Even after multiple softening passes (v0.7.3 / v0.7.9), the
+       singularity was still visible against same-family palettes
+       (Ocean, Forest) where small alpha differences between adjacent
+       hues read as visible diagonal "X" shadows.
+       Apple's actual abstract wallpapers (Sequoia / Sonoma) use
+       radial blobs, not conic gradients, for exactly this reason.
+       Four blobs at offset positions, each 140% × 110% in size, blend
+       so heavily into each other that no individual blob reads as a
+       discrete light source. The drift animation moves their anchor
+       points slowly, giving the same "flowing" feel the conic
+       provided, without any singularity.
+       Stack order matters: each blob is layered on top of the next.
+       Brighter / closer-to-camera colors go higher in the list. */
+    radial-gradient(140% 110% at var(--glass-pos-1, 28%) var(--glass-pos-1y, 18%),
+      rgb(var(--glass-c1, 58 72 200) / 0.42),
+      transparent 65%),
+    radial-gradient(140% 110% at var(--glass-pos-2, 72%) var(--glass-pos-2y, 82%),
+      rgb(var(--glass-c2, 110 70 200) / 0.40),
+      transparent 65%),
+    radial-gradient(150% 120% at var(--glass-pos-3, 18%) var(--glass-pos-3y, 78%),
+      rgb(var(--glass-c3, 180 70 160) / 0.35),
       transparent 70%),
-    radial-gradient(140% 110% at var(--glass-pos-2, 70%) var(--glass-pos-2y, 80%),
-      rgb(var(--glass-c4, 20 110 180) / 0.40),
+    radial-gradient(150% 120% at var(--glass-pos-4, 82%) var(--glass-pos-4y, 22%),
+      rgb(var(--glass-c4, 40 130 200) / 0.38),
       transparent 70%),
     /* Solid base — deep midnight with the slightest blue. */
     linear-gradient(180deg, #060818 0%, #02030a 100%);
   animation: glass-aurora-drift 120s linear infinite;
   pointer-events: none;
-  /* Slight saturation boost makes the conic wash feel richer without
-     pushing alphas higher (which would create banding). */
+  /* Slight saturation boost gives the wash richness without pushing
+     alphas higher (which would create banding at the blob edges). */
   filter: saturate(1.15);
 }
 
@@ -227,45 +205,56 @@ html[data-theme='glass']::after {
   background-repeat: repeat;
 }
 
-/* Drift animation — 120 seconds linear, full conic rotation. The two
- * anchor positions move on offset paths so the underlying wash slowly
- * shifts character. Linear (not ease-in-out) keeps the rotation
- * imperceptibly steady rather than rocking back and forth. */
+/* Drift animation, 120 seconds linear. All four blob anchor points
+ * move on offset paths (each blob orbits a slightly different center)
+ * so the wash slowly shifts character without any one blob feeling
+ * stationary. Linear (not ease-in-out) keeps the motion imperceptibly
+ * steady rather than rocking back and forth.
+ *
+ * v0.7.10: removed --glass-hue-angle. Conic gone, no angle to rotate. */
 @keyframes glass-aurora-drift {
   0% {
-    --glass-hue-angle: 195deg;
     --glass-pos-1: 28%; --glass-pos-1y: 18%;
     --glass-pos-2: 72%; --glass-pos-2y: 82%;
+    --glass-pos-3: 18%; --glass-pos-3y: 78%;
+    --glass-pos-4: 82%; --glass-pos-4y: 22%;
   }
   25% {
-    --glass-hue-angle: 285deg;
     --glass-pos-1: 38%; --glass-pos-1y: 28%;
     --glass-pos-2: 62%; --glass-pos-2y: 72%;
+    --glass-pos-3: 12%; --glass-pos-3y: 88%;
+    --glass-pos-4: 88%; --glass-pos-4y: 12%;
   }
   50% {
-    --glass-hue-angle: 375deg;
     --glass-pos-1: 32%; --glass-pos-1y: 22%;
     --glass-pos-2: 68%; --glass-pos-2y: 78%;
+    --glass-pos-3: 22%; --glass-pos-3y: 72%;
+    --glass-pos-4: 78%; --glass-pos-4y: 28%;
   }
   75% {
-    --glass-hue-angle: 465deg;
     --glass-pos-1: 22%; --glass-pos-1y: 14%;
     --glass-pos-2: 78%; --glass-pos-2y: 86%;
+    --glass-pos-3: 26%; --glass-pos-3y: 82%;
+    --glass-pos-4: 74%; --glass-pos-4y: 18%;
   }
   100% {
-    --glass-hue-angle: 555deg; /* 195 + 360, full rotation */
     --glass-pos-1: 28%; --glass-pos-1y: 18%;
     --glass-pos-2: 72%; --glass-pos-2y: 82%;
+    --glass-pos-3: 18%; --glass-pos-3y: 78%;
+    --glass-pos-4: 82%; --glass-pos-4y: 22%;
   }
 }
 
 /* CSS-var animation requires registered properties to interpolate
  * smoothly. Without these, keyframes apply discretely. */
-@property --glass-hue-angle { syntax: '<angle>'; inherits: true; initial-value: 215deg; }
-@property --glass-pos-1  { syntax: '<percentage>'; inherits: true; initial-value: 30%; }
-@property --glass-pos-1y { syntax: '<percentage>'; inherits: true; initial-value: 20%; }
-@property --glass-pos-2  { syntax: '<percentage>'; inherits: true; initial-value: 70%; }
-@property --glass-pos-2y { syntax: '<percentage>'; inherits: true; initial-value: 80%; }
+@property --glass-pos-1  { syntax: '<percentage>'; inherits: true; initial-value: 28%; }
+@property --glass-pos-1y { syntax: '<percentage>'; inherits: true; initial-value: 18%; }
+@property --glass-pos-2  { syntax: '<percentage>'; inherits: true; initial-value: 72%; }
+@property --glass-pos-2y { syntax: '<percentage>'; inherits: true; initial-value: 82%; }
+@property --glass-pos-3  { syntax: '<percentage>'; inherits: true; initial-value: 18%; }
+@property --glass-pos-3y { syntax: '<percentage>'; inherits: true; initial-value: 78%; }
+@property --glass-pos-4  { syntax: '<percentage>'; inherits: true; initial-value: 82%; }
+@property --glass-pos-4y { syntax: '<percentage>'; inherits: true; initial-value: 22%; }
 
 /* Reduced motion: freeze the drift, keep the gradient + grain. */
 @media (prefers-reduced-motion: reduce) {

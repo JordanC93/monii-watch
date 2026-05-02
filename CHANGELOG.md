@@ -2,6 +2,56 @@
 
 ## Released
 
+### v0.7.10 — Glass backdrop, finally fixed + Scheduled Transaction copy
+
+**Glass backdrop:** the conic-gradient approach had a fundamental
+problem: any conic gradient has a mathematical singularity at
+its anchor point where every hue stop converges to a single
+pixel. Three softening passes (v0.7.3, v0.7.9) made it less
+obvious but couldn't eliminate it. Same-family palettes (Ocean,
+Forest) still showed visible diagonal "X" shadows where the
+arcs met.
+
+Fix: replaced the conic-gradient hue wash with FOUR large,
+heavily-overlapping radial blobs (one per palette color). This
+is the same approach Apple uses in their abstract Sequoia /
+Sonoma wallpapers, for exactly this reason. Each blob is 140%
+× 110% in size, set at offset positions, and they all fade to
+transparent so they blend smoothly into each other. No
+singularity. No "X" pattern. The drift animation now moves all
+four anchor points slowly, giving the same flowing character
+the conic provided.
+
+The vignette, base color, grain layer, and glass-panel material
+recipe are unchanged. Existing palettes (Aurora, Sunset, Ocean,
+Forest, Rose, Monochrome, Custom) work the same way and look
+better.
+
+**Scheduled Transaction copy:** added contextual help icons next
+to the confusing fields, and tightened the labels:
+
+- "Payee or Transfer" gets a help icon explaining when to use
+  each box. Placeholder is now "e.g. Netflix" instead of
+  generic "Payee", and the transfer dropdown reads "Or move
+  to one of your accounts" instead of "Or pick transfer
+  destination".
+- "Outflow" and "Inflow" each get a help icon explaining
+  which is which (money out / money in) with a concrete
+  example.
+- "Memo" renamed to "Note (optional)" with a more useful
+  placeholder.
+- "Auto-escalate per year" renamed to "Auto-raise per year"
+  with the long inline description moved into a help icon
+  popover.
+- "Also assign to envelope" renamed to "Also fund a category"
+  (envelope is jargon for first-time users) with the long
+  inline description moved into a help icon popover.
+
+The HelpHint component (v0.6.2) was already there for exactly
+this pattern, just not used everywhere it should be. Same
+treatment will roll out to other modals as the dogfood loop
+surfaces them.
+
 ### v0.7.9 — Glass backdrop center, second pass
 
 The v0.7.3 attempt at softening the rainbow-pinwheel singularity

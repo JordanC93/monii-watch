@@ -3,6 +3,7 @@ import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
+import { HelpHint } from '../ui/HelpHint';
 import { useBudget } from '../../store/budget';
 import { createScheduled, updateScheduled, deleteScheduled } from '../../db/repo';
 import { parseAmountToCents } from '../../domain/calc';
@@ -168,13 +169,23 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
         </div>
 
         <div>
-          <label className="text-[12px] text-fg-muted">Payee or Transfer</label>
+          <label className="text-[12px] text-fg-muted flex items-center gap-1">
+            Payee or Transfer
+            <HelpHint title="Payee or Transfer">
+              Pick ONE of the two boxes below. <strong>Payee</strong> is who
+              you're paying or who's paying you (Netflix, your employer, the
+              electric company). <strong>Transfer destination</strong> is
+              another one of your own accounts. Use the right one if this
+              schedule moves money between two of your own accounts (like
+              Checking to Savings).
+            </HelpHint>
+          </label>
           <div className="mt-1 grid grid-cols-2 gap-2">
             <Input
               list="scheduled-payees-datalist"
               value={payee}
               onChange={(e) => { setPayee(e.target.value); if (e.target.value) setTransferTo(''); }}
-              placeholder="Payee"
+              placeholder="e.g. Netflix"
               disabled={isTransfer}
               className="w-full"
             />
@@ -182,7 +193,7 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
               value={transferTo}
               onChange={(e) => { setTransferTo(e.target.value); if (e.target.value) { setPayee(''); setCategoryId(''); } }}
             >
-              <option value="">— Or pick transfer destination —</option>
+              <option value="">Or move to one of your accounts</option>
               {accounts.filter((a) => a.id !== accountId).map((a) => (
                 <option key={a.id} value={a.id}>↔ {a.name}</option>
               ))}
@@ -209,7 +220,13 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[12px] text-fg-muted">Outflow</label>
+            <label className="text-[12px] text-fg-muted flex items-center gap-1">
+              Outflow
+              <HelpHint title="Outflow">
+                Money going OUT of the account. Bills, subscriptions, rent.
+                Fill in this box for a payment.
+              </HelpHint>
+            </label>
             <Input
               value={outflow}
               onChange={(e) => { setOutflow(e.target.value); if (e.target.value) setInflow(''); }}
@@ -219,7 +236,13 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
             />
           </div>
           <div>
-            <label className="text-[12px] text-fg-muted">Inflow</label>
+            <label className="text-[12px] text-fg-muted flex items-center gap-1">
+              Inflow
+              <HelpHint title="Inflow">
+                Money coming IN to the account. Paycheck, dividend, refund.
+                Fill in this box for income.
+              </HelpHint>
+            </label>
             <Input
               value={inflow}
               onChange={(e) => { setInflow(e.target.value); if (e.target.value) setOutflow(''); }}
@@ -252,11 +275,11 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
         </div>
 
         <div>
-          <label className="text-[12px] text-fg-muted">Memo</label>
+          <label className="text-[12px] text-fg-muted">Note <span className="text-fg-subtle">(optional)</span></label>
           <Input
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
-            placeholder="Optional"
+            placeholder="e.g. Confirmation #12345"
             className="mt-1 w-full"
           />
         </div>
@@ -265,8 +288,14 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
             since it's a power-user knob. Useful primarily for retirement
             contribution scheduling ("auto-raise my 401k 1%/yr"). */}
         <div>
-          <label className="text-[12px] text-fg-muted">
-            Auto-escalate per year <span className="text-fg-subtle">(optional)</span>
+          <label className="text-[12px] text-fg-muted flex items-center gap-1">
+            Auto-raise per year <span className="text-fg-subtle">(optional)</span>
+            <HelpHint title="Auto-raise per year">
+              Bumps the amount up by this percentage every year on the
+              anniversary of the start date. Mostly useful for retirement
+              contributions ("raise my 401k contribution by 1% every
+              year"). Leave blank for a flat amount.
+            </HelpHint>
           </label>
           <div className="flex items-center gap-2 mt-1">
             <Input
@@ -278,11 +307,6 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
             />
             <span className="text-[12px] text-fg-muted">% per year</span>
           </div>
-          <div className="text-[10.5px] text-fg-subtle mt-1">
-            Multiplies the amount on each anniversary of the start date.
-            E.g. <code>3</code> = "raise by 3%/year." Useful for retirement
-            contribution auto-escalation.
-          </div>
         </div>
 
         {/* Tier 10 #11 — goal contribution auto-deposit. Picks an
@@ -291,24 +315,27 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
             assign $200 to Vacation envelope"). Doesn't replace the
             existing assignment — adds to it. */}
         <div>
-          <label className="text-[12px] text-fg-muted">
-            Also assign to envelope <span className="text-fg-subtle">(optional)</span>
+          <label className="text-[12px] text-fg-muted flex items-center gap-1">
+            Also fund a category <span className="text-fg-subtle">(optional)</span>
+            <HelpHint title="Also fund a category">
+              When you actually move money to your savings account, you
+              probably also want the matching envelope (e.g. Vacation Fund)
+              to get more money assigned to it. Pick that envelope here and
+              every time this schedule runs we'll bump that envelope's
+              budget up by the same amount. Most useful for
+              "Checking → Savings" style transfers.
+            </HelpHint>
           </label>
           <Select
             value={autoAssignCategoryId}
             onChange={(e) => setAutoAssignCategoryId(e.target.value)}
             className="mt-1 w-full"
           >
-            <option value="">— Don&apos;t auto-deposit —</option>
+            <option value="">Don&apos;t fund any category</option>
             {categories.filter((c) => !c.hidden).map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </Select>
-          <div className="text-[10.5px] text-fg-subtle mt-1">
-            On each materialization, also bump this envelope's assignment
-            by the absolute amount. Useful when you actually move money
-            (transfer to Savings) AND want the envelope funded.
-          </div>
         </div>
 
         {isEdit && existing && (
