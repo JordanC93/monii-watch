@@ -18,6 +18,16 @@ export type GlassPaletteId = 'aurora' | 'sunset' | 'ocean' | 'forest' | 'rose' |
 export type GlassPaletteSetting = {
   id: GlassPaletteId;
   customColors?: [string, string, string, string];
+  /**
+   * v0.7.27 — explicit override for the highlight / accent color, picked
+   * via the "Highlight color" picker that's independent of the wallpaper
+   * grid. Stored as a `#RRGGBB` hex string. When unset (the default), the
+   * accent auto-derives from the preset OR (in custom mode) from the
+   * most-saturated of the four wallpaper picks. Survives across preset
+   * switches AND custom-color edits — the user has to hit the
+   * "Reset to auto" link in the picker to clear it.
+   */
+  customAccent?: string;
 };
 
 export type GlassPaletteDef = {
@@ -34,6 +44,18 @@ export type GlassPaletteDef = {
    *  RGB triplet ("R G B"). Empty string means fall back to the
    *  default theme accent. */
   accent: string;
+  /**
+   * v0.7.27 — `accentIsAuto` distinguishes "this came from the wallpaper
+   * (auto-derived OR preset default)" from "this was explicitly overridden
+   * via customAccent". The picker uses this to show the "↻ Reset to auto"
+   * link only when an override is in effect.
+   */
+  accentIsAuto?: boolean;
+  /**
+   * v0.7.27 — what the accent WOULD be if no override were set. Lets the
+   * picker show the user what auto-mode would pick without applying it.
+   */
+  autoAccent?: string;
 };
 
 /**
@@ -90,39 +112,72 @@ export const GLASS_PALETTES: GlassPaletteDef[] = [
   },
 ];
 
-/** Look up a preset by id. Returns the Aurora preset on unknown ids. */
+/**
+ * Look up a preset by id. Returns the Aurora preset on unknown ids.
+ *
+ * v0.7.27 — accent resolution order (highest priority first):
+ *   1. setting.customAccent  — explicit user override picked via the
+ *                              "Highlight color" picker; survives preset
+ *                              switches + wallpaper edits
+ *   2. preset's own accent   — Aurora's indigo, Sunset's orange, etc.
+ *   3. most-saturated-of-4   — only for `id: 'custom'`; auto-derive
+ *                              from the user's wallpaper picks
+ *
+ * `accentIsAuto` flags whether the result came from priority 2 or 3 (i.e.
+ * no explicit override) so the picker can show "↻ Reset to auto" only
+ * when an override is in effect.
+ */
 export function getGlassPalette(setting: GlassPaletteSetting | undefined): GlassPaletteDef {
+  // First resolve colors + auto-accent (priority 2 or 3).
+  let base: GlassPaletteDef;
   if (!setting || setting.id !== 'custom') {
-    return GLASS_PALETTES.find((p) => p.id === setting?.id) ?? GLASS_PALETTES[0];
+    base = GLASS_PALETTES.find((p) => p.id === setting?.id) ?? GLASS_PALETTES[0];
+  } else {
+    // Custom — convert hex strings to "R G B" triplets.
+    const hex = setting.customColors ?? GLASS_PALETTES[0].colors.map(triplet => triplet) as any;
+    const colors: [string, string, string, string] = [
+      hexToRgbTriplet(hex[0]) ?? GLASS_PALETTES[0].colors[0],
+      hexToRgbTriplet(hex[1]) ?? GLASS_PALETTES[0].colors[1],
+      hexToRgbTriplet(hex[2]) ?? GLASS_PALETTES[0].colors[2],
+      hexToRgbTriplet(hex[3]) ?? GLASS_PALETTES[0].colors[3],
+    ];
+    base = {
+      id: 'custom',
+      label: 'Custom',
+      description: 'Your own four colors.',
+      colors,
+      // Custom auto-accent: pick the most saturated of the four colors so
+      // the active / selected UI color picks up the user's most "branding"
+      // pick. Falls back to the first color if all four are gray.
+      accent: pickMostSaturated(colors) ?? colors[0],
+    };
   }
-  // Custom — convert hex strings to "R G B" triplets.
-  const hex = setting.customColors ?? GLASS_PALETTES[0].colors.map(triplet => triplet) as any;
-  const colors: [string, string, string, string] = [
-    hexToRgbTriplet(hex[0]) ?? GLASS_PALETTES[0].colors[0],
-    hexToRgbTriplet(hex[1]) ?? GLASS_PALETTES[0].colors[1],
-    hexToRgbTriplet(hex[2]) ?? GLASS_PALETTES[0].colors[2],
-    hexToRgbTriplet(hex[3]) ?? GLASS_PALETTES[0].colors[3],
-  ];
-  return {
-    id: 'custom',
-    label: 'Custom',
-    description: 'Your own four colors.',
-    colors,
-    // Custom accent: pick the most saturated of the four colors so the
-    // active / selected UI color picks up the user's most "branding"
-    // pick. Falls back to the first color if all four are gray.
-    accent: pickMostSaturated(colors) ?? colors[0],
-  };
+  // Apply explicit override (priority 1) if the user picked one.
+  const overrideTriplet = (typeof setting?.customAccent === 'string')
+    ? hexToRgbTriplet(setting.customAccent)
+    : null;
+  if (overrideTriplet) {
+    return {
+      ...base,
+      accent: overrideTriplet,
+      accentIsAuto: false,
+      autoAccent: base.accent,
+    };
+  }
+  return { ...base, accentIsAuto: true, autoAccent: base.accent };
 }
 
-/** Apply the palette to <html> as CSS variables. Idempotent / cheap.
+/** Apply the palette's WALLPAPER variables to <html>. Idempotent / cheap.
  *
- *  v0.7.14 — also applies `--accent` so primary buttons, the mobile
- *  FAB, the active nav pill, the focus ring, and every other
- *  accent-tinted UI element pick up the chosen palette. The mono
- *  preset uses an empty accent string to mean "fall back to the
- *  default theme accent" (otherwise the UI loses its focusable tint
- *  on a gray wallpaper). */
+ *  v0.7.27 — split: this function only sets `--glass-c1`..`--glass-c4`
+ *  for the backdrop. Accent (`--accent` + `--accent-rgb`) is now owned
+ *  by `accentOverrides.ts → applyAccentForContext()` so the highlight
+ *  picker can be visible across every theme, not just Glass, and each
+ *  theme/palette context can carry its own override independently.
+ *
+ *  Callers that want both the wallpaper AND the accent updated (e.g.
+ *  the theme reapply path) should call both `applyGlassPalette()` AND
+ *  `applyAccentForContext()`. The store wiring + setTheme do this. */
 export function applyGlassPalette(setting: GlassPaletteSetting | undefined): void {
   if (typeof document === 'undefined') return;
   const def = getGlassPalette(setting);
@@ -131,13 +186,6 @@ export function applyGlassPalette(setting: GlassPaletteSetting | undefined): voi
   root.setProperty('--glass-c2', def.colors[1]);
   root.setProperty('--glass-c3', def.colors[2]);
   root.setProperty('--glass-c4', def.colors[3]);
-  if (def.accent) {
-    root.setProperty('--accent', def.accent);
-  } else {
-    // Empty accent => mono palette => clear the override so the
-    // themes.css default (`64 156 255` systemBlue) takes over again.
-    root.removeProperty('--accent');
-  }
 }
 
 /** Saturation in HSL terms. Returns the triplet with the highest

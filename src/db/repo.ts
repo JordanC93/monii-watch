@@ -79,6 +79,7 @@ const DEFAULT_SETTINGS: Settings = {
   yearInReviewShownFor: 0,
   stockPriceApiKey: '',
   glassPalette: { id: 'aurora' },
+  accentOverrides: {},
   moneyColorMode: 'default',
   monthlyReviews: [],
   monthlyReviewLastShown: '',

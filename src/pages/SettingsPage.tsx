@@ -23,6 +23,7 @@ import { paychecksPerYear } from '../domain/paySchedule';
 import { useUI } from '../store/ui';
 import { DesktopUpdates } from '../components/Settings/DesktopUpdates';
 import { GlassPalettePicker } from '../components/Settings/GlassPalettePicker';
+import { AccentColorPicker } from '../components/Settings/AccentColorPicker';
 import { AllocationRules } from '../components/Settings/AllocationRules';
 import { EmergencyFundSettings } from '../components/Settings/EmergencyFundSettings';
 import { readLocalLayoutPreference, writeLocalLayoutPreference, shouldOfferLayoutToggle } from '../lib/layout';
@@ -530,6 +531,7 @@ export function SettingsPage() {
           ))}
         </div>
         <GlassPalettePicker />
+        <AccentColorPicker />
         <MoneyColorToggle />
         <LayoutToggle />
       </Section>

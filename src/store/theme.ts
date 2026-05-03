@@ -1,6 +1,7 @@
 import type { ThemeName } from '../domain/types';
 import { setSettingsField, getSettings } from '../db/repo';
 import { applyGlassPalette } from '../lib/glassPalettes';
+import { applyAccentForContext } from '../lib/accentOverrides';
 import { syncStatusBarToTheme } from './../lib/capacitor';
 
 const KEY = 'monii:theme';
@@ -63,12 +64,18 @@ function reapply(theme: ThemeName) {
   const concrete = theme === 'auto' ? resolveAutoTheme() : theme;
   document.documentElement.setAttribute('data-theme', concrete);
   applyMetaThemeColor(concrete);
-  // Glass-only: apply the user's chosen palette to the CSS vars the
-  // backdrop reads. Cheap (a few setProperty calls); harmless on
-  // non-glass themes since the vars are unused.
+  // Glass-only: apply the user's chosen palette to the wallpaper CSS
+  // vars. Cheap (a few setProperty calls); harmless on non-glass
+  // themes since the vars are unused.
+  const settings = getSettings();
   if (concrete === 'glass') {
-    try { applyGlassPalette(getSettings().glassPalette); } catch {}
+    try { applyGlassPalette(settings.glassPalette); } catch {}
   }
+  // v0.7.27 — apply the per-context accent override (or clear it so
+  // the static theme accent takes over). Runs on every theme change so
+  // switching theme always shows that theme's stored override or its
+  // natural default — never sticks at a previous theme's accent.
+  try { applyAccentForContext(concrete, settings.glassPalette, settings.accentOverrides ?? {}); } catch {}
 }
 
 /** OS-preference media-query listener. Re-resolves Auto theme when the

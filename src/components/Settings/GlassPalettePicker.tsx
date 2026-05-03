@@ -42,10 +42,13 @@ export function GlassPalettePicker() {
   if (theme !== 'glass') return null;
 
   function pick(id: GlassPaletteId) {
+    // v0.7.27 — accent overrides moved to the per-context
+    // `Settings.accentOverrides` map (see lib/accentOverrides.ts), so
+    // changing the wallpaper palette no longer carries an override
+    // forward by default. The new picker shows the new palette's
+    // override (if any was previously set for THAT palette) or its
+    // natural accent.
     if (id === 'custom') {
-      // Seed Custom with the currently active palette's colors so the
-      // pickers don't reset to defaults the first time the user enters
-      // Custom mode.
       const customColors = (setting.customColors ?? active.colors.map(rgbTripletToHex)) as [string, string, string, string];
       setSettingsField('glassPalette', { id: 'custom', customColors });
       setShowCustom(true);
@@ -59,9 +62,10 @@ export function GlassPalettePicker() {
     const current = (setting.customColors ?? active.colors.map(rgbTripletToHex)) as [string, string, string, string];
     const next = [...current] as [string, string, string, string];
     next[index] = hex;
-    setSettingsField('glassPalette', { id: 'custom', customColors: next });
+    const payload = { id: 'custom' as const, customColors: next };
+    setSettingsField('glassPalette', payload);
     // Apply immediately for live preview while the color picker is open.
-    applyGlassPalette({ id: 'custom', customColors: next });
+    applyGlassPalette(payload);
   }
 
   return (
@@ -82,15 +86,23 @@ export function GlassPalettePicker() {
               setting.id === p.id ? 'border-accent ring-2 ring-accent/30' : 'border-border hover:border-border-strong',
             )}
           >
+            {/* v0.7.27 — preview now mirrors the v0.7.10 actual-backdrop:
+                four large radial blobs at the same anchor points the
+                runtime wallpaper uses, layered over the same midnight
+                base. The previous conic gradient produced the singularity
+                "X" at 50% 50% that we removed from the live backdrop —
+                showing it in the preview was misleading users about what
+                the palette actually looks like. */}
             <div
               className="h-12 w-full"
               style={{
-                background: `conic-gradient(from 215deg at 50% 50%,
-                  rgb(${p.colors[0]}) 0deg,
-                  rgb(${p.colors[1]}) 90deg,
-                  rgb(${p.colors[2]}) 180deg,
-                  rgb(${p.colors[3]}) 270deg,
-                  rgb(${p.colors[0]}) 360deg)`,
+                background: `
+                  radial-gradient(120% 100% at 28% 18%, rgb(${p.colors[0]}) 0%, transparent 62%),
+                  radial-gradient(120% 100% at 72% 82%, rgb(${p.colors[1]}) 0%, transparent 62%),
+                  radial-gradient(140% 110% at 18% 78%, rgb(${p.colors[2]}) 0%, transparent 68%),
+                  radial-gradient(140% 110% at 82% 22%, rgb(${p.colors[3]}) 0%, transparent 68%),
+                  linear-gradient(180deg, #060818 0%, #02030a 100%)
+                `,
               }}
             />
             <div className="text-[11px] font-medium px-2 py-1 text-center bg-surface-2/50">
@@ -146,6 +158,13 @@ export function GlassPalettePicker() {
           </div>
         </div>
       )}
+
+      {/* v0.7.27 — Highlight color picker lives in its own
+          `AccentColorPicker` component now, mounted unconditionally in
+          SettingsPage so it's available across every theme (not just
+          Glass). It reads per-context overrides from
+          `Settings.accentOverrides` and resolves the right context key
+          for the active theme/palette automatically. */}
     </div>
   );
 }

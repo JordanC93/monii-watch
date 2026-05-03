@@ -2,6 +2,49 @@
 
 ## Released
 
+### v0.7.27 — Per-context highlight color overrides
+
+The "Highlight color" picker is now visible across every theme (not just
+Glass) and remembers a separate override for each context — Light, Dark,
+OLED, and per-Glass-palette. Switching themes or palettes shows that
+context's stored override (if any) or its natural default — never sticks
+at a previous context's last color.
+
+What changed:
+
+- New `Settings.accentOverrides: Record<string, string>` map keyed by
+  context: `light` / `dark` / `oled` / `glass:aurora` / `glass:sunset`
+  etc. Hex values, written by the picker, read by the applier on every
+  theme / palette change. Old `glassPalette.customAccent` field marked
+  deprecated; still readable for back-compat with v0.7.26 working
+  snapshots, never written to going forward.
+- New `lib/accentOverrides.ts` owns resolution + application:
+  `getAccentContextKey()`, `getEffectiveAccentHex()`,
+  `applyAccentForContext()`. Writes `--accent` + `--accent-rgb` to
+  `<body>` (cascade-correct — same fix the Monitrr port needed, since
+  the static theme rules declare `--accent` on `body.theme-X` so a more-
+  specific selector would have shadowed an html-level write).
+- `applyGlassPalette()` no longer touches `--accent` — that's owned by
+  `applyAccentForContext()` now. Avoids the double-write conflict that
+  was making Glass palette changes carry an old override forward.
+- New `AccentColorPicker` component, mounted unconditionally in the
+  Settings page. Label changes between "Auto · Light theme" and
+  "Override · Glass · Aurora" so the user knows exactly what scope
+  their pick affects. "↻ Reset to auto" only appears when an override
+  is in effect for the current context.
+- Theme reapply path (`store/theme.ts`) and Yjs settings observer
+  (`store/budget.ts`) both call `applyAccentForContext()` so cross-
+  device sync of `accentOverrides` propagates live.
+- Glass palette preset preview swatches replaced their old conic
+  gradient (with the harsh "X" singularity at 50% 50% that we removed
+  from the live backdrop in v0.7.10) with the same 4-blob radial
+  layout the runtime wallpaper uses. The preview now matches what the
+  user actually sees on the page.
+- Added `input[type="color"]::-webkit-color-swatch` (+ Mozilla
+  equivalent) rules to `globals.css` to strip the inner color-well
+  chrome so the round picker discs render as a clean color swatch
+  instead of a black square inside a circular border.
+
 ### v0.7.26 — Onboarding overhaul, Goals page polish, broader keyboard-bug audit
 
 Three buckets of work, all driven by dogfood feedback after v0.7.25

@@ -1,6 +1,6 @@
 [package]
 name = "monii-watch"
-version = "0.7.26"
+version = "0.7.27"
 description = "Envelope-method budgeting that syncs peer-to-peer."
 authors = ["Monii Watch"]
 license = ""

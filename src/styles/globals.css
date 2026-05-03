@@ -1250,3 +1250,16 @@ input[type='number'] { -moz-appearance: textfield; }
 .app-drag, .app-no-drag, .mac-titlebar-leading-inset {
   /* No-op — see comment above. */
 }
+
+/* v0.7.27 — round <input type="color"> in the GlassPalettePicker should
+ * read as a clean color disc, not a color-well rectangle inside a
+ * rounded border. The element has `appearance: none` + `rounded-full`
+ * applied via Tailwind, but webkit/blink/gecko still render the inner
+ * "swatch" with its own padding + border. Strip both so the user sees
+ * just the picked color filling the entire disc.
+ *
+ * Scoped narrowly to `input[type="color"]` because the GlassPalettePicker
+ * is the only place these inputs appear in the app. */
+input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+input[type="color"]::-moz-color-swatch { border: none; border-radius: 50%; }

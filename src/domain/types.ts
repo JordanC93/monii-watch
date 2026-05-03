@@ -1020,7 +1020,30 @@ export type Settings = {
   glassPalette: {
     id: 'aurora' | 'sunset' | 'ocean' | 'forest' | 'rose' | 'mono' | 'custom';
     customColors?: [string, string, string, string];
+    /**
+     * @deprecated v0.7.27 — moved to top-level `accentOverrides` so the
+     * highlight picker can be visible across every theme, not just Glass.
+     * Still read for back-compat (migrated into accentOverrides on first
+     * boot), never written. Remove the field after a few releases when
+     * we're confident no one has stale local data.
+     */
+    customAccent?: string;
   };
+  /**
+   * v0.7.27 — per-context highlight-color overrides. Keys identify the
+   * context the override applies to:
+   *   `light` / `dark` / `oled`   — flat themes, one accent each
+   *   `glass:aurora` / `glass:sunset` / ...  — Glass theme, per palette
+   *
+   * Stored as `#RRGGBB` hex strings. Each context remembers its override
+   * independently — switching theme or Glass palette shows that
+   * context's override (if any) or the natural default for that context.
+   *
+   * Empty / missing key = no override → use the natural default.
+   * The picker's "↻ Reset to auto" link removes the current context's
+   * key from this map.
+   */
+  accentOverrides: Record<string, string>;
   /**
    * Money color mode. `default` = green for positive, red for negative,
    * the standard YNAB / Quicken look. `monochrome` = no color, just

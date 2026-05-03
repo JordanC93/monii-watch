@@ -68,6 +68,7 @@ const initialSettings: Settings = {
   yearInReviewShownFor: 0,
   stockPriceApiKey: '',
   glassPalette: { id: 'aurora' },
+  accentOverrides: {},
   moneyColorMode: 'default',
   monthlyReviews: [],
   monthlyReviewLastShown: '',
@@ -234,6 +235,7 @@ export function wireStoreToYjs() {
   // when they're unchanged.
   let lastAppliedTheme: ThemeName | null = null;
   let lastAppliedGlassPaletteJson: string | null = null;
+  let lastAppliedAccentOverridesJson: string | null = null;
   doc.getMap(MAPS.settings).observeDeep(() => {
     refreshSettings();
     const settings = useBudget.getState().settings;
@@ -261,6 +263,21 @@ export function wireStoreToYjs() {
         lastAppliedGlassPaletteJson = paletteJson;
         import('../lib/glassPalettes').then((m) => m.applyGlassPalette(settings.glassPalette));
       }
+    }
+
+    // v0.7.27 — accent overrides: apply when the map changed OR when the
+    // theme/palette context changed (since the picker's effective value
+    // depends on the current context). The reapply is cheap (one or two
+    // setProperty calls) so we just re-fire on every settings change
+    // when something accent-relevant moved.
+    const overridesJson = JSON.stringify(settings.accentOverrides ?? {});
+    if (overridesJson !== lastAppliedAccentOverridesJson) {
+      lastAppliedAccentOverridesJson = overridesJson;
+      const concreteForAccent = (concrete === 'glass' || concrete === 'light' || concrete === 'dark' || concrete === 'oled')
+        ? concrete
+        : 'dark';
+      import('../lib/accentOverrides').then((m) =>
+        m.applyAccentForContext(concreteForAccent, settings.glassPalette, settings.accentOverrides ?? {}));
     }
   });
   doc.getMap(MAPS.accounts).observeDeep(refreshAccounts);
