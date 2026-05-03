@@ -131,10 +131,32 @@ describe('matchAccountByLast4', () => {
     expect(matchAccountByLast4('9999', undefined, accounts).confidence).toBe('none');
   });
 
-  it('returns MEDIUM when one match + no network info', () => {
+  it('returns HIGH when one match + no network info on either side', () => {
+    // v0.7.20: a single matching account with no competing candidate
+    // is HIGH. There's no other account it could be — the digits
+    // already disambiguated. The "no network info" case used to
+    // demote to MEDIUM but that conflated "we couldn't confirm" with
+    // "there's a competing answer."
     const r = matchAccountByLast4('5713', undefined, accounts);
-    expect(r.confidence).toBe('medium');
+    expect(r.confidence).toBe('high');
     expect(r.account?.id).toBe('a1');
+  });
+
+  it('returns HIGH when one match + network agrees', () => {
+    const single = [acct({ id: 'visa-only', name: 'Visa', last4: '1234', cardNetwork: 'visa', type: 'credit' })];
+    const r = matchAccountByLast4('1234', 'visa', single);
+    expect(r.confidence).toBe('high');
+    expect(r.account?.id).toBe('visa-only');
+  });
+
+  it('returns LOW when one match + network MISMATCH (both sides differ)', () => {
+    // The only case where 1 candidate drops below HIGH: receipt says
+    // visa but the user's only matching account is amex. Probably a
+    // coincidence on the digits.
+    const single = [acct({ id: 'amex-only', name: 'Amex', last4: '1234', cardNetwork: 'amex', type: 'credit' })];
+    const r = matchAccountByLast4('1234', 'visa', single);
+    expect(r.confidence).toBe('low');
+    expect(r.account?.id).toBe('amex-only');
   });
 
   it('returns HIGH when network disambiguates 2+ matches', () => {
@@ -176,9 +198,11 @@ Transaction ID. ABC-123
     const r = detectAccountFromReceiptText(text, accounts);
     expect(r.detectedLast4).toBe('5713');
     expect(r.account?.id).toBe('chase-checking');
-    // Checking accounts don't have a card network on file, so confidence
-    // sits at MEDIUM — UI surfaces the "Looks like X. Yes / No" prompt.
-    expect(r.confidence).toBe('medium');
+    // v0.7.20: single matching account with no competing candidate is
+    // HIGH. The receipt's checking account + the user's only 5713
+    // account = unambiguous. Banner silently auto-routes with a
+    // "Wrong?" escape hatch instead of asking Yes / No.
+    expect(r.confidence).toBe('high');
   });
 
   it('routes the EXACT OCR text the maintainer provided (Tesseract-flattened bullets)', () => {
@@ -209,6 +233,6 @@ Checking +5713`;
     const r = detectAccountFromReceiptText(text, accounts);
     expect(r.detectedLast4).toBe('5713');
     expect(r.account?.id).toBe('chase-checking');
-    expect(r.confidence).toBe('medium');
+    expect(r.confidence).toBe('high');
   });
 });

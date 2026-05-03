@@ -143,14 +143,33 @@ export function extractCardNetwork(text: string): Account['cardNetwork'] | undef
  * Match an extracted last-4 (and optional network) against the user's
  * accounts. Returns the best candidate + confidence.
  *
- * Decision matrix:
+ * Decision matrix (v0.7.20 reasoning):
  *
- *   - 0 candidates                                      → NONE
- *   - 1 candidate, network matches                      → HIGH
- *   - 1 candidate, no network info on either side       → MEDIUM
- *   - 1 candidate, network mismatch                     → LOW
- *   - 2+ candidates, exactly one network match          → HIGH
- *   - 2+ candidates, no network info to disambiguate    → LOW
+ *   The earlier matrix dropped 1-candidate matches to MEDIUM whenever
+ *   network info was missing on either side. The reasoning was "we
+ *   can't confirm" — but that conflates "we couldn't confirm" with
+ *   "there's a competing answer." When the user has only ONE account
+ *   on file ending in the detected digits, there's no competing
+ *   answer; the only way the match is wrong is if the user genuinely
+ *   has another card / account that matches those digits but hasn't
+ *   entered it. That's the same bet we'd be making at MEDIUM (which
+ *   already prefills the matched account into the form), just with
+ *   one fewer click.
+ *
+ *   Network MISMATCH still drops to LOW because that IS evidence the
+ *   match is wrong (different card brand = different physical card).
+ *
+ *   The new matrix:
+ *
+ *     - 0 candidates                                      → NONE
+ *     - 1 candidate, network mismatch                     → LOW
+ *     - 1 candidate, anything else (match / no info)      → HIGH
+ *     - 2+ candidates, exactly one network match          → HIGH
+ *     - 2+ candidates, can't disambiguate                 → LOW
+ *
+ *   The HIGH banner still shows a "Wrong?" escape hatch so the user
+ *   can override; LOW shows a picker; both NONE and silent assignment
+ *   are still possible. MEDIUM is no longer used by this function.
  */
 export function matchAccountByLast4(
   detectedLast4: string,
@@ -168,22 +187,16 @@ export function matchAccountByLast4(
   }
   if (candidates.length === 1) {
     const a = candidates[0];
-    if (!detectedNetwork && !a.cardNetwork) {
-      return { confidence: 'medium', account: a, detectedLast4, detectedNetwork };
-    }
-    if (detectedNetwork && a.cardNetwork && detectedNetwork === a.cardNetwork) {
-      return { confidence: 'high', account: a, detectedLast4, detectedNetwork };
-    }
+    // Only network MISMATCH (both sides specify, and they differ) is
+    // evidence against the match. Everything else is HIGH because
+    // there's no competing candidate to consider.
     if (detectedNetwork && a.cardNetwork && detectedNetwork !== a.cardNetwork) {
-      // Same digits, different network. Probably a coincidence —
-      // ask the user before assigning.
       return {
         confidence: 'low', account: a, detectedLast4, detectedNetwork,
         alternates: [],
       };
     }
-    // One side has network info, the other doesn't. Treat as medium.
-    return { confidence: 'medium', account: a, detectedLast4, detectedNetwork };
+    return { confidence: 'high', account: a, detectedLast4, detectedNetwork };
   }
   // 2+ matches.
   if (detectedNetwork) {

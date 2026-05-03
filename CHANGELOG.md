@@ -2,6 +2,35 @@
 
 ## Released
 
+### v0.7.20 — Receipt match confidence: single-candidate matches are HIGH
+
+The earlier confidence matrix dropped 1-candidate matches to
+MEDIUM whenever there was no card-network info to confirm. The
+reasoning was "we couldn't confirm" — but that conflated "no
+confirmation available" with "competing answer exists." When
+the user has only ONE account on file ending in the detected
+digits, there's no competing answer; the digits already
+disambiguated. The "no network info" demote was making the user
+click Yes/No on what was already an unambiguous match.
+
+New matrix:
+
+- 0 candidates → NONE
+- 1 candidate, network MISMATCH (both sides specify, differ) → LOW
+- 1 candidate, anything else (match or no info) → HIGH
+- 2+ candidates, network disambiguates to one → HIGH
+- 2+ candidates, can't disambiguate → LOW
+
+Network mismatch still drops to LOW because that IS evidence
+the match is wrong (different brand = different physical card).
+But "Checking +5713" against the user's only account ending in
+5713 now lands at HIGH, silently routes, and shows the
+"Wrong?" escape hatch instead of a Yes / No prompt.
+
+5 unit tests updated, the existing PayPal-receipt regression
+asserts HIGH instead of MEDIUM, plus a new explicit
+network-mismatch test. 239 tests passing.
+
 ### v0.7.19 — Receipt last-4 picks up OCR-misread bullets
 
 v0.7.18 added Unicode bullet handling (`••5713`) to the receipt
