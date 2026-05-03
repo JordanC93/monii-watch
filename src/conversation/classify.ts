@@ -99,7 +99,13 @@ const CC_KEYWORDS = [
 const ISSUER_PATTERNS: Array<{ name: string; re: RegExp }> = [
   { name: 'Chase',         re: /\bchase\b/i },
   { name: 'American Express', re: /\bamerican\s+express\b|\bamex\b/i },
-  { name: 'Capital One',   re: /\bcapital\s+one\b/i },
+  // v0.7.23 — relaxed pattern for OCR-broken renditions of "Capital
+  // One" (the maintainer's Tesseract output produced "Capital Oly"
+  // from the logo). The /\bcapital\s+\w{2,5}\b/ fallback catches
+  // "Capital One", "Capital Oly", "Capital Onee", etc., which is the
+  // realistic OCR error space without colliding with other "Capital"
+  // brand prefixes (we don't have any others on file).
+  { name: 'Capital One',   re: /\bcapital\s+(?:one|o[a-z]{1,4})\b/i },
   { name: 'Discover',      re: /\bdiscover\s+(?:card|it)\b/i },
   { name: 'Bank of America', re: /\bbank\s+of\s+america\b|\bbofa\b/i },
   { name: 'Citi',          re: /\bciti(?:bank)?\b/i },
@@ -108,6 +114,23 @@ const ISSUER_PATTERNS: Array<{ name: string; re: RegExp }> = [
   { name: 'Visa',          re: /\bvisa\b/i },
   { name: 'Mastercard',    re: /\bmaster ?card\b/i },
 ];
+
+/**
+ * Best-effort issuer / bank label lookup for body text. Used by the
+ * receipt-upload flow to seed memo / payee fields on transfer
+ * confirmations and CC payment receipts. Returns null when nothing
+ * matches.
+ *
+ * Exported so other surfaces (transfer detection, sync, etc.) can
+ * reuse the same regex set without duplicating the table.
+ */
+export function pickIssuerLabel(text: string): string | null {
+  if (!text) return null;
+  for (const p of ISSUER_PATTERNS) {
+    if (p.re.test(text)) return p.name;
+  }
+  return null;
+}
 
 function looksLikeCreditCardPayment(text: string): boolean {
   return CC_KEYWORDS.some((re) => re.test(text));

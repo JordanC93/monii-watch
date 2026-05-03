@@ -69,6 +69,16 @@ export function AccountPage() {
             {account.currency && <span className="ml-1.5 text-fg-muted">· {account.currency}</span>}
           </div>
           <div className="text-[18px] font-semibold truncate">{account.name}</div>
+          {/* v0.7.23 — last-4 below the account name. Same treatment as
+              the sidebar AccountItem so the at-a-glance recognition
+              transfers from one surface to the other. Smaller than the
+              CHECKING tag above; only renders when the user has set
+              one in EditAccountModal. */}
+          {account.last4 && (
+            <div className="text-[12px] text-fg-subtle tabular leading-tight mt-0.5">
+              ····{account.last4}
+            </div>
+          )}
           {account.closed && <div className="text-[12px] text-warning">Archived</div>}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-3 sm:gap-6">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ImagePlus, Loader2, Check, AlertTriangle, FileText, CreditCard, Receipt as ReceiptIcon, Trash2, Table2, Users, Banknote, ArrowDownLeft, ArrowUpRight, Tag } from 'lucide-react';
+import { ImagePlus, Loader2, Check, AlertTriangle, FileText, CreditCard, Receipt as ReceiptIcon, Trash2, Table2, Users, Banknote, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Tag } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -10,7 +10,7 @@ import { resizeReceiptToDataUrl } from '../../lib/imageResize';
 import { resolveReceipt, type Receipt } from '../../conversation/receipt';
 import { recognizeReceipt, type OcrProgress } from '../../conversation/ocr';
 import { extractPdfText, type PdfProgress } from '../../conversation/pdf';
-import { classifyDocument, matchCreditAccount, type CreditCardPayment } from '../../conversation/classify';
+import { classifyDocument, matchCreditAccount, pickIssuerLabel, type CreditCardPayment } from '../../conversation/classify';
 import { DEDUCTION_KIND_LABELS } from '../../conversation/paystub';
 import { keywordsForHint } from '../../conversation/vendors';
 import type { ParsedStatementRow } from '../../conversation/statement';
@@ -73,6 +73,11 @@ type Draft =
       date: string;
       fromAccountId: string; // budget account being debited
       toAccountId: string;   // credit account receiving the payment
+      // v0.7.23 — editable memo. For internal transfers (v0.7.22)
+      // the matcher pre-fills it with the user's note + bank label
+      // ("Pet back up fund · Capital One transfer"); user can
+      // override before saving.
+      memo?: string;
     }
   | {
       kind: 'paystub';
@@ -231,18 +236,38 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
     if (transfer && transfer.fullyMatched) {
       setDocKind('cc-payment');
       setTransferDetect(transfer);
+      // Pull a likely bank / issuer name out of the body. Two
+      // fallbacks: the from-account name (where the user may have
+      // already typed "Chase Checking" / "Capital One Checking"), and
+      // an empty string (the memo just says "transfer" with no bank
+      // prefix). The v0.7.23 ISSUER_PATTERNS includes a relaxed
+      // regex for OCR-broken "Capital Oly" / "Capital Onee" so the
+      // garbled logo text still resolves correctly.
+      const issuerLabel =
+        pickIssuerLabel(text)
+        || pickIssuerLabel(transfer.fromAccount!.name)
+        || pickIssuerLabel(transfer.toAccount!.name)
+        || '';
+      // Seed the memo field with both the user's transfer note (most
+      // important context) and the issuer (so the transaction list
+      // tells the user where it came from at a glance). Skip the
+      // issuer prefix when we couldn't resolve one.
+      const memoSeed = transfer.detection.memo
+        ? (issuerLabel ? `${transfer.detection.memo} · ${issuerLabel} transfer` : transfer.detection.memo)
+        : (issuerLabel ? `${issuerLabel} transfer` : 'Transfer');
       setDraft({
         kind: 'cc-payment',
-        issuer: 'Transfer',
+        issuer: issuerLabel,
         cardName: transfer.detection.toName ?? '',
         cardLast4: transfer.detection.toLast4 ?? '',
         amountText: transfer.detection.amount > 0 ? (transfer.detection.amount / 100).toString() : '',
         date: transfer.detection.date ?? todayIso(),
         fromAccountId: transfer.fromAccount!.id,
         toAccountId: transfer.toAccount!.id,
+        memo: memoSeed,
       });
       console.info(
-        `[classify] transfer — from=${transfer.fromAccount!.name} (${transfer.detection.fromLast4}) to=${transfer.toAccount!.name} (${transfer.detection.toLast4}) amount=${transfer.detection.amount}`,
+        `[classify] transfer — from=${transfer.fromAccount!.name} (${transfer.detection.fromLast4}) to=${transfer.toAccount!.name} (${transfer.detection.toLast4}) amount=${transfer.detection.amount} issuer=${issuerLabel}`,
       );
       return;
     }
@@ -386,14 +411,15 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
       const cents = parseAmountToCents(draft.amountText);
       if (cents === null || cents <= 0) { setError('Amount must be a positive number.'); return; }
       if (!draft.fromAccountId || !draft.toAccountId) { setError('Pick both a source and a credit account.'); return; }
-      // Transfer outflow from one budget account to the other. The
-      // memo prefers the user's original transfer note ("Pet back up
-      // fund") when v0.7.22 internal-transfer detection identified
-      // both endpoints; otherwise it falls back to the legacy
-      // "Card payment (...1234)" wording for actual CC payments.
-      const transferMemo = transferDetect && transferDetect.fullyMatched
-        ? (transferDetect.detection.memo || `Transfer ····${transferDetect.detection.fromLast4} → ····${transferDetect.detection.toLast4}`)
-        : `${draft.issuer || 'Card'} payment${draft.cardLast4 ? ` (...${draft.cardLast4})` : ''}`;
+      // Memo: respect the user's edits. The form pre-fills it with
+      // a sensible default (transfer note + issuer label, or
+      // "Card payment (...1234)" for real CC payments), but if the
+      // user typed something different, use that.
+      const transferMemo = draft.memo && draft.memo.trim().length > 0
+        ? draft.memo.trim()
+        : transferDetect && transferDetect.fullyMatched
+          ? (transferDetect.detection.memo || `Transfer ····${transferDetect.detection.fromLast4} → ····${transferDetect.detection.toLast4}`)
+          : `${draft.issuer || 'Card'} payment${draft.cardLast4 ? ` (...${draft.cardLast4})` : ''}`;
       createTransaction({
         accountId: draft.fromAccountId,
         date: draft.date,
@@ -597,6 +623,7 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
                   accounts={accounts}
                   fmt={fmt}
                   onChange={setDraft}
+                  isTransfer={!!(transferDetect && transferDetect.fullyMatched)}
                 />
               </>
             ) : draft.kind === 'paystub' ? (
@@ -912,29 +939,74 @@ function ReceiptForm({ draft, previewUrl, accounts, categories, fmt, onChange, h
   );
 }
 
-function CcPaymentForm({ draft, accounts, fmt, onChange }: { draft: any; accounts: any[]; fmt: (cents: number) => string; onChange: (d: any) => void }) {
-  const fromCandidates = accounts.filter((a) => !a.closed && (a.type === 'checking' || a.type === 'savings'));
-  const creditCandidates = accounts.filter((a) => !a.closed && a.type === 'credit');
+function CcPaymentForm({ draft, accounts, fmt, onChange, isTransfer }: { draft: any; accounts: any[]; fmt: (cents: number) => string; onChange: (d: any) => void; isTransfer?: boolean }) {
+  // For real CC payments the From side is a checking/savings account
+  // and the To side is a credit card. For internal transfers (v0.7.22)
+  // both sides can be any open account, so show the full list and let
+  // the user pick freely. Without this, a Checking → Savings transfer
+  // would have a "To" dropdown that didn't include savings accounts at
+  // all, the matched destination wouldn't render, and the dropdown
+  // would silently default to the first credit card on file.
+  const fromCandidates = isTransfer
+    ? accounts.filter((a) => !a.closed)
+    : accounts.filter((a) => !a.closed && (a.type === 'checking' || a.type === 'savings'));
+  const toCandidates = isTransfer
+    ? accounts.filter((a) => !a.closed)
+    : accounts.filter((a) => !a.closed && a.type === 'credit');
+
+  function swap() {
+    onChange({ ...draft, fromAccountId: draft.toAccountId, toAccountId: draft.fromAccountId });
+  }
+
   return (
     <div className="space-y-2">
       <div className="text-[11.5px] text-fg-subtle">
-        Detected payment to <strong className="text-fg">{draft.issuer || 'a credit card'}</strong>
-        {draft.cardName && <> · {draft.cardName}</>}
-        {draft.cardLast4 && <> ending in <code className="px-1 rounded bg-surface-3 text-fg">{draft.cardLast4}</code></>}
+        {isTransfer ? (
+          <>Transfer between two of your accounts. The destination receives a matching inflow when you save.</>
+        ) : (
+          <>
+            Detected payment to <strong className="text-fg">{draft.issuer || 'a credit card'}</strong>
+            {draft.cardName && <> · {draft.cardName}</>}
+            {draft.cardLast4 && <> ending in <code className="px-1 rounded bg-surface-3 text-fg">{draft.cardLast4}</code></>}
+          </>
+        )}
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      {/* From / Swap / To row. The swap button is a QoL helper: the
+          OCR sometimes gets the from/to direction backwards (especially
+          when the source / destination labels are right-aligned in the
+          original email). One click flips them instead of two
+          dropdown changes. */}
+      <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-end">
         <div>
-          <label className="text-[11.5px] text-fg-subtle">From (budget account)</label>
+          <label className="text-[11.5px] text-fg-subtle">{isTransfer ? 'From' : 'From (budget account)'}</label>
           <Select value={draft.fromAccountId} onChange={(e: any) => onChange({ ...draft, fromAccountId: e.target.value })} className="mt-0.5">
             <option value="">— Pick source —</option>
-            {fromCandidates.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {fromCandidates.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}{a.last4 ? ` ····${a.last4}` : ''}
+              </option>
+            ))}
           </Select>
         </div>
+        <button
+          type="button"
+          onClick={swap}
+          disabled={!draft.fromAccountId || !draft.toAccountId}
+          aria-label="Swap from and to accounts"
+          title="Swap from / to (helpful if the direction was detected backwards)"
+          className="h-9 px-2 rounded-md text-fg-subtle hover:text-fg bg-surface-2/40 hover:bg-surface-2 disabled:opacity-30 disabled:hover:bg-surface-2/40 mb-px"
+        >
+          <ArrowLeftRight size={14} />
+        </button>
         <div>
-          <label className="text-[11.5px] text-fg-subtle">To (credit card)</label>
+          <label className="text-[11.5px] text-fg-subtle">{isTransfer ? 'To' : 'To (credit card)'}</label>
           <Select value={draft.toAccountId} onChange={(e: any) => onChange({ ...draft, toAccountId: e.target.value })} className="mt-0.5">
-            <option value="">— Pick credit account —</option>
-            {creditCandidates.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            <option value="">— Pick destination —</option>
+            {toCandidates.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}{a.last4 ? ` ····${a.last4}` : ''}
+              </option>
+            ))}
           </Select>
         </div>
       </div>
@@ -953,13 +1025,27 @@ function CcPaymentForm({ draft, accounts, fmt, onChange }: { draft: any; account
           ) : null}
         </div>
         <div>
-          <label className="text-[11.5px] text-fg-subtle">Effective date</label>
+          <label className="text-[11.5px] text-fg-subtle">{isTransfer ? 'Date' : 'Effective date'}</label>
           <Input type="date" value={draft.date} onChange={(e: any) => onChange({ ...draft, date: e.target.value })} className="w-full mt-0.5" />
         </div>
       </div>
-      <div className="text-[10.5px] text-fg-subtle">
-        Saved as a transfer. Your budget account is debited and the credit card balance moves toward zero. The category isn't touched (the spending was recorded when the card was originally swiped).
+      {/* Memo is editable too. For transfers we pre-fill with the
+          email's note ("Pet back up fund") + the bank name; user can
+          override if they want different wording. */}
+      <div>
+        <label className="text-[11.5px] text-fg-subtle">Memo {isTransfer && <span className="text-fg-subtle/80">(optional)</span>}</label>
+        <Input
+          value={draft.memo ?? ''}
+          onChange={(e: any) => onChange({ ...draft, memo: e.target.value })}
+          placeholder={isTransfer ? 'e.g. Pet back up fund' : ''}
+          className="w-full mt-0.5"
+        />
       </div>
+      {!isTransfer && (
+        <div className="text-[10.5px] text-fg-subtle">
+          Saved as a transfer. Your budget account is debited and the credit card balance moves toward zero. The category isn't touched (the spending was recorded when the card was originally swiped).
+        </div>
+      )}
     </div>
   );
 }

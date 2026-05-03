@@ -2,6 +2,75 @@
 
 ## Released
 
+### v0.7.23 — Editable transfer match + AccountPage last-4 + memo polish
+
+A round of follow-ups on the v0.7.22 transfer-detection landing.
+
+#### Editable destination on the transfer form
+
+The CC-payment form (which the transfer detector reuses) was
+filtering the "To" dropdown to only show credit-card accounts.
+For an internal Checking → Savings transfer, the matched
+destination wasn't a credit account, so the dropdown silently
+defaulted to the first credit card on file. Result: the
+transaction landed in the wrong account.
+
+The form now branches on whether the upload is an actual
+transfer or a CC payment:
+
+- **Transfer**: both From and To dropdowns list every open
+  account. Each option shows the account name plus its last-4
+  (`Chase Checking ····2470`) so disambiguation is one glance.
+- **CC payment** (the original behavior): From is checking /
+  savings, To is credit. Unchanged.
+
+#### Swap button between From and To
+
+Bank emails sometimes lay out the source / destination labels
+in an order Tesseract reads backwards. A new icon button
+between the From and To dropdowns swaps them in one click,
+which beats the alternative of two dropdown changes.
+
+#### Editable memo
+
+The cc-payment form now exposes a Memo field (used to be a
+silent default). For transfers the matcher pre-fills it with
+the email's transfer note + bank label
+("Pet back up fund · Capital One transfer"); for CC payments
+the legacy "Card payment (...1234)" wording is kept. Either
+way, the user can edit before saving.
+
+#### Better issuer detection (handles OCR errors)
+
+The Capital One ISSUER_PATTERNS regex was strict
+(`\bcapital\s+one\b`), which didn't match "Capital Oly" — the
+OCR rendition of the bank logo on the maintainer's screenshot.
+Loosened to `\bcapital\s+(?:one|o[a-z]{1,4})\b` so realistic
+OCR errors still resolve to the right brand label. Pulled the
+issuer-lookup function out as `pickIssuerLabel(text)` and
+exported it for reuse.
+
+The transfer flow uses three layers of fallback for the issuer
+label: the email body, the from-account name (where the user
+may have typed "Capital One Checking"), and the to-account name.
+
+#### AccountPage header last-4
+
+When an account has a last-4 set, the AccountPage header now
+shows `····5713` directly below the account name, in the same
+small-and-light tabular style the sidebar uses. Single source
+of truth on disambiguating two same-named accounts.
+
+#### Notes for future work
+
+The user's report mentioned "the action doesn't appear on both
+accounts" — `createTransaction` already creates both sides of
+a transfer (paired via `transferTransactionId`); both sides
+are visible from each account's transaction list. The reported
+issue was actually that the destination account was wrong (the
+form silently swapped to a credit card). Fixed by the dropdown
+filter rework above.
+
 ### v0.7.22 — Internal-transfer detection + last-4 in sidebar
 
 #### Internal-transfer detection on receipt upload
