@@ -2,6 +2,81 @@
 
 ## Released
 
+### v0.7.26 — Onboarding overhaul, Goals page polish, broader keyboard-bug audit
+
+Three buckets of work, all driven by dogfood feedback after v0.7.25
+shipped.
+
+**Onboarding fixes** (real first-run UX):
+
+- Modals lock body scroll while open. Mobile users could previously
+  drag the page underneath the welcome wizard; now they can't.
+  `src/components/ui/Modal.tsx` toggles `body.style.overflow = 'hidden'`
+  on open and restores the previous value on close.
+- First-ever boot is now genuinely blank. `initDb()` no longer calls
+  `seedIfEmpty()`. Sample data is opt-in via a "Try with sample data"
+  button on the welcome modal's intro step. Calls a new
+  `loadSampleData()` helper in `repo.ts` that wraps the existing
+  seeder. New users walk through real setup; explorers get the
+  sandbox dataset on demand.
+- Starter-category presets are previewable. Tapping a preset card
+  expands it inline to show every group + every category that will
+  land. A new "None — start blank" card lets users commit to building
+  their own categories rather than skipping ambiguously.
+- "Heads-up on credit cards" step now comes BEFORE the account-add
+  step so users know what type to pick before they have to pick.
+- Account-add step has a Last-4 digits field (4-digit numeric only)
+  and a "Save & add another" button that lets users stack multiple
+  accounts in one visit. The previously-added accounts are surfaced
+  as a running confirmation strip. `createAccount()` accepts the
+  optional `last4` and validates the format.
+- Platform-aware keyboard-shortcut copy. The chat hint, command-
+  palette hint, and bill-split shortcut all branch on
+  `isTouchDevice()` / `isMacOS()` so iOS shows "tap the + button or
+  the chat icon," Mac shows ⌘J / ⌘K, and Windows/Linux show Ctrl+J /
+  Ctrl+K. Same fix applied to `SetupChecklist.tsx`.
+
+**Goals page**:
+
+- Header and empty-state icons swap from `Target` (bullseye) to
+  `Trophy` to match the sidebar + bottom-nav nav icons. The "Target"
+  goal-type button keeps its bullseye reticle as a deliberate
+  affordance distinction.
+- Optional target date on every purchase goal. The AddGoalModal's
+  "Target" goal type now reveals an optional "By" date field; filling
+  it in transparently promotes the goal to `targetByDate` so the
+  pace badge + projection actually engage.
+- ETA from scheduled transfers. `domain/goalProjection.ts` now reads
+  scheduled transactions and sums non-paused entries whose
+  `autoAssignCategoryId` matches the goal's category. New
+  `OCCURRENCES_PER_MONTH` table normalizes per-frequency rates
+  (daily 30.44, weekly 4.348, biweekly 2.174, monthly 1, yearly
+  0.083). When trailing-3-month actuals are zero but scheduled
+  funding exists, the headline projection falls back to the
+  scheduled rate. The expanded goal tile shows a dedicated "ETA from
+  scheduled transfers" band, plus a soft hint nudging deadline-
+  bearing goals without scheduled funding to wire one up.
+- Three new tests in `goals.test.ts` cover monthly auto-deposit,
+  weekly→monthly conversion, and paused-entry exclusion.
+
+**Keyboard-bug audit** (defensive):
+
+The same `useEffect` deps shape that caused v0.7.25's iOS keyboard-
+dismiss bug was hunted across the codebase. Two more places fixed:
+
+- `src/components/ui/MoneyInput.tsx` — the `autoFocus` effect listed
+  `value` and `cur.decimals` in its deps. A parent re-render with a
+  new `value` would re-fire `setText(...)` (wiping mid-typing
+  keystrokes) and `ref.current?.focus()` (dismissing the iOS
+  keyboard). Now it's a true mount-once effect.
+- `src/components/Transactions/TxnContextMenu.tsx` — listener-
+  binding effect listed `onClose` in deps; parents pass inline
+  `onClose={() => ...}` so it fired on every render and re-focused
+  the first menu item via rAF. Switched to the `onCloseRef` pattern.
+
+`ChatPanel`, `CommandPalette`, and `AppLockScreen` were audited and
+already safe.
+
 ### v0.7.25 — Fix iOS keyboard dismissing on every keystroke
 
 The Modal component's focus-management `useEffect` listed

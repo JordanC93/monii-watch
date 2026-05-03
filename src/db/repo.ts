@@ -127,7 +127,14 @@ let _initialized = false;
 
 export function isSettingsLoaded(): boolean { return _initialized; }
 
-/** Ensure default settings exist and seed demo data on first run. Idempotent. */
+/** Ensure default settings exist. Idempotent.
+ *
+ *  v0.7.26 — DOES NOT auto-seed demo data anymore. First-run users
+ *  start with a truly blank workspace (no accounts, no categories,
+ *  no transactions) so the welcome flow can walk them through real
+ *  setup without forcing them to delete sample fixtures first.
+ *  Users who want to explore can click "Try with sample data" in
+ *  the welcome modal, which calls `seedIfEmpty()` directly. */
 export async function initDb(): Promise<void> {
   // Wait a tick for y-indexeddb to load existing state (provider awaits 'synced').
   // Then ensure required maps + settings exist.
@@ -141,10 +148,14 @@ export async function initDb(): Promise<void> {
   // Apply persisted theme to <html> immediately.
   const theme = (sm.get('theme') as ThemeName) ?? 'dark';
   document.documentElement.setAttribute('data-theme', theme);
-
-  // Seed demo data if empty.
-  await seedIfEmpty();
   _initialized = true;
+}
+
+/** Manually seed the demo dataset. Wired to the "Try with sample data"
+ *  button in the welcome flow. Safe to call repeatedly — seedIfEmpty
+ *  short-circuits when any user-shaped data exists. */
+export async function loadSampleData(): Promise<void> {
+  await seedIfEmpty();
 }
 
 // -- Settings -------------------------------------------------------------
@@ -199,12 +210,15 @@ export function listAccounts(): Account[] {
 }
 export function getAccount(id: string): Account | undefined { return accountsMap().get(id); }
 
-export function createAccount(input: { name: string; type: AccountType; openingBalance: number; openingDate?: string }): Account {
+export function createAccount(input: { name: string; type: AccountType; openingBalance: number; openingDate?: string; last4?: string }): Account {
   const id = newId();
   const order = listAccounts().length;
   const acct: Account = {
     id, name: input.name.trim() || 'New Account',
     type: input.type, closed: false, order, createdAt: Date.now(),
+    // v0.7.26 — optional last-4 captured at creation time. Used by
+    // receipt OCR + transfer detection to auto-route uploads.
+    ...(input.last4 && /^\d{4}$/.test(input.last4) ? { last4: input.last4 } : {}),
   };
   tx(() => {
     accountsMap().set(id, acct);

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Target, Plus, CalendarClock, TrendingUp, Pencil, Sparkles, Link as LinkIcon, ChevronDown, ChevronUp, ExternalLink, Wallet, Tag } from 'lucide-react';
+import { Trophy, Plus, CalendarClock, TrendingUp, Pencil, Sparkles, Link as LinkIcon, ChevronDown, ChevronUp, ExternalLink, Wallet, Tag, Repeat } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { useUI } from '../store/ui';
 import { computeMonthBudget } from '../domain/budget';
@@ -13,7 +13,7 @@ import { Button } from '../components/ui/Button';
 import { Money } from '../components/ui/Money';
 import { HelpHint } from '../components/ui/HelpHint';
 import { cn } from '../lib/cn';
-import type { Category, MonthAssignment, Settings } from '../domain/types';
+import type { Category, MonthAssignment, ScheduledTransaction, Settings } from '../domain/types';
 import { adjustAssignment, updateCategory } from '../db/repo';
 import { thisMonthIso } from '../domain/date';
 import { parseAmountToCents } from '../domain/calc';
@@ -53,6 +53,7 @@ export function GoalsPage() {
   const categories = useBudget((s) => s.categories);
   const txns = useBudget((s) => s.transactions);
   const assignments = useBudget((s) => s.assignments);
+  const scheduled = useBudget((s) => s.scheduled);
   const settings = useBudget((s) => s.settings);
   const month = useBudget((s) => s.selectedMonth);
   const openModal = useUI((s) => s.openModal);
@@ -95,7 +96,7 @@ export function GoalsPage() {
       <DealMatchesBanner />
       <div className="glass-panel rounded-3xl p-4 sm:p-5 hidden md:flex flex-wrap items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-accent/15 text-accent grid place-items-center flex-shrink-0">
-          <Target size={18} />
+          <Trophy size={18} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[16px] font-semibold leading-tight flex items-center gap-1">
@@ -126,6 +127,7 @@ export function GoalsPage() {
                 category={c}
                 available={monthBudget.get(c.id)?.available ?? 0}
                 assignments={assignments}
+                scheduled={scheduled}
                 payFrequency={settings.payFrequency}
                 fmt={fmt}
                 onEdit={() => openModal({ type: 'editCategory', categoryId: c.id })}
@@ -163,7 +165,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="p-3 sm:p-5 max-w-3xl mx-auto">
       <div className="glass-panel p-8 sm:p-10 text-center">
-        <Target size={36} className="mx-auto text-fg-subtle mb-3" />
+        <Trophy size={36} className="mx-auto text-fg-subtle mb-3" />
         <div className="text-[14px] font-semibold mb-1">No goals yet</div>
         <div className="text-[12.5px] text-fg-subtle max-w-md mx-auto mb-4">
           Save for something specific. Pick a target amount and a deadline,
@@ -179,11 +181,12 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 }
 
 function GoalTile({
-  category, available, assignments, payFrequency, fmt, onEdit,
+  category, available, assignments, scheduled, payFrequency, fmt, onEdit,
 }: {
   category: Category;
   available: number;
   assignments: MonthAssignment[];
+  scheduled: ScheduledTransaction[];
   payFrequency: Settings['payFrequency'];
   fmt: (cents: number) => string;
   onEdit: () => void;
@@ -191,8 +194,8 @@ function GoalTile({
   const [expanded, setExpanded] = useState(false);
 
   const projection = useMemo(
-    () => computeGoalProjection(category, available, assignments),
-    [category, available, assignments],
+    () => computeGoalProjection(category, available, assignments, scheduled),
+    [category, available, assignments, scheduled],
   );
   if (!projection) return null;
 
@@ -400,6 +403,44 @@ function GoalTile({
               {projection.monthlyRate > 0 && projection.monthlyRate < neededMonthlyForDeadline! && (
                 <> You're {fmt(neededMonthlyForDeadline! - projection.monthlyRate)}/mo short of that.</>
               )}
+            </div>
+          )}
+
+          {/* Scheduled-transfer ETA. Only shown when (a) the goal isn't
+              already funded AND (b) at least one non-paused scheduled
+              transaction is wired to this category via `autoAssignCategoryId`.
+              Distinct from the "Projected" block above, which uses trailing
+              actuals — this one says "if your auto-deposit keeps firing,
+              here's when you'll get there." */}
+          {!funded && projection.scheduledMonthlyRate > 0 && projection.scheduledProjectedDate && (
+            <div className="rounded-md p-2 bg-accent/10 border border-accent/30 text-[12px] flex items-start gap-2">
+              <Repeat size={13} className="text-accent flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-accent">
+                  ETA from scheduled transfers · {formatDate(projection.scheduledProjectedDate)}
+                </div>
+                <div className="text-fg-muted">
+                  Auto-depositing <strong className="text-fg">{fmt(projection.scheduledMonthlyRate)}/mo</strong>
+                  {projection.scheduledMonthsToFinish !== null && projection.scheduledMonthsToFinish > 0 && (
+                    <> reaches the goal in {projection.scheduledMonthsToFinish} mo.</>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Hint: no scheduled transfer wired yet. Only shown for goals
+              with a deadline AND no scheduled funding, so we don't pester
+              users on simple targetBalance goals where manual assignment is
+              the obvious flow. */}
+          {!funded
+            && projection.scheduledMonthlyRate === 0
+            && (category.goal?.type === 'targetByDate' || category.goal?.type === 'annual') && (
+            <div className="rounded-md p-2 bg-surface-2/40 border border-border/60 text-[11.5px] text-fg-subtle flex items-start gap-2">
+              <Repeat size={12} className="flex-shrink-0 mt-0.5" />
+              <span>
+                No auto-deposit set. Add a scheduled transfer with this goal as the auto-assign target to get an ETA.
+              </span>
             </div>
           )}
 

@@ -46,6 +46,10 @@ export function MoneyInput({
     }
   }, [editing]);
 
+  // Only fire on mount — re-running this when `value` changes would steal
+  // focus from the user mid-keystroke (iOS dismisses the keyboard each
+  // time .focus() is called on a different element). Same shape of bug as
+  // the Modal focus loop fixed in v0.7.25.
   useEffect(() => {
     if (autoFocus) {
       setEditing(true);
@@ -54,7 +58,8 @@ export function MoneyInput({
       setText(value === 0 ? '' : dollars.toString());
       setTimeout(() => ref.current?.focus(), 0);
     }
-  }, [autoFocus, value, cur.decimals]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const display = fmt(value);
 

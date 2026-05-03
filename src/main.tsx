@@ -37,8 +37,11 @@ async function bootstrap() {
     if (handleOAuthCallbackIfPresent()) return; // popup closes itself
   }
 
-  // Order matters: persistence must finish loading before seed runs, and
-  // store must wire to Yjs before React renders.
+  // Order matters: persistence must finish loading before initDb writes
+  // defaults (otherwise persisted settings would race with the defaulter),
+  // and the store must be wired to Yjs before React renders. v0.7.26
+  // removed automatic seeding from initDb — sample data is opt-in via
+  // the welcome modal's "Try with sample data" button.
   await initPersistence();
   await initDb();
   wireStoreToYjs();

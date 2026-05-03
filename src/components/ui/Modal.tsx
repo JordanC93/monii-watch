@@ -40,6 +40,17 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: P
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; });
 
+  // Body scroll lock while open. Without this, mobile users can
+  // scroll the page behind the modal (iOS especially — the modal
+  // floats on top but the body underneath is still touch-scrollable
+  // through the backdrop). Restores the previous overflow on close.
+  useEffect(() => {
+    if (!open) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = original; };
+  }, [open]);
+
   // a11y: capture the focused element BEFORE the modal opens so we can
   // return focus to it when the modal closes. Move focus into the
   // modal once it's mounted.

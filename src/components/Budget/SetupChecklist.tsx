@@ -4,6 +4,7 @@ import { useBudget } from '../../store/budget';
 import { useUI } from '../../store/ui';
 import { setSettingsField } from '../../db/repo';
 import { cn } from '../../lib/cn';
+import { isMacOS, isTouchDevice } from '../../lib/device';
 
 /**
  * Setup checklist that lives at the top of the Budget page until the user
@@ -29,6 +30,17 @@ export function SetupChecklist() {
   const triedChat = useMemo(() => {
     try { return localStorage.getItem('monii:triedChat') === '1'; } catch { return false; }
   }, [/* read once on mount; the button below sets it */]);
+
+  // Platform-aware chat shortcut copy. iOS/Android have no keyboard
+  // shortcut — they use the floating + button or top-right chat icon.
+  // Windows/Linux desktop is Ctrl+J, Mac is ⌘J.
+  const chatHint = useMemo(() => {
+    if (isTouchDevice()) {
+      return 'Tap the + button on the bottom-right (or the chat icon up top) and type "spent $12 at Chipotle".';
+    }
+    const key = isMacOS() ? '⌘J' : 'Ctrl+J';
+    return `Press ${key} and type "spent $12 at Chipotle".`;
+  }, []);
 
   const items = [
     {
@@ -63,7 +75,7 @@ export function SetupChecklist() {
       done: triedChat,
       icon: <MessageSquare size={14} />,
       title: 'Try fast-add via chat',
-      hint: 'Tap ⌘J (or the floating + button on mobile) and type "spent $12 at Chipotle".',
+      hint: chatHint,
       action: () => {
         try { localStorage.setItem('monii:triedChat', '1'); } catch {}
         setChatOpen(true);

@@ -11,7 +11,8 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { useBudget } from '../../store/budget';
 import { useUI } from '../../store/ui';
-import { setSettingsField, createAccount } from '../../db/repo';
+import { setSettingsField, createAccount, loadSampleData } from '../../db/repo';
+import { isMacOS, isTouchDevice } from '../../lib/device';
 import { PRESETS, applyPreset, type PresetId } from '../../db/presets';
 import { toast } from '../../lib/toast';
 import { LayoutGrid } from 'lucide-react';
@@ -51,14 +52,29 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
   const [acctName, setAcctName] = useState('Checking');
   const [acctType, setAcctType] = useState<AccountType>('checking');
   const [acctBalance, setAcctBalance] = useState('');
-  const [presetPicked, setPresetPicked] = useState<PresetId | null>(null);
+  const [acctLast4, setAcctLast4] = useState('');
+  // v0.7.26: PresetId | 'none' (explicit "no preset / blank") | null (no
+  // pick yet). The 'none' value is distinct so the user has an explicit
+  // way to commit to "I don't want any starter categories" rather than
+  // skipping (which is ambiguous).
+  const [presetPicked, setPresetPicked] = useState<PresetId | 'none' | null>(null);
+  // Track which preset the user is hovering / has expanded so we can
+  // show its contents inline before they commit.
+  const [presetExpanded, setPresetExpanded] = useState<PresetId | null>(null);
 
   function applyPickedPreset() {
-    if (!presetPicked) { next(); return; }
+    if (!presetPicked || presetPicked === 'none') { next(); return; }
     const { groupsCreated, categoriesCreated } = applyPreset(presetPicked, { mode: 'append' });
     if (groupsCreated > 0 || categoriesCreated > 0) {
       toast.success(`Added ${categoriesCreated} categor${categoriesCreated === 1 ? 'y' : 'ies'}`);
     }
+    next();
+  }
+
+  /** v0.7.26 — wire to the "Try with sample data" button on step 0. */
+  async function loadSamples() {
+    await loadSampleData();
+    toast.success('Loaded sample budget. Explore freely; reset anytime in Settings → Data.');
     next();
   }
 
@@ -84,14 +100,42 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
     next();
   }
 
+  /** Save the current draft and advance to the next step. Called by
+   *  the primary "Add & continue" button. */
   function saveAccount() {
     if (!acctName.trim()) { next(); return; }
+    persistAccountDraft();
+    next();
+  }
+
+  /** Save the current draft, then reset the form so the user can add
+   *  another account without leaving the step. v0.7.26. */
+  function saveAccountAndAddAnother() {
+    if (!acctName.trim()) return;
+    persistAccountDraft();
+    toast.success(`Added ${acctName.trim()}. Add another or click "Continue".`);
+    setAcctName('');
+    setAcctBalance('');
+    setAcctLast4('');
+    // Type stays — most users add several accounts of the same type
+    // back-to-back (multiple checking, then multiple credit, etc).
+  }
+
+  function persistAccountDraft() {
     const cents = parseAmountToCents(acctBalance) ?? 0;
     const isLiability = acctType === 'credit' || acctType === 'loan' || acctType === 'mortgage';
     const opening = isLiability && cents > 0 ? -cents : cents;
-    createAccount({ name: acctName.trim(), type: acctType, openingBalance: opening, openingDate: todayIso() });
-    setAcctName(''); setAcctBalance('');
-    next();
+    const last4 = acctLast4.trim();
+    createAccount({
+      name: acctName.trim(),
+      type: acctType,
+      openingBalance: opening,
+      openingDate: todayIso(),
+      // Last-4 is optional but valuable: receipt OCR + transfer
+      // detection both use it to auto-route uploads to the right
+      // account. Drop empty / non-4-digit input silently.
+      ...(/^\d{4}$/.test(last4) ? { last4 } : {}),
+    });
   }
 
   // Interactive step bodies. Built with closures over local state, so
@@ -132,10 +176,30 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
             </div>
           </div>
           <p className="mt-3 text-[12.5px] text-fg-subtle">
-            This 60-second tour gets you set up. You can skip any step —
+            This 60-second tour gets you set up. You can skip any step;
             the Budget page has a checklist that picks up whatever you
             missed.
           </p>
+          {/* v0.7.26 — explicit choice. By default the app no longer
+              auto-loads sample data on first boot, so the user lands
+              in a truly blank workspace. The button below brings the
+              old demo dataset back for users who want to explore
+              before committing real data. Hidden once the user has
+              any accounts (because then the dataset is no longer
+              empty and the button would be a no-op). */}
+          {accounts.length === 0 && (
+            <div className="mt-4 p-3 rounded-lg border border-border bg-surface-2/30">
+              <div className="text-[12.5px] font-medium mb-1">Want a sandbox first?</div>
+              <div className="text-[11.5px] text-fg-subtle leading-snug">
+                Load a sample budget with a few accounts, categories, and transactions
+                so you can see how everything fits together. You can wipe it later from
+                Settings → Data.
+              </div>
+              <Button variant="secondary" size="sm" onClick={loadSamples} className="mt-2">
+                <Sparkles size={12} /> Try with sample data
+              </Button>
+            </div>
+          )}
         </>
       ),
     },
@@ -216,32 +280,80 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
       body: (
         <>
           <p>
-            Monii Watch gave you some demo categories to play with. If your
-            life looks like one of these, we can add a more useful starting
-            set on top. You can always edit, rename, or remove anything.
+            Pick a starting set that matches your life. Tap the title to
+            preview the categories before committing. You can always edit,
+            rename, or remove anything later.
           </p>
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {PRESETS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setPresetPicked(p.id)}
-                className={cn(
-                  'text-left rounded-lg border-2 p-3 transition',
-                  presetPicked === p.id
-                    ? 'border-accent bg-accent/10'
-                    : 'border-border hover:border-border-strong',
-                )}
-              >
-                <div className="text-[13px] font-semibold">{p.label}</div>
-                <div className="text-[11.5px] text-fg-subtle leading-snug mt-0.5">{p.description}</div>
-                <div className="text-[10.5px] text-fg-subtle mt-1.5">
-                  {p.groups.reduce((n, g) => n + g.categories.length, 0)} categories ·{' '}
-                  {p.groups.length} groups
+            {PRESETS.map((p) => {
+              const isExpanded = presetExpanded === p.id;
+              const isPicked = presetPicked === p.id;
+              return (
+                <div
+                  key={p.id}
+                  className={cn(
+                    'rounded-lg border-2 p-3 transition',
+                    isPicked
+                      ? 'border-accent bg-accent/10'
+                      : 'border-border hover:border-border-strong',
+                  )}
+                >
+                  <button
+                    onClick={() => {
+                      setPresetPicked(p.id);
+                      setPresetExpanded(isExpanded ? null : p.id);
+                    }}
+                    className="text-left w-full"
+                  >
+                    <div className="text-[13px] font-semibold">{p.label}</div>
+                    <div className="text-[11.5px] text-fg-subtle leading-snug mt-0.5">{p.description}</div>
+                    <div className="text-[10.5px] text-fg-subtle mt-1.5 flex items-center gap-1">
+                      {p.groups.reduce((n, g) => n + g.categories.length, 0)} categories ·{' '}
+                      {p.groups.length} groups
+                      <span className="ml-auto text-accent">
+                        {isExpanded ? 'Hide preview' : 'Preview'}
+                      </span>
+                    </div>
+                  </button>
+                  {/* v0.7.26 — inline preview of every group + every
+                      category in the preset, so the user knows exactly
+                      what will land before clicking Apply. */}
+                  {isExpanded && (
+                    <div className="mt-2 pt-2 border-t border-border space-y-2 text-[11px]">
+                      {p.groups.map((g) => (
+                        <div key={g.name}>
+                          <div className="font-medium text-fg-muted">{g.name}</div>
+                          <div className="text-fg-subtle mt-0.5">
+                            {g.categories.map((c) => c.name).join(' · ')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </button>
-            ))}
+              );
+            })}
+            {/* "None" — explicit blank-categories option. v0.7.26.
+                Distinct from skipping the step (which the user might do
+                accidentally); this is "I deliberately want to define my
+                own categories from scratch". */}
+            <button
+              onClick={() => { setPresetPicked('none'); setPresetExpanded(null); }}
+              className={cn(
+                'text-left rounded-lg border-2 p-3 transition',
+                presetPicked === 'none'
+                  ? 'border-accent bg-accent/10'
+                  : 'border-border hover:border-border-strong',
+              )}
+            >
+              <div className="text-[13px] font-semibold">None — start blank</div>
+              <div className="text-[11.5px] text-fg-subtle leading-snug mt-0.5">
+                I'll create my own categories from scratch.
+              </div>
+              <div className="text-[10.5px] text-fg-subtle mt-1.5">No categories added</div>
+            </button>
           </div>
-          {presetPicked && (
+          {presetPicked && presetPicked !== 'none' && (
             <div className="mt-3 text-[11.5px] text-fg-muted bg-surface-2/50 rounded-md p-2">
               We'll add <strong>{PRESETS.find((p) => p.id === presetPicked)?.groups.reduce((n, g) => n + g.categories.length, 0)}</strong> categories
               alongside your existing ones. Duplicates by name are skipped.
@@ -249,19 +361,68 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
           )}
         </>
       ),
-      nextLabel: presetPicked ? 'Apply & continue' : 'Skip',
+      nextLabel: presetPicked === 'none' ? 'Continue blank' : presetPicked ? 'Apply & continue' : 'Skip',
       onNext: applyPickedPreset,
       canSkip: true,
     },
+    /* v0.7.26 — credit cards explainer moved BEFORE the account-add
+       step. Previously users would add their first account (typically
+       checking), advance, then read about credit cards, then realize
+       they had to back up to add the card. Now they read about it
+       first, then have a single account-add step that supports any
+       type (checking, savings, credit, loan, etc) and can add many
+       in one visit. */
     {
-      icon: <Wallet size={28} className="text-accent" />,
-      title: 'Add your first account',
+      icon: <CreditCard size={28} className="text-accent" />,
+      title: 'Adding accounts (heads-up on credit cards)',
       body: (
         <>
           <p>
-            Pick the bank or wallet you'll use most. You can add more later
-            (credit cards, savings, PayPal, whatever).
+            On the next step you'll add your accounts. Add as many as you
+            want; checking, savings, credit cards, PayPal, brokerage,
+            anything you track money in.
           </p>
+          <p className="mt-2">
+            For credit cards specifically, pick type <strong>Credit Card</strong>
+            and enter the balance you currently owe. After onboarding, visit
+            Edit Account to fill in the APR, credit limit, statement closing
+            day, and payment due day.
+          </p>
+          <p className="mt-2">
+            Doing all four unlocks the <strong>Credit Cards page</strong>
+            (utilization bars, days-until-due, interest projections, one-tap
+            Pay) and the <strong>Debt Payoff planner</strong> in Reports.
+          </p>
+          <p className="mt-2 text-fg-subtle text-[12.5px]">
+            Monii Watch also auto-creates a payment category for every credit
+            card so you have an envelope to fund payments from.
+          </p>
+        </>
+      ),
+    },
+    {
+      icon: <Wallet size={28} className="text-accent" />,
+      title: 'Add your accounts',
+      body: (
+        <>
+          <p>
+            Add the accounts you'll use day-to-day. You can come back and
+            add more from the sidebar at any time.
+          </p>
+          {/* v0.7.26 — surface the running list of accounts already
+              created inside this step so the user knows whether they've
+              already added something. */}
+          {accounts.length > 0 && (
+            <div className="mt-3 text-[11.5px] text-positive bg-positive/10 px-3 py-2 rounded-md">
+              <div className="font-medium mb-0.5 flex items-center gap-1.5">
+                <Check size={12} />
+                {accounts.length} account{accounts.length === 1 ? '' : 's'} added
+              </div>
+              <div className="text-fg-muted">
+                {accounts.map((a) => a.name + (a.last4 ? ` ····${a.last4}` : '')).join(' · ')}
+              </div>
+            </div>
+          )}
           <div className="mt-4 space-y-2">
             <div>
               <label className="text-[11.5px] text-fg-subtle">Account name</label>
@@ -299,66 +460,82 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
                   : 'Tracked for net worth, not budgeted (e.g. brokerage).'}
               </div>
             </div>
-            <div>
-              <label className="text-[11.5px] text-fg-subtle">Today's balance</label>
-              <Input
-                value={acctBalance}
-                onChange={(e) => setAcctBalance(e.target.value)}
-                placeholder="0.00"
-                inputMode="decimal"
-                className="w-full mt-0.5 text-right tabular"
-              />
-              <div className="text-[10.5px] text-fg-subtle mt-1">
-                {acctType === 'credit' || acctType === 'loan' || acctType === 'mortgage'
-                  ? 'Enter the balance owed (positive number).'
-                  : 'Recorded as your starting balance. Leave blank for $0.'}
+            <div className="grid grid-cols-[1fr_120px] gap-2">
+              <div>
+                <label className="text-[11.5px] text-fg-subtle">Today's balance</label>
+                <Input
+                  value={acctBalance}
+                  onChange={(e) => setAcctBalance(e.target.value)}
+                  placeholder="0.00"
+                  inputMode="decimal"
+                  className="w-full mt-0.5 text-right tabular"
+                />
+              </div>
+              {/* v0.7.26 — last-4 captured at creation time. Used by
+                  receipt OCR + transfer detection for auto-routing. */}
+              <div>
+                <label className="text-[11.5px] text-fg-subtle">Last 4</label>
+                <Input
+                  value={acctLast4}
+                  onChange={(e) => setAcctLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="1234"
+                  inputMode="numeric"
+                  maxLength={4}
+                  className="w-full mt-0.5 text-center tabular"
+                />
               </div>
             </div>
-          </div>
-          {accounts.length > 0 && (
-            <div className="mt-3 text-[11.5px] text-positive bg-positive/10 px-3 py-2 rounded-md flex items-center gap-2">
-              <Check size={13} />
-              You already have {accounts.length} account{accounts.length === 1 ? '' : 's'}; feel free to skip.
+            <div className="text-[10.5px] text-fg-subtle">
+              {acctType === 'credit' || acctType === 'loan' || acctType === 'mortgage'
+                ? 'Balance: enter what you owe (positive number).'
+                : 'Balance is recorded as your starting balance. Last 4 is optional but lets receipt scans auto-route to the right account.'}
             </div>
-          )}
+            {/* "Add another" lets the user stack multiple accounts in
+                one step instead of advancing the wizard between each. */}
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={saveAccountAndAddAnother}
+                disabled={!acctName.trim()}
+              >
+                <Wallet size={12} /> Save & add another
+              </Button>
+              <span className="text-[10.5px] text-fg-subtle self-center">
+                Or hit "Continue" to save this one and move on.
+              </span>
+            </div>
+          </div>
         </>
       ),
-      nextLabel: acctName.trim() ? 'Add & continue' : 'Skip',
+      nextLabel: acctName.trim()
+        ? 'Save & continue'
+        : (accounts.length > 0 ? 'Continue' : 'Skip'),
       onNext: saveAccount,
       canSkip: true,
-    },
-    {
-      icon: <CreditCard size={28} className="text-accent" />,
-      title: 'Credit cards (optional)',
-      body: (
-        <>
-          <p>
-            If you use a credit card, add it as an account with type{' '}
-            <strong>Credit Card</strong> and the balance you currently owe.
-            Then visit <strong>Edit account</strong> on it later to fill in
-            APR, credit limit, statement closing day, and payment due day.
-          </p>
-          <p className="mt-2">
-            Doing all four unlocks the <strong>Credit Cards page</strong>:
-            utilization bars, days-until-due, monthly interest projections,
-            and a one-tap Pay button. The <strong>Debt Payoff planner</strong>{' '}
-            (Reports) uses the APR for snowball-vs-avalanche projections.
-          </p>
-          <p className="mt-2 text-fg-subtle text-[12.5px]">
-            Monii Watch auto-creates a payment category for every credit card so
-            you have an envelope to fund payments from.
-          </p>
-        </>
-      ),
     },
     {
       icon: <MessageSquare size={28} className="text-accent" />,
       title: 'Fast entry: chat',
       body: (
         <>
+          {/* v0.7.26 — platform-aware copy. Touch devices (iOS, Android,
+              iPad without keyboard) get the tap instruction first.
+              Desktop users get the keyboard shortcut, with the right
+              modifier for their OS (⌘ on Mac, Ctrl elsewhere). */}
           <p>
-            Press <kbd className="kbd-style">⌘J</kbd> (or tap the floating
-            +/chat button on mobile) and type plain English:
+            {isTouchDevice() ? (
+              <>
+                Tap the floating <strong>+ button</strong> on the bottom-right
+                of the screen, or the <strong>chat icon in the top right</strong>,
+                and type plain English:
+              </>
+            ) : (
+              <>
+                Press <kbd className="kbd-style">{isMacOS() ? '⌘J' : 'Ctrl+J'}</kbd>
+                {' '}(or click the chat icon in the top right) and type plain English:
+              </>
+            )}
           </p>
           <ul className="mt-2 space-y-1 text-[12.5px]">
             <li>• <code>spent $12 at Chipotle on dining</code></li>
@@ -446,9 +623,12 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
           <p>
             <strong>Sandbox mode</strong> lets you try changes without
             committing. "What if I had a $500 car payment?" Open the
-            command palette (<kbd className="kbd-style">⌘K</kbd>) → "Enter
-            sandbox mode," override income or add hypothetical bills, see
-            how cash flow + safe-to-spend change. Apply or discard.
+            command palette ({isTouchDevice() ? (
+              <>via the <strong>search icon in the top right</strong></>
+            ) : (
+              <kbd className="kbd-style">{isMacOS() ? '⌘K' : 'Ctrl+K'}</kbd>
+            )}) → "Enter sandbox mode," override income or add hypothetical
+            bills, see how cash flow + safe-to-spend change. Apply or discard.
           </p>
           <p className="mt-2">
             <strong>Auto-allocation rules</strong> (Settings → Income) fire
@@ -457,8 +637,11 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
             set it once.
           </p>
           <p className="mt-2">
-            <strong>Bill split calculator</strong> (⌘K → Bill split) does
-            restaurant math + writes IOUs to the ledger atomically.
+            <strong>Bill split calculator</strong> ({isTouchDevice() ? (
+              'search icon → Bill split'
+            ) : (
+              <>{isMacOS() ? '⌘K' : 'Ctrl+K'} → Bill split</>
+            )}) does restaurant math + writes IOUs to the ledger atomically.
           </p>
           <p className="mt-2 text-fg-subtle text-[12.5px]">
             And <strong>payee merge</strong> (More → Payees) cleans up

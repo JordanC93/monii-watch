@@ -13,7 +13,7 @@
  */
 
 import { addMonths, format, parseISO } from 'date-fns';
-import type { Category, MonthAssignment, Money } from './types';
+import type { Category, MonthAssignment, Money, RecurrenceFrequency, ScheduledTransaction } from './types';
 import { DATE_FMT, shiftMonth, thisMonthIso } from './date';
 
 export type GoalProjection = {
@@ -40,12 +40,68 @@ export type GoalProjection = {
   pace: 'on-track' | 'ahead' | 'behind' | null;
   /** Months between now and projected completion (rounded up). 0 when funded. */
   monthsToFinish: number | null;
+  /**
+   * Sum of monthly contributions from any non-paused ScheduledTransaction
+   * with `autoAssignCategoryId === category.id`. 0 when no scheduled
+   * transfers are wired to this goal. This is the "what you've committed
+   * to" rate, distinct from `monthlyRate` (the "what you've actually
+   * been doing" trailing-3-month rate).
+   */
+  scheduledMonthlyRate: Money;
+  /**
+   * Estimated completion date assuming `scheduledMonthlyRate` keeps up.
+   * Null when scheduledMonthlyRate is 0 OR the goal is already funded.
+   * Surfaced separately from `projectedDate` so users can see "on paper
+   * I'll hit it by X" alongside "at my actual pace I'll hit it by Y".
+   */
+  scheduledProjectedDate: string | null;
+  /** Months from now until `scheduledProjectedDate`. Same null rules. */
+  scheduledMonthsToFinish: number | null;
 };
+
+/**
+ * Average occurrences per month for each recurrence frequency. Conservative
+ * approximations using a 30.4375-day average month (Gregorian-correct).
+ * Used to convert a per-occurrence amount into a monthly rate for ETA math.
+ */
+const OCCURRENCES_PER_MONTH: Record<RecurrenceFrequency, number> = {
+  daily:    30.4375,
+  weekly:   4.348,
+  biweekly: 2.174,
+  monthly:  1,
+  yearly:   1 / 12,
+};
+
+/**
+ * Sum of monthly contributions from every non-paused scheduled transaction
+ * tied to `categoryId` via `autoAssignCategoryId`. Returns integer cents.
+ *
+ * Why `autoAssignCategoryId` and NOT `categoryId`: an envelope is funded
+ * via `MonthAssignment`, never directly from an income/transfer txn. The
+ * `autoAssignCategoryId` field is the explicit hook for "every time this
+ * scheduled txn fires, also bump the assignment for that category."
+ * That's the only signal that reliably means "this scheduled entry funds
+ * this goal."
+ */
+export function monthlyRateFromScheduled(
+  scheduledTxns: ScheduledTransaction[],
+  categoryId: string,
+): Money {
+  let total = 0;
+  for (const s of scheduledTxns) {
+    if (s.paused) continue;
+    if (s.autoAssignCategoryId !== categoryId) continue;
+    const perMonth = Math.abs(s.amount) * OCCURRENCES_PER_MONTH[s.frequency];
+    total += perMonth;
+  }
+  return Math.round(total);
+}
 
 export function computeGoalProjection(
   category: Category,
   available: Money,
   assignments: MonthAssignment[],
+  scheduledTxns: ScheduledTransaction[] = [],
   now: string = thisMonthIso(),
 ): GoalProjection | null {
   const goal = category.goal;
@@ -79,9 +135,22 @@ export function computeGoalProjection(
     ? Math.round(sumLastThree / Math.max(distinctMonthsWithData, 1))
     : (assignments.find((x) => x.month === now && x.categoryId === category.id)?.assigned ?? 0);
 
-  // For targetByDate / annual: if user has a deadline but no contribution
-  // history, fall back to "what you'd need to contribute monthly to hit
-  // the deadline."
+  // Scheduled transfers wired to this goal (Tier 10 #11
+  // `autoAssignCategoryId`). Always computed even when 0 so callers can
+  // surface a "no scheduled transfers wired" hint when relevant.
+  const scheduledMonthlyRate = monthlyRateFromScheduled(scheduledTxns, category.id);
+
+  // If the user has scheduled funding wired up but hasn't built any
+  // history yet (brand-new goal), use the scheduled rate as the pace
+  // estimate. This matches user intent: "I just set up auto-deposit,
+  // tell me when I'll get there based on that."
+  if (monthlyRate === 0 && scheduledMonthlyRate > 0) {
+    monthlyRate = scheduledMonthlyRate;
+  }
+
+  // For targetByDate / annual: if user has a deadline but still no
+  // contribution signal at all, fall back to "what you'd need to
+  // contribute monthly to hit the deadline."
   if ((goal.type === 'targetByDate' || goal.type === 'annual') && monthlyRate === 0 && dueDate) {
     const monthsToDeadline = monthsBetween(now, dueDate.slice(0, 7));
     if (monthsToDeadline > 0) monthlyRate = Math.ceil(remaining / monthsToDeadline);
@@ -96,6 +165,17 @@ export function computeGoalProjection(
     monthsToFinish = Math.ceil(remaining / monthlyRate);
     const projected = addMonths(parseISO(now + '-01'), monthsToFinish);
     projectedDate = format(projected, DATE_FMT);
+  }
+
+  // Independent ETA based purely on scheduled commitments. Surfaced
+  // alongside `projectedDate` when both exist so the user sees both
+  // "actual pace" and "auto-deposit pace."
+  let scheduledProjectedDate: string | null = null;
+  let scheduledMonthsToFinish: number | null = null;
+  if (remaining > 0 && scheduledMonthlyRate > 0) {
+    scheduledMonthsToFinish = Math.ceil(remaining / scheduledMonthlyRate);
+    const projected = addMonths(parseISO(now + '-01'), scheduledMonthsToFinish);
+    scheduledProjectedDate = format(projected, DATE_FMT);
   }
 
   let pace: GoalProjection['pace'] = null;
@@ -117,6 +197,9 @@ export function computeGoalProjection(
     projectedDate,
     pace,
     monthsToFinish,
+    scheduledMonthlyRate,
+    scheduledProjectedDate,
+    scheduledMonthsToFinish,
   };
 }
 

@@ -32,13 +32,20 @@ export function TxnContextMenu({ txnId, x, y, onClose }: Props) {
   const openModal = useUI((s) => s.openModal);
   const ref = useRef<HTMLDivElement>(null);
   const nav = useNavigate();
+  // `onClose` lives in a ref so the listener-binding effect doesn't have
+  // to depend on it. Inline `onClose={() => ...}` from the parent gets a
+  // new identity every render, which would re-run this effect → re-call
+  // .focus() → on iOS, dismiss the keyboard. Same shape as the Modal /
+  // MoneyInput fixes.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      if (ref.current && !ref.current.contains(e.target as Node)) onCloseRef.current();
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
       // Arrow-key navigation between menu items.
       if (!ref.current) return;
       const items = Array.from(ref.current.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
@@ -63,7 +70,9 @@ export function TxnContextMenu({ txnId, x, y, onClose }: Props) {
       document.removeEventListener('mousedown', onClick);
       document.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+    // Intentionally NO `onClose` in deps; we use the ref above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!txn) return null;
 

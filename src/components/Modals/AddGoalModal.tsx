@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { ImagePlus, Target, CalendarClock, Trash2, Sparkles } from 'lucide-react';
+import { ImagePlus, Target, Trophy, CalendarClock, Trash2, Sparkles } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -85,9 +85,13 @@ export function AddGoalModal({ open, onClose }: { open: boolean; onClose: () => 
       targetGroupId = existing ? existing.id : createGroup('Goals').id;
     }
 
-    const goal: CategoryGoal = { type: shape, amount: amountCents };
-    if (shape === 'targetByDate' && dueDate) goal.dueDate = dueDate;
-    if (shape === 'annual') {
+    // If the user picked "Target" but filled in an optional deadline,
+    // promote the goal to `targetByDate` so the deadline is actually
+    // enforced by the projection + pace badge.
+    const effectiveShape: GoalShape = (shape === 'targetBalance' && dueDate) ? 'targetByDate' : shape;
+    const goal: CategoryGoal = { type: effectiveShape, amount: amountCents };
+    if ((effectiveShape === 'targetByDate') && dueDate) goal.dueDate = dueDate;
+    if (effectiveShape === 'annual') {
       const m = parseInt(annualMonth, 10);
       const d = parseInt(annualDay, 10);
       if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
@@ -118,7 +122,7 @@ export function AddGoalModal({ open, onClose }: { open: boolean; onClose: () => 
     <Modal
       open={open}
       onClose={close}
-      title={<span className="flex items-center gap-2"><Target size={14} /> New Goal</span>}
+      title={<span className="flex items-center gap-2"><Trophy size={14} /> New Goal</span>}
       size="lg"
       footer={
         <div className="flex justify-end gap-2">
@@ -246,15 +250,22 @@ export function AddGoalModal({ open, onClose }: { open: boolean; onClose: () => 
                 <div className="text-[10.5px] text-fg-subtle mt-0.5">{fmt(amountCents)}</div>
               )}
             </div>
-            {shape === 'targetByDate' && (
+            {(shape === 'targetByDate' || shape === 'targetBalance') && (
               <div>
-                <label className="text-[11.5px] text-fg-subtle">By</label>
+                <label className="text-[11.5px] text-fg-subtle">
+                  By {shape === 'targetBalance' && <span className="text-fg-subtle/80">(optional)</span>}
+                </label>
                 <Input
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
                   className="w-full mt-0.5"
                 />
+                {shape === 'targetBalance' && dueDate && (
+                  <div className="text-[10.5px] text-fg-subtle mt-0.5">
+                    Adding a date switches this to a "By date" goal.
+                  </div>
+                )}
               </div>
             )}
             {shape === 'annual' && (
