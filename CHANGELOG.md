@@ -2,6 +2,45 @@
 
 ## Released
 
+### v0.7.21 — Fuzzy payee match on receipt upload
+
+The receipt OCR lifts the vendor name straight out of the scan,
+which often gets a truncated or processor-wrapped variant of an
+existing payee. PayPal's title for the maintainer's Starbucks
+receipt was "Starbucks Coffee Com..." (truncated) — saving as-is
+created a brand-new "Starbucks Coffee Com..." payee even though
+"Starbucks" was already on file. Over time this fragments the
+payee list and breaks auto-categorize history.
+
+New `src/conversation/payeeMatch.ts`:
+
+- `normalizeVendorName()` lowercases, strips punctuation, drops
+  payment-processor noise tokens (Inc, LLC, Corp, "Purchase",
+  etc.), discards transaction-ID-shaped runs of digits and
+  mixed alphanum codes.
+- `vendorMatchScore(a, b)` returns 0..1. Token-aligned prefix
+  match (one is a clean prefix of the other ending at a word
+  boundary) scores high. Token overlap (Jaccard) with a
+  first-token-match bonus catches cases like "Starbucks
+  Coffee" vs "Starbucks Pike Place".
+- `findFuzzyPayeeMatch(parsed, payees)` returns the best match
+  if score ≥ 0.70 (the maintainer's stated "ask the user" bar).
+  Returns null on exact matches because `ensurePayee` already
+  dedups those silently — no point prompting.
+
+Wired into `ReceiptUploadModal`: after the OCR parses a vendor,
+the matcher runs against the existing payee list. If a match
+clears 70%, a new banner appears above the receipt form: "Looks
+like an existing payee: Starbucks · 87% match. Receipt says
+'Starbucks Coffee Com...'. Use existing, or keep the receipt's
+name as a new one?" Accept overwrites the form's vendor field
+with the existing payee name; dismiss keeps the parsed name as
+a new payee.
+
+19 unit tests in `payeeMatch.test.ts` cover the normalize,
+score, and find-match paths plus the verbatim PayPal title
+the maintainer pasted.
+
 ### v0.7.20 — Receipt match confidence: single-candidate matches are HIGH
 
 The earlier confidence matrix dropped 1-candidate matches to

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ImagePlus, Loader2, Check, AlertTriangle, FileText, CreditCard, Receipt as ReceiptIcon, Trash2, Table2, Users, Banknote, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { ImagePlus, Loader2, Check, AlertTriangle, FileText, CreditCard, Receipt as ReceiptIcon, Trash2, Table2, Users, Banknote, ArrowDownLeft, ArrowUpRight, Tag } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -17,6 +17,7 @@ import type { ParsedStatementRow } from '../../conversation/statement';
 import type { PaycheckDeduction } from '../../domain/types';
 import { findCategoryByText } from '../../conversation/parse';
 import { detectAccountFromReceiptText, type CardMatchResult } from '../../conversation/cardMatch';
+import { findFuzzyPayeeMatch, type PayeeMatchResult } from '../../conversation/payeeMatch';
 import { todayIso } from '../../domain/date';
 import { parseAmountToCents } from '../../domain/calc';
 import { useFormatMoney } from '../../lib/format';
@@ -111,6 +112,12 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
   // the UI can show a confirmation banner for MEDIUM / LOW matches and
   // an info pill for HIGH matches.
   const [cardMatch, setCardMatch] = useState<CardMatchResult | null>(null);
+  // v0.7.21 — fuzzy payee match. Set when the parsed vendor is close
+  // (≥70% similarity) to an existing payee but not exact. Cleared
+  // when the user accepts (vendor field updated to the existing
+  // name) or dismisses (parsed name kept, no further prompts).
+  const [payeeMatch, setPayeeMatch] = useState<PayeeMatchResult | null>(null);
+  const payees = useBudget((s) => s.payees);
   const [rawText, setRawText] = useState<string>('');
   const [docKind, setDocKind] = useState<DocKind>('receipt');
   /** Holds the original image file so we can attach a resized copy to the
@@ -136,6 +143,7 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
     setPdfFile(null);
     setAttachReceipt(true);
     setCardMatch(null);
+    setPayeeMatch(null);
     if (fileRef.current) fileRef.current.value = '';
   }
 
@@ -276,6 +284,14 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
       // silently; MEDIUM/LOW also sets it but the UI shows a notice.
       const cardMatch = detectAccountFromReceiptText(text, accounts);
       setCardMatch(cardMatch);
+      // v0.7.21 — fuzzy payee match. The OCR'd vendor is often a
+      // truncated or processor-wrapped variant of an existing payee
+      // ("Starbucks Coffee Com..." → "Starbucks"). When that's the
+      // case at >= 70% confidence, surface a "Use existing payee?"
+      // prompt instead of silently creating a duplicate. Exact
+      // matches return null (ensurePayee already dedups them).
+      const pMatch = findFuzzyPayeeMatch(r.vendor, payees);
+      setPayeeMatch(pMatch);
       const defaultAcct = (cardMatch.account?.id) ?? accounts.find((a) => !a.closed)?.id ?? '';
       setDraft({
         kind: 'receipt',
@@ -288,6 +304,7 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
       console.info(
         `[classify] ${result.kind} — vendor="${r.vendor}" amount=${r.amount} date=${r.date ?? '?'} `
         + `card=${cardMatch.confidence}${cardMatch.detectedLast4 ? ` (****${cardMatch.detectedLast4})` : ''}`
+        + `${pMatch ? ` payeeFuzzy="${pMatch.payee.name}" (${Math.round(pMatch.score * 100)}%)` : ''}`
       );
     }
   }
@@ -538,6 +555,24 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
                     selectedAccountId={(draft.kind === 'receipt' && draft.accountId) || ''}
                   />
                 )}
+                {/* v0.7.21 — fuzzy payee match banner. Shown when the
+                    parsed vendor is close (≥70%) to an existing payee
+                    so the user can collapse a duplicate at upload time
+                    instead of cleaning it up later in the payee list.
+                    Hidden on the dedicated payee picker form
+                    (statement / cc / paystub) which already exposes
+                    the payee field directly. */}
+                {payeeMatch && draft.kind === 'receipt' && (
+                  <PayeeMatchBanner
+                    match={payeeMatch}
+                    parsedVendor={draft.vendor}
+                    onAccept={() => {
+                      setDraft((d) => d && d.kind === 'receipt' ? { ...d, vendor: payeeMatch.payee.name } : d);
+                      setPayeeMatch(null);
+                    }}
+                    onDismiss={() => setPayeeMatch(null)}
+                  />
+                )}
                 <ReceiptForm
                   draft={draft}
                   previewUrl={previewUrl}
@@ -683,6 +718,58 @@ function CardMatchBanner({
               className="px-2 py-0.5 rounded bg-surface-3 text-fg-subtle text-[11.5px] hover:text-fg"
             >
               Skip · pick manually
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Fuzzy payee match prompt (v0.7.21). Shown when the OCR'd vendor
+ * looks like a near-miss for an existing payee on file. The accept
+ * action overwrites the form's vendor field with the existing payee
+ * name; dismissing keeps the parsed name as a new payee.
+ *
+ * The score is converted to a friendly "%" label so the user has a
+ * sense of how confident the match is. Anything in this banner is
+ * already ≥70% (MATCH_THRESHOLD).
+ */
+function PayeeMatchBanner({
+  match, parsedVendor, onAccept, onDismiss,
+}: {
+  match: PayeeMatchResult;
+  parsedVendor: string;
+  onAccept: () => void;
+  onDismiss: () => void;
+}) {
+  const pct = Math.round(match.score * 100);
+  return (
+    <div className="p-2.5 rounded-md border border-accent/40 bg-accent/10 text-[12px]">
+      <div className="flex items-start gap-2">
+        <Tag size={13} className="text-accent flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <div className="font-medium">
+            Looks like an existing payee:{' '}
+            <span className="text-accent">{match.payee.name}</span>
+            <span className="text-fg-subtle font-normal"> · {pct}% match</span>
+          </div>
+          <div className="text-[11px] text-fg-subtle mt-0.5">
+            Receipt says <span className="text-fg-muted">"{parsedVendor}"</span>. Use the existing payee, or keep the receipt's name as a new one?
+          </div>
+          <div className="flex gap-1.5 mt-1.5">
+            <button
+              onClick={onAccept}
+              className="px-2 py-0.5 rounded bg-accent text-accent-fg text-[11.5px] font-medium hover:brightness-110"
+            >
+              <Check size={11} className="inline -mt-0.5" /> Use {match.payee.name}
+            </button>
+            <button
+              onClick={onDismiss}
+              className="px-2 py-0.5 rounded bg-surface-3 text-fg-muted text-[11.5px] hover:text-fg"
+            >
+              Keep "{parsedVendor}"
             </button>
           </div>
         </div>
