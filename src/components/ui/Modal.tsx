@@ -40,15 +40,42 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: P
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; });
 
-  // Body scroll lock while open. Without this, mobile users can
-  // scroll the page behind the modal (iOS especially — the modal
-  // floats on top but the body underneath is still touch-scrollable
-  // through the backdrop). Restores the previous overflow on close.
+  // Body scroll lock while open.
+  //
+  // iOS WKWebView (Capacitor + the PWA in Safari) doesn't always honor
+  // `body { overflow: hidden }` for touch-drag scrolling — the modal
+  // floats on top, but a one-finger drag on the backdrop still scrolls
+  // the page behind it. The bulletproof fix is the "freeze body in
+  // place" pattern: snapshot scrollY, then set body to position:fixed
+  // with top:-scrollY so the body visually stays put. On close we
+  // restore the styles AND scrollTo(0, scrollY) so the user lands back
+  // exactly where they were.
+  //
+  // Layered: also zero `overflow` because some browsers (older Android
+  // WebView) ignore the position:fixed approach.
   useEffect(() => {
     if (!open) return;
-    const original = document.body.style.overflow;
+    const scrollY = window.scrollY;
+    const prev = {
+      position: document.body.style.position,
+      top: document.body.style.top,
+      width: document.body.style.width,
+      overflow: document.body.style.overflow,
+    };
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = original; };
+    return () => {
+      document.body.style.position = prev.position;
+      document.body.style.top = prev.top;
+      document.body.style.width = prev.width;
+      document.body.style.overflow = prev.overflow;
+      // Restore scroll position. Without this the page jumps back to
+      // the top when the modal closes (because position:fixed reset
+      // scrollY to 0 while it was active).
+      window.scrollTo(0, scrollY);
+    };
   }, [open]);
 
   // a11y: capture the focused element BEFORE the modal opens so we can
