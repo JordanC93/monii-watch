@@ -115,7 +115,7 @@ function pickLabelledLine(text: string, label: 'from' | 'to'): string | null {
  * trailing bare 4-digit token.
  */
 function extractLast4FromLine(line: string): string | null {
-  // Mask + digits ("Simply Checking...2470" / "Savings ••6886" / "Acct *1234").
+  // Mask + digits ("Simply Checking...5678" / "Savings ••9012" / "Acct *1234").
   const masked = line.match(/[*xX•●·+]{1,}\s?(\d{4})\b/) || line.match(/\.{2,}\s*(\d{4})\b/);
   if (masked) return masked[1];
   // Trailing 4-digit token after at least one whitespace.
@@ -126,7 +126,7 @@ function extractLast4FromLine(line: string): string | null {
 
 /**
  * Strip the masking + digits from a labeled line to recover the
- * human-readable account label. "Simply Checking...2470" → "Simply
+ * human-readable account label. "Simply Checking...5678" → "Simply
  * Checking".
  */
 function extractAccountNameFromLine(line: string): string | null {

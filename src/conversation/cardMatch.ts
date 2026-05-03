@@ -44,8 +44,8 @@ export type CardMatchResult = {
  *   ●       (U+25CF BLACK CIRCLE, similar usage)
  *   ·       (U+00B7 MIDDLE DOT, less common but seen on bank PDFs)
  *   +       (OCR commonly misreads bullets as +. Tesseract on a
- *            crisp PayPal receipt screenshot turned `••5713` into
- *            `+5713` — so we treat + as a mask glyph too.)
+ *            crisp PayPal receipt screenshot turned `••1234` into
+ *            `+1234` — so we treat + as a mask glyph too.)
  *
  * Patterns combine these into runs of 1+, 2+, 3+, or 4 chars
  * depending on how confidently we want to claim "this is a card
@@ -63,12 +63,12 @@ const ACCOUNT_TYPE_WORD = '(?:checking|savings|saving|credit(?:\\s*card)?|debit(
 const LAST4_PATTERNS: RegExp[] = [
   // "Card ending in 1234" / "ending 1234"
   /\b(?:card\s+)?(?:ending(?:\s+in)?|ends?\s+in)\s*[#:]?\s*(\d{4})\b/i,
-  // "Checking ••5713" / "Savings ••••5713" / "Credit Card ****1234"
-  // / "Checking +5713" (OCR-misread bullet). Single mask char is
+  // "Checking ••1234" / "Savings ••••1234" / "Credit Card ****1234"
+  // / "Checking +1234" (OCR-misread bullet). Single mask char is
   // enough here because the account-type word provides context;
   // without it (the bare-mask patterns below) we still require 3+.
   new RegExp(`\\b${ACCOUNT_TYPE_WORD}[\\s#:\\-]*${MASK_RUN_1}[\\s\\-]?(\\d{4})\\b`, 'i'),
-  // "Card: VISA ****1234" / "Card #****1234" / "Card: ••••5713"
+  // "Card: VISA ****1234" / "Card #****1234" / "Card: ••••1234"
   new RegExp(`(?:card|acct|account)[\\s#:]*[a-z]*[\\s]*${MASK_RUN_2}[\\s\\-]?(\\d{4})\\b`, 'i'),
   // "VISA ****1234" / "MasterCard XXXX1234" / "Visa ••••1234"
   new RegExp(`(?:visa|mastercard|master\\s*card|amex|american\\s*express|discover|debit|credit)\\s*${MASK_RUN_2}[\\s\\-]?(\\d{4})\\b`, 'i'),
@@ -79,7 +79,7 @@ const LAST4_PATTERNS: RegExp[] = [
   new RegExp(`${MASK_RUN_4}[\\s\\-]${MASK_RUN_4}[\\s\\-]${MASK_RUN_4}[\\s\\-](\\d{4})\\b`),
   // "Acct: ...1234" (3+ leading dots)
   /(?:acct|account)\s*[#:]?\s*\.{3,}\s*(\d{4})\b/i,
-  // Bare "Checking 5713" / "Savings #5713" / "Acct 5713". Lowest
+  // Bare "Checking 1234" / "Savings #1234" / "Acct 1234". Lowest
   // priority because it's the most ambiguous (any 4-digit number
   // after the type word would match). The position-of-LAST-match
   // logic in `extractLast4` keeps the actual payment line over a

@@ -2,7 +2,7 @@
  * Pattern + match coverage for the receipt last-4 detector.
  *
  * Added in v0.7.18 after the Tier 12 #16 routing missed a PayPal
- * receipt that used Unicode bullets ("Checking ••5713") instead of
+ * receipt that used Unicode bullets ("Checking ••1234") instead of
  * the asterisk masks the original patterns assumed.
  */
 
@@ -42,37 +42,37 @@ describe('extractLast4', () => {
     expect(extractLast4('Acct: ...1234')).toBe('1234');
   });
 
-  it('handles Unicode bullet masks ("Checking ••5713")', () => {
-    expect(extractLast4('JPMORGAN CHASE BANK, NA\nChecking ••5713')).toBe('5713');
+  it('handles Unicode bullet masks ("Checking ••1234")', () => {
+    expect(extractLast4('JPMORGAN CHASE BANK, NA\nChecking ••1234')).toBe('1234');
   });
 
-  it('handles "Savings ••••5713"', () => {
-    expect(extractLast4('Account: Savings ••••5713')).toBe('5713');
+  it('handles "Savings ••••1234"', () => {
+    expect(extractLast4('Account: Savings ••••1234')).toBe('1234');
   });
 
-  it('handles "Credit Card ••5713"', () => {
-    expect(extractLast4('Credit Card ••5713')).toBe('5713');
+  it('handles "Credit Card ••1234"', () => {
+    expect(extractLast4('Credit Card ••1234')).toBe('1234');
   });
 
-  it('handles middle-dot masks ("Checking ··5713")', () => {
-    expect(extractLast4('Checking ··5713')).toBe('5713');
+  it('handles middle-dot masks ("Checking ··1234")', () => {
+    expect(extractLast4('Checking ··1234')).toBe('1234');
   });
 
-  it('handles single OCR-misread plus ("Checking +5713")', () => {
+  it('handles single OCR-misread plus ("Checking +1234")', () => {
     // Tesseract on a screenshot of a PayPal receipt frequently turns
     // the U+2022 bullet into a `+`. We treat `+` as a mask glyph for
     // this reason, and the account-type-prefix pattern accepts a
     // single mask char (the surrounding "Checking" word disambiguates).
-    expect(extractLast4('Checking +5713')).toBe('5713');
+    expect(extractLast4('Checking +1234')).toBe('1234');
   });
 
-  it('handles single bullet ("Checking •5713")', () => {
-    expect(extractLast4('Checking •5713')).toBe('5713');
+  it('handles single bullet ("Checking •1234")', () => {
+    expect(extractLast4('Checking •1234')).toBe('1234');
   });
 
-  it('handles bare "Checking 5713"', () => {
+  it('handles bare "Checking 1234"', () => {
     // Lowest-priority pattern; should still match.
-    expect(extractLast4('Paid with Checking 5713')).toBe('5713');
+    expect(extractLast4('Paid with Checking 1234')).toBe('1234');
   });
 
   it('returns the LAST match in a document', () => {
@@ -122,7 +122,7 @@ describe('extractCardNetwork', () => {
 
 describe('matchAccountByLast4', () => {
   const accounts = [
-    acct({ id: 'a1', name: 'Chase Checking', last4: '5713', type: 'checking' }),
+    acct({ id: 'a1', name: 'Chase Checking', last4: '1234', type: 'checking' }),
     acct({ id: 'a2', name: 'AmEx Gold', last4: '1001', cardNetwork: 'amex', type: 'credit' }),
     acct({ id: 'a3', name: 'Visa Sapphire', last4: '1001', cardNetwork: 'visa', type: 'credit' }),
   ];
@@ -137,7 +137,7 @@ describe('matchAccountByLast4', () => {
     // already disambiguated. The "no network info" case used to
     // demote to MEDIUM but that conflated "we couldn't confirm" with
     // "there's a competing answer."
-    const r = matchAccountByLast4('5713', undefined, accounts);
+    const r = matchAccountByLast4('1234', undefined, accounts);
     expect(r.confidence).toBe('high');
     expect(r.account?.id).toBe('a1');
   });
@@ -174,12 +174,12 @@ describe('matchAccountByLast4', () => {
 
   it('skips closed accounts', () => {
     const closedAccts = accounts.map((a) => a.id === 'a1' ? acct({ ...a, closed: true }) : a);
-    expect(matchAccountByLast4('5713', undefined, closedAccts).confidence).toBe('none');
+    expect(matchAccountByLast4('1234', undefined, closedAccts).confidence).toBe('none');
   });
 });
 
 describe('detectAccountFromReceiptText (PayPal-shape regression)', () => {
-  it('routes a PayPal receipt with bulleted Checking ••5713 to the matching account', () => {
+  it('routes a PayPal receipt with bulleted Checking ••1234 to the matching account', () => {
     const text = `
 You paid $22.99 USD to Google
 Merchant: Google
@@ -188,18 +188,18 @@ Total $22.99 USD
 
 Paid Google with
 JPMORGAN CHASE BANK, NA
-Checking ••5713
+Checking ••1234
 Transaction ID. ABC-123
     `.trim();
     const accounts = [
-      acct({ id: 'chase-checking', name: 'Chase Checking', last4: '5713', type: 'checking' }),
+      acct({ id: 'chase-checking', name: 'Chase Checking', last4: '1234', type: 'checking' }),
       acct({ id: 'visa-card', name: 'Visa Sapphire', last4: '9999', cardNetwork: 'visa', type: 'credit' }),
     ];
     const r = detectAccountFromReceiptText(text, accounts);
-    expect(r.detectedLast4).toBe('5713');
+    expect(r.detectedLast4).toBe('1234');
     expect(r.account?.id).toBe('chase-checking');
     // v0.7.20: single matching account with no competing candidate is
-    // HIGH. The receipt's checking account + the user's only 5713
+    // HIGH. The receipt's checking account + the user's only 1234
     // account = unambiguous. Banner silently auto-routes with a
     // "Wrong?" escape hatch instead of asking Yes / No.
     expect(r.confidence).toBe('high');
@@ -211,7 +211,7 @@ Transaction ID. ABC-123
     // single `•` bullet — adding `+` to the mask class plus
     // accepting a single mask after an account-type word fixes
     // this without changing any of the strict patterns.
-    const text = `Hello, Jordan Caba
+    const text = `Hello, Alex Smith
 .
 You paid $22.99 USD to
 Merchant Google
@@ -226,12 +226,12 @@ Subtotal $22.99
 Total $22.99 USD
 Paid Google with
 JPMORGAN CHASE BANK, NA $22.99 USD
-Checking +5713`;
+Checking +1234`;
     const accounts = [
-      acct({ id: 'chase-checking', name: 'Chase Checking', last4: '5713', type: 'checking' }),
+      acct({ id: 'chase-checking', name: 'Chase Checking', last4: '1234', type: 'checking' }),
     ];
     const r = detectAccountFromReceiptText(text, accounts);
-    expect(r.detectedLast4).toBe('5713');
+    expect(r.detectedLast4).toBe('1234');
     expect(r.account?.id).toBe('chase-checking');
     expect(r.confidence).toBe('high');
   });

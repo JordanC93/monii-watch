@@ -415,6 +415,42 @@ server/                  Self-hosted y-websocket sync server (Docker Compose
     for `[class~="..."]` first. Only use `[class*="..."]` when you
     explicitly want to match variants too.
 
+25. **Never commit real user data into the repo. Use generic
+    placeholders in tests, fixtures, comments, commit messages,
+    and CHANGELOG entries.** The maintainer pastes real receipt
+    text + screenshots when reporting bugs and asking for new
+    features. Those samples are for in-conversation reasoning
+    ONLY. When the work lands as code, scrub the personal bits:
+
+      - **Account last-4 digits**: use `1234` / `5678` / `9012` /
+        `4321` etc. as placeholders. Never the maintainer's real
+        digits.
+      - **Names**: use `Alex`, `Sam`, `Pat` — never the
+        maintainer's real first or last name.
+      - **Emails**: don't reproduce them. The git author email is
+        already scrubbed to the GitHub noreply address per the
+        existing release-pipeline notes.
+      - **Bank / merchant names**: generic merchants are fine
+        (Starbucks, Amazon, Visa) since they're public brands. The
+        maintainer's specific account labels are NOT (e.g. don't
+        encode "Capital One Simply Checking" as a fixture name —
+        use "Generic Checking").
+      - **Memos / transfer notes**: ditto. "Pet back up fund" is
+        the maintainer's, not a fixture.
+
+    The repo is PUBLIC, so anything committed is searchable
+    forever. Even when scrubbed in a follow-up commit, the
+    earlier version stays in git history; old tags + GitHub
+    releases keep their original snapshots. The only durable fix
+    is to not put it there in the first place.
+
+    History scrub note: v0.7.18 through v0.7.23 ARE published
+    with the maintainer's real last-4s in test fixtures. Future
+    commits will not. If the maintainer wants the historical tags
+    cleaned up too, that requires a `git filter-repo` rewrite +
+    force-push of all branches and tags — destructive, never
+    done without explicit consent (Iron Rule #20).
+
 ## Theme system
 
 CSS variables per `[data-theme="..."]` block in
@@ -837,10 +873,10 @@ Headlines:
 
 ### v0.7.18–0.7.23
 - **v0.7.18 / v0.7.19**: receipt last-4 detector now picks up
-  Unicode bullets (`••5713`) AND OCR-flattened versions
-  (`+5713`). New mask character class includes `•`, `●`, `·`,
+  Unicode bullets (`••1234`) AND OCR-flattened versions
+  (`+1234`). New mask character class includes `•`, `●`, `·`,
   `+`. Account-type-prefix pattern accepts a single mask char
-  ("Checking +5713") because the type word disambiguates.
+  ("Checking +1234") because the type word disambiguates.
 - **v0.7.20**: receipt match confidence — single-candidate
   matches are HIGH unless network info on both sides
   contradicts. The earlier MEDIUM-on-no-network was conflating

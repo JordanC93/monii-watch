@@ -3,7 +3,7 @@
  *
  * The motivating case is the Capital One transfer-confirmation email
  * the maintainer pasted: bank logo OCR'd as "Capital Oly", but the
- * "From: ...2470" / "To: ...6886" digits are reliable. Both
+ * "From: ...5678" / "To: ...9012" digits are reliable. Both
  * endpoints should resolve to user accounts on file by last-4 alone.
  */
 
@@ -49,17 +49,17 @@ describe('parseTransfer', () => {
 ~~
 Your t fer' let
 our transrer's compiete.
-Hi Jordan,
+Hi Alex,
 Your money has transferred.
 Amount: $80.00
-From: Simply Checking...2470
-To: 360 Performance Savings...6886
+From: Simply Checking...5678
+To: 360 Performance Savings...9012
 Memo: Pet back up fund
 Transferred On: May 1, 2026
 Available On: May 1, 2026`;
     const r = parseTransfer(text);
-    expect(r.fromLast4).toBe('2470');
-    expect(r.toLast4).toBe('6886');
+    expect(r.fromLast4).toBe('5678');
+    expect(r.toLast4).toBe('9012');
     expect(r.fromName).toBe('Simply Checking');
     expect(r.toName).toBe('360 Performance Savings');
     expect(r.amount).toBe(8000); // $80.00
@@ -67,18 +67,18 @@ Available On: May 1, 2026`;
     expect(r.date).toBe('2026-05-01');
   });
 
-  it('handles bullet masks ("Savings ••6886")', () => {
-    const text = `Transfer complete.\nFrom: Checking ••2470\nTo: Savings ••6886\nAmount: $50.00`;
+  it('handles bullet masks ("Savings ••9012")', () => {
+    const text = `Transfer complete.\nFrom: Checking ••5678\nTo: Savings ••9012\nAmount: $50.00`;
     const r = parseTransfer(text);
-    expect(r.fromLast4).toBe('2470');
-    expect(r.toLast4).toBe('6886');
+    expect(r.fromLast4).toBe('5678');
+    expect(r.toLast4).toBe('9012');
   });
 
   it('falls back to a trailing 4-digit token when no mask glyph', () => {
-    const text = `From: Checking 2470\nTo: Savings 6886\nAmount: $1.00`;
+    const text = `From: Checking 5678\nTo: Savings 9012\nAmount: $1.00`;
     const r = parseTransfer(text);
-    expect(r.fromLast4).toBe('2470');
-    expect(r.toLast4).toBe('6886');
+    expect(r.fromLast4).toBe('5678');
+    expect(r.toLast4).toBe('9012');
   });
 
   it('returns nulls when neither side is parseable', () => {
@@ -92,19 +92,19 @@ Available On: May 1, 2026`;
 
 describe('detectTransferFromText', () => {
   const userAccounts = [
-    acct({ id: 'cap-checking', name: 'Capital One Simply Checking', last4: '2470', type: 'checking' }),
-    acct({ id: 'cap-savings',  name: 'Capital One 360 Savings',     last4: '6886', type: 'checking' }),
+    acct({ id: 'cap-checking', name: 'Capital One Simply Checking', last4: '5678', type: 'checking' }),
+    acct({ id: 'cap-savings',  name: 'Capital One 360 Savings',     last4: '9012', type: 'checking' }),
     acct({ id: 'visa', name: 'Visa', last4: '9999', cardNetwork: 'visa', type: 'credit' }),
   ];
 
   it('resolves both endpoints from the maintainer\'s exact OCR text', () => {
     const text = `Capital Oly
 Your transfer's complete.
-Hi Jordan,
+Hi Alex,
 Your money has transferred.
 Amount: $80.00
-From: Simply Checking...2470
-To: 360 Performance Savings...6886
+From: Simply Checking...5678
+To: 360 Performance Savings...9012
 Memo: Pet back up fund
 Transferred On: May 1, 2026`;
     const r = detectTransferFromText(text, userAccounts);
@@ -121,7 +121,7 @@ Transferred On: May 1, 2026`;
   });
 
   it('partial match: returns the result with one resolved endpoint', () => {
-    const text = `Transfer complete.\nFrom: Some Account ...2470\nTo: Unknown ...0000\nAmount: $5.00`;
+    const text = `Transfer complete.\nFrom: Some Account ...5678\nTo: Unknown ...0000\nAmount: $5.00`;
     const r = detectTransferFromText(text, userAccounts);
     expect(r).not.toBeNull();
     expect(r!.fromAccount?.id).toBe('cap-checking');
@@ -131,7 +131,7 @@ Transferred On: May 1, 2026`;
 
   it('skips closed accounts', () => {
     const closed = userAccounts.map((a) => a.id === 'cap-savings' ? acct({ ...a, closed: true }) : a);
-    const text = `Transfer complete.\nFrom: Simply Checking...2470\nTo: 360 Performance Savings...6886\nAmount: $80.00`;
+    const text = `Transfer complete.\nFrom: Simply Checking...5678\nTo: 360 Performance Savings...9012\nAmount: $80.00`;
     const r = detectTransferFromText(text, closed);
     expect(r!.fromAccount?.id).toBe('cap-checking');
     expect(r!.toAccount).toBeNull();

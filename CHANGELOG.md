@@ -2,6 +2,45 @@
 
 ## Released
 
+### v0.7.24 — Scrub maintainer's real account digits from fixtures
+
+The receipt-handling regression tests added in v0.7.18 through
+v0.7.22 used the maintainer's actual account last-4 digits as
+fixtures (1234 / 5678 / 9012 in this entry are the
+post-scrub placeholders; the originals were lifted from real
+PayPal and Capital One screenshots pasted into the
+working chat). The repo is public, so those digits became
+permanently searchable in the v0.7.18 → v0.7.23 tagged
+snapshots.
+
+This release replaces every occurrence with neutral
+placeholders:
+
+- `src/conversation/cardMatch.test.ts` and `cardMatch.ts`:
+  the Chase Checking last-4 swapped to `1234`. The "Hello,
+  Jordan Caba" line in the verbatim OCR regression renamed
+  to "Hello, Alex Smith."
+- `src/conversation/transferDetect.test.ts` and
+  `transferDetect.ts`: the Capital One Simply Checking
+  digits swapped to `5678`, the 360 Performance Savings
+  digits swapped to `9012`. "Hi Jordan" → "Hi Alex."
+- `CHANGELOG.md`: every prior entry's example digits
+  rewritten to match.
+- `CLAUDE.md`: the matching example in the "What's done
+  (v0.7.x)" block rewritten.
+
+All 270 tests still pass; typecheck + build clean. Same logic,
+neutral fixtures.
+
+Added Iron Rule #25 to `CLAUDE.md` so future test fixtures stay
+generic from the start.
+
+NOTE: the v0.7.18 through v0.7.23 tagged snapshots on GitHub
+still contain the originals. A `git filter-repo` rewrite of
+those tags would purge them retroactively, but that's a
+destructive operation that needs explicit consent (per Iron
+Rule #20). v0.7.24 forward is clean.
+
 ### v0.7.23 — Editable transfer match + AccountPage last-4 + memo polish
 
 A round of follow-ups on the v0.7.22 transfer-detection landing.
@@ -20,7 +59,7 @@ transfer or a CC payment:
 
 - **Transfer**: both From and To dropdowns list every open
   account. Each option shows the account name plus its last-4
-  (`Chase Checking ····2470`) so disambiguation is one glance.
+  (`Chase Checking ····5678`) so disambiguation is one glance.
 - **CC payment** (the original behavior): From is checking /
   savings, To is credit. Unchanged.
 
@@ -57,7 +96,7 @@ may have typed "Capital One Checking"), and the to-account name.
 #### AccountPage header last-4
 
 When an account has a last-4 set, the AccountPage header now
-shows `····5713` directly below the account name, in the same
+shows `····1234` directly below the account name, in the same
 small-and-light tabular style the sidebar uses. Single source
 of truth on disambiguating two same-named accounts.
 
@@ -105,13 +144,13 @@ single transfer transaction with both sides linked.
 
 The OCR text doesn't need the bank logo to read correctly —
 Tesseract on the maintainer's Capital One screenshot turned the
-logo into "Capital Oly", but the digits 2470 / 6886 came through
+logo into "Capital Oly", but the digits 5678 / 9012 came through
 clean and that's all the matcher uses.
 
 #### Last-4 below account names in sidebar
 
 When an account has a last-4 set (Edit Account → "Card / account
-last 4 digits"), the sidebar now renders "····5713" beneath the
+last 4 digits"), the sidebar now renders "····1234" beneath the
 account name in smaller, lighter text. Lets the user
 disambiguate at a glance when several accounts share the same
 issuer or first word.
@@ -185,8 +224,8 @@ New matrix:
 
 Network mismatch still drops to LOW because that IS evidence
 the match is wrong (different brand = different physical card).
-But "Checking +5713" against the user's only account ending in
-5713 now lands at HIGH, silently routes, and shows the
+But "Checking +1234" against the user's only account ending in
+1234 now lands at HIGH, silently routes, and shows the
 "Wrong?" escape hatch instead of a Yes / No prompt.
 
 5 unit tests updated, the existing PayPal-receipt regression
@@ -195,10 +234,10 @@ network-mismatch test. 239 tests passing.
 
 ### v0.7.19 — Receipt last-4 picks up OCR-misread bullets
 
-v0.7.18 added Unicode bullet handling (`••5713`) to the receipt
+v0.7.18 added Unicode bullet handling (`••1234`) to the receipt
 matcher. Tesseract on the maintainer's actual PayPal screenshot
 turned out to flatten the bullets to a single `+`, so the OCR
-text was `Checking +5713`. The v0.7.18 patterns required 2+
+text was `Checking +1234`. The v0.7.18 patterns required 2+
 mask chars after the account-type word, so a single `+` slipped
 through unmatched.
 
@@ -209,7 +248,7 @@ Two surgical changes:
   treat `+` as a card mask glyph (the surrounding text
   disambiguates from arithmetic).
 - Relaxed the account-type-prefix pattern to accept a single
-  mask character (`Checking +5713`) instead of requiring two.
+  mask character (`Checking +1234`) instead of requiring two.
   The "Checking" / "Savings" / "Card" word in front already
   provides context. Strict bare-mask patterns elsewhere still
   require 3+ to avoid false positives.
@@ -224,7 +263,7 @@ The receipt scanner's last-4 patterns assumed asterisk-style
 masks (`****1234`, `XXXX-XXXX-XXXX-1234`), which is what older
 US bank statements print. Modern receipts from PayPal, Venmo,
 Apple Pay, and most issuer email templates use Unicode bullet
-characters instead (`••5713`, `••••5713`). None of the patterns
+characters instead (`••1234`, `••••1234`). None of the patterns
 matched, so the matcher returned NONE and the auto-route
 prompt never appeared even when the user had a saved account
 with that exact last-4.
@@ -233,8 +272,8 @@ Fix: extended the mask character class to include `•` (U+2022
 BULLET), `●` (U+25CF BLACK CIRCLE), and `·` (U+00B7 MIDDLE DOT)
 alongside the existing `*` / `X` / `#`. Also added a new
 "account-type prefix" pattern that matches shapes like
-`Checking ••5713` / `Savings ••••5713` / `Credit Card ****1234`,
-plus a low-priority bare `Checking 5713` fallback for receipts
+`Checking ••1234` / `Savings ••••1234` / `Credit Card ****1234`,
+plus a low-priority bare `Checking 1234` fallback for receipts
 that drop the mask entirely.
 
 The position-of-LAST-match logic in `extractLast4` is unchanged,
@@ -252,7 +291,7 @@ maintainer's "75%-or-above should ask" requirement:
 - 2+ candidates, network disambiguates to one → HIGH
 - 2+ candidates, can't disambiguate → LOW (pick from list)
 
-So a PayPal receipt with `Checking ••5713` against a single
+So a PayPal receipt with `Checking ••1234` against a single
 matching Checking account on file lands at MEDIUM, which now
 fires the "Looks like Chase Checking. Yes / No" prompt the
 maintainer was missing.
