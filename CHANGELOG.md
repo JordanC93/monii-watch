@@ -2,6 +2,32 @@
 
 ## Released
 
+### v0.7.25 — Fix iOS keyboard dismissing on every keystroke
+
+The Modal component's focus-management `useEffect` listed
+`onClose` in its dependency array. Almost every modal caller in
+the app passes an inline `onClose={() => doSomething()}` arrow
+function (or, like `OnboardingWizardModal`, a function defined
+inside the component body that gets a fresh reference on every
+render). Each parent re-render meant a new `onClose` reference,
+which re-fired the effect, which called `cardRef.current.focus()`
+on the modal card.
+
+On desktop browsers this was silent because the previous focus
+target stayed in the input visually. On iOS WKWebView, every
+focus shift dismisses the on-screen keyboard, so users typing
+in any input inside any modal (income on the onboarding wizard,
+the goal name in AddGoalModal, etc.) lost the keyboard after
+each character.
+
+Fix: `onClose` lives in a ref. The focus-management effect now
+depends only on `open`, so it runs exactly once per modal open
+and once on close. Esc still calls the latest `onClose` via the
+ref. No iOS keyboard churn, no behavior change on desktop.
+
+Single change in `src/components/ui/Modal.tsx`. Affects every
+modal in the app (~40 of them).
+
 ### v0.7.24 — Scrub maintainer's real account digits from fixtures
 
 The receipt-handling regression tests added in v0.7.18 through

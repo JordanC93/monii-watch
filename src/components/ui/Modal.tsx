@@ -27,6 +27,19 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: P
   const cardRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
 
+  // v0.7.25 — `onClose` lives in a ref so the focus / key-listener
+  // effect below doesn't have to depend on it. The previous version
+  // listed `onClose` directly in the deps array, which caused the
+  // entire effect to re-run on every parent render that passed an
+  // inline `onClose={() => ...}` (which most callers do). Re-running
+  // the effect calls `cardRef.current.focus()` on every render →
+  // steals focus from the input the user is typing in → on iOS
+  // WKWebView the keyboard dismisses on every keystroke. Desktop
+  // browsers were silently affected too but kept the cursor in the
+  // input so it wasn't visible.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
+
   // a11y: capture the focused element BEFORE the modal opens so we can
   // return focus to it when the modal closes. Move focus into the
   // modal once it's mounted.
@@ -42,7 +55,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: P
       (focusable ?? cardRef.current)?.focus();
     });
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
       // Trap Tab inside the modal. Without this, focus can drift behind
       // the backdrop into hidden chrome — confusing for screen readers.
       if (e.key === 'Tab' && cardRef.current) {
@@ -70,7 +83,12 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: P
       // back to the top of the page.
       try { triggerRef.current?.focus(); } catch {}
     };
-  }, [open, onClose]);
+    // Intentionally NO `onClose` in deps. We use the ref above so the
+    // effect runs exactly once per modal open / close, not once per
+    // render. Adding `onClose` here is what caused the iOS keyboard-
+    // dismiss-on-every-keystroke bug.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   if (!open) return null;
   return (
