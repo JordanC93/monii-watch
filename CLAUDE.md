@@ -389,6 +389,32 @@ server/                  Self-hosted y-websocket sync server (Docker Compose
     but a fresh CI runner with no cache will explode. The bug is
     invisible until release time.
 
+24. **When matching Tailwind class tokens in a CSS attribute
+    selector, use `[class~="..."]` (whitespace-word match), NOT
+    `[class*="..."]` (substring).** v0.7.13's glass button
+    selector was `[class*="bg-surface-2"]`, which matched the
+    substring `bg-surface-2` ANYWHERE in the class list — including
+    inside `hover:bg-surface-2`. Buttons that were transparent at
+    rest were getting painted with the hover-state pillow as their
+    default, making the sidebar Customize button look permanently
+    selected.
+
+    The fix is one character: `~=` instead of `*=`. Whitespace-word
+    matching looks for the EXACT token surrounded by whitespace
+    (or at the start / end of the attribute), so `hover:bg-surface-2`
+    doesn't match because the colon prevents the word boundary.
+
+    The same bug shape applies to any selector matching a Tailwind
+    utility name — `[class*="absolute"]`, `[class*="text-fg"]`, etc.
+    Tailwind's variant prefixes (`hover:`, `md:`, `dark:`,
+    `[data-theme=foo]:`) all use punctuation that breaks the word
+    boundary, so `~=` correctly excludes variants and only matches
+    the base utility.
+
+    Default rule: when matching a Tailwind class name in CSS, reach
+    for `[class~="..."]` first. Only use `[class*="..."]` when you
+    explicitly want to match variants too.
+
 ## Theme system
 
 CSS variables per `[data-theme="..."]` block in
@@ -711,6 +737,164 @@ and several power-user features are in.
   `domain/priceParse.ts` extracts the lowest plausible price
   (filters "Save $X" callouts). New chat intent
   `set [category] price to $X`.
+
+## What's done (v0.7.x)
+
+The first big "polish + dogfood" wave. Each version is small,
+shipped same-day after a real-world bug or UX rough edge surfaced.
+Headlines:
+
+### v0.7.0–0.7.4
+- **App Store-ready foundation**: PIN app lock (PBKDF2 200k local
+  hash, in-memory only), `<PrivacyPage>` for data export / delete,
+  30-day export reminder, manual duplicate detection on QuickAdd,
+  boot-crash recovery splash. ICS calendar export, lifetime
+  spending tile.
+- **v0.7.1**: free-form transaction tags, smart on-device auto-
+  categorize (`auto:<lowercase-payee>` implicit AutoRules), per-
+  report CSV + PDF export, year-over-year month compare,
+  household / couples mode (members + attribution + per-member
+  report), investment lot tracking (FIFO/LIFO/specific +
+  tax-loss-harvest hints), 4 new dashboard widgets + S/M/L resize,
+  Capacitor iOS scaffold, theme polish (8-stop conic, cross-fade,
+  active nav-pill highlight, focus rings).
+- **v0.7.2**: package-lock fix after Capacitor optionalDependencies
+  were added without `npm install`. CI's `npm ci` is strict; lock
+  must be in sync. Codified as Iron Rule #23.
+- **v0.7.3**: `GlassPalettePicker` Rules-of-Hooks crash fix
+  (early return before `useState`); softened glass center
+  singularity (first attempt).
+- **v0.7.4**: chrome alignment — TopBar + DesktopStatusBar
+  restructured as inset floating pills (`max-w-7xl` constrained)
+  so they align with page content; glass-aware via the
+  `--surface-alpha` material recipe.
+
+### v0.7.5–0.7.10
+- **v0.7.5**: personal backup server transport. Same `server/server.js`
+  binary that hosts y-websocket sync now also exposes a
+  `/backup/<workspace>/snapshot.bin` HTTP endpoint with optional
+  bearer-token auth + retention. New `personalServerProvider.ts`
+  mirrors Drive provider's shape exactly. Ungated from
+  maintainerMode in Settings → Sync. 5 new help articles for the
+  4 sync transports + new `docs/PERSONAL_SERVER.md`. AI-language
+  sweep across ~250 user-facing strings (em-dashes → context-
+  appropriate punctuation; triplet examples → single concrete
+  examples; marketing words cut). Notification routing through
+  Tauri plugin.
+- **v0.7.6 / v0.7.7**: glass sidebar accounts list visible-clip
+  bug. Root cause was the rule
+  `html[data-theme='glass'] .glass-panel > * { position: relative }`
+  forcing `position: relative` on the sidebar resize handle (which
+  has Tailwind's `.absolute`), pulling it into the flex column at
+  `h-full` and consuming the accounts list height. Fixed by
+  splitting the rule: `z-index: 2` on every child, `position:
+  relative` only on `:not(.absolute):not(.fixed):not(.sticky)`.
+- **v0.7.8**: right-click "Open in New Window" routes through
+  Tauri's WebviewWindow instead of the OS browser. Default
+  WKWebView / WebView2 link context menu's "Open in New Window"
+  goes through the native UIDelegate (not JS `window.open`), so
+  Tauri was dropping it. Custom contextmenu listener on `<a>` +
+  bounds-aware portal popover. Capabilities `["main", "cb-*"]`
+  glob so new windows get permissions.
+- **v0.7.9 / v0.7.10**: glass backdrop. v0.7.10 finally replaced
+  the conic gradient (which had a mathematical singularity at the
+  anchor) with four overlapping radial blobs in palette colors —
+  same approach Apple uses in Sequoia wallpapers. No singularity,
+  no rainbow-pinwheel artifact. Drift animation moves all four
+  anchor points instead of rotating an angle.
+  ScheduledModal: HelpHints + tightened labels (`Memo` → `Note`,
+  `Auto-escalate` → `Auto-raise`, `Also assign to envelope` →
+  `Also fund a category`).
+
+### v0.7.11–0.7.17
+- **v0.7.11**: HelpHint popover rewrite. Portal-rendered
+  (escapes parent overflow contexts), bounds-clamped positioning
+  with auto-flip above when there's no room below. Opaque
+  background with heavy backdrop-blur on glass so body copy
+  stays sharp behind the popover.
+- **v0.7.12 / v0.7.13**: glass button polish. Initial attempt
+  added `background-image` overlay only — buttons stayed flat
+  because the underlying `bg-surface-2` was opaque. Take 2:
+  override `background-color` to `rgb(var(--surface-2) / 0.55)`
+  + `backdrop-filter: blur(18px) saturate(160%)` so secondary
+  buttons read as glass. Selector switched from `*=` (substring)
+  to `~=` (whitespace-word) — codified as Iron Rule #24.
+- **v0.7.14**: glass palette drives `--accent`. Each
+  `GlassPaletteDef` carries an accent RGB triplet; Aurora →
+  indigo, Sunset → orange, Ocean → cyan, Forest → sage, Rose →
+  pink, Mono → systemBlue default. Custom picks the most-
+  saturated of the four user picks via HSL S calc.
+- **v0.7.15**: 40 HelpHints across 10 modals + Settings
+  General. Field / Section helpers in SettingsPage extended to
+  accept `hint={{ title, body }}` for one-line additions.
+- **v0.7.16 / v0.7.17**: sidebar drag-reorder works. Anchor
+  elements with `href` are auto-draggable in browsers; that
+  intercepts the wrapper's drag-and-drop events. Fix:
+  `draggable={false}` on the NavLink + `-webkit-user-drag: none`
+  CSS safety net. Drop indicator is a 2 px insertion line at the
+  top or bottom edge of the target row (Finder / file-explorer
+  convention), not a full-row ring.
+
+### v0.7.18–0.7.23
+- **v0.7.18 / v0.7.19**: receipt last-4 detector now picks up
+  Unicode bullets (`••5713`) AND OCR-flattened versions
+  (`+5713`). New mask character class includes `•`, `●`, `·`,
+  `+`. Account-type-prefix pattern accepts a single mask char
+  ("Checking +5713") because the type word disambiguates.
+- **v0.7.20**: receipt match confidence — single-candidate
+  matches are HIGH unless network info on both sides
+  contradicts. The earlier MEDIUM-on-no-network was conflating
+  "can't confirm" with "competing answer exists." When there's
+  only ONE account ending in the detected digits, there's no
+  competing answer.
+- **v0.7.21**: `payeeMatch.ts` — fuzzy payee matcher.
+  `normalizeVendorName` strips processor noise ("Inc", "LLC",
+  "Purchase", transaction IDs); `vendorMatchScore` is
+  token-aligned prefix scoring + Jaccard with first-token
+  bonus; `findFuzzyPayeeMatch` returns best ≥ 70% match if
+  not exact. Wired into ReceiptUploadModal as a
+  "Looks like an existing payee: Starbucks · 87% match.
+  Use existing, or keep the receipt's name?" banner.
+- **v0.7.22 / v0.7.23**: `transferDetect.ts` — internal
+  transfer detection on receipt upload. Bank
+  transfer-confirmation emails ("From: X ...1234 / To: Y ...5678
+  / Amount: $80") now route to the existing CC-payment
+  two-account form pre-filled with both endpoints + a
+  "Detected as transfer" green banner. Doesn't depend on the
+  bank logo OCR being correct (Tesseract reads "Capital Oly"
+  for "Capital One" and that's fine — only digits matter).
+  v0.7.23 fixed the destination-dropdown bug (was filtering
+  to credit-only when transferring between two non-credit
+  accounts), added a swap button between From and To,
+  exposed editable Memo, loosened Capital One regex to
+  handle OCR garble, exported `pickIssuerLabel` from
+  `classify.ts`. Sidebar AccountItem + AccountPage header
+  both show `····1234` below the account name when set.
+
+## Recent code-level subsystems
+
+These showed up in the v0.7.x receipt-handling work and are
+worth knowing about:
+
+- `src/conversation/cardMatch.ts` — extracts a last-4 from
+  receipt text + matches against `Account.last4`. Returns a
+  4-level confidence (`high` / `medium` / `low` / `none`).
+  Mask character class: `*xX#•●·+`. The first attempt
+  (v0.6.15) only handled asterisks and Xs; bullets and OCR-
+  misread plus signs came in v0.7.18 / v0.7.19.
+- `src/conversation/payeeMatch.ts` — fuzzy match a parsed
+  vendor against `payees`. 70% threshold. Returns null on
+  exact match (caller's `ensurePayee` already dedups).
+- `src/conversation/transferDetect.ts` — detects internal
+  transfers from the From/To/Amount shape. Returns a
+  `fullyMatched` flag when both endpoints resolve to open
+  accounts on file.
+- `src/conversation/classify.ts` — top-level document
+  classifier (statement / cc-payment / paystub / receipt /
+  unknown). Order matters: paystub runs first (deductions
+  look like receipt totals), then OFX, then statement, then
+  cc-payment, then receipt. Now exports `pickIssuerLabel`
+  for reuse.
 
 ## Release pipeline (current state — Apr 2026)
 
