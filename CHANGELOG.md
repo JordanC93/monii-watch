@@ -2,6 +2,31 @@
 
 ## Released
 
+### v0.7.19 — Receipt last-4 picks up OCR-misread bullets
+
+v0.7.18 added Unicode bullet handling (`••5713`) to the receipt
+matcher. Tesseract on the maintainer's actual PayPal screenshot
+turned out to flatten the bullets to a single `+`, so the OCR
+text was `Checking +5713`. The v0.7.18 patterns required 2+
+mask chars after the account-type word, so a single `+` slipped
+through unmatched.
+
+Two surgical changes:
+
+- Added `+` to the mask character class. OCR misreads of `•`
+  bullets are common enough on receipt screenshots that we
+  treat `+` as a card mask glyph (the surrounding text
+  disambiguates from arithmetic).
+- Relaxed the account-type-prefix pattern to accept a single
+  mask character (`Checking +5713`) instead of requiring two.
+  The "Checking" / "Savings" / "Card" word in front already
+  provides context. Strict bare-mask patterns elsewhere still
+  require 3+ to avoid false positives.
+
+3 new unit tests cover single-bullet, single-plus, and the
+verbatim OCR text the maintainer pasted from his PayPal
+receipt. 237 tests passing.
+
 ### v0.7.18 — Receipt last-4 detector picks up Unicode bullets
 
 The receipt scanner's last-4 patterns assumed asterisk-style

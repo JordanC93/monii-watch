@@ -43,14 +43,18 @@ export type CardMatchResult = {
  *            Venmo, modern issuer emails)
  *   ●       (U+25CF BLACK CIRCLE, similar usage)
  *   ·       (U+00B7 MIDDLE DOT, less common but seen on bank PDFs)
- *   .       (period, only when a clear masking run of 3+)
+ *   +       (OCR commonly misreads bullets as +. Tesseract on a
+ *            crisp PayPal receipt screenshot turned `••5713` into
+ *            `+5713` — so we treat + as a mask glyph too.)
  *
- * The character class `[*xX#•●·]` matches any of those individual
- * mask glyphs. Patterns require at least 2 in a row so we don't
- * misread an asterisk-as-emphasis or single bullet point as a card
- * mask.
+ * Patterns combine these into runs of 1+, 2+, 3+, or 4 chars
+ * depending on how confidently we want to claim "this is a card
+ * mask, not a typo". The account-type-prefix pattern accepts a
+ * single mask char because the surrounding "Checking" / "Savings"
+ * word already provides the context that disambiguates.
  */
-const MASK_CHARS = '*xX#•●·';
+const MASK_CHARS = '*xX#•●·+';
+const MASK_RUN_1 = `[${MASK_CHARS}]+`;
 const MASK_RUN_2 = `[${MASK_CHARS}]{2,}`;
 const MASK_RUN_3 = `[${MASK_CHARS}]{3,}`;
 const MASK_RUN_4 = `[${MASK_CHARS}]{4}`;
@@ -59,19 +63,17 @@ const ACCOUNT_TYPE_WORD = '(?:checking|savings|saving|credit(?:\\s*card)?|debit(
 const LAST4_PATTERNS: RegExp[] = [
   // "Card ending in 1234" / "ending 1234"
   /\b(?:card\s+)?(?:ending(?:\s+in)?|ends?\s+in)\s*[#:]?\s*(\d{4})\b/i,
-  // "Checking ••5713" / "Savings ••••5713" / "Credit Card ****1234".
-  // Optional separator (space, dash, colon) between the type word and
-  // the mask run, and between the mask run and the 4 digits. Catches
-  // the modern PayPal / Apple Pay / bank-app shape where the mask is
-  // a Unicode bullet rather than asterisks.
-  new RegExp(`\\b${ACCOUNT_TYPE_WORD}[\\s#:\\-]*${MASK_RUN_2}[\\s\\-]?(\\d{4})\\b`, 'i'),
-  // Same as above but with the mask AFTER the digits ("5713 ••••")
-  // is rare on US receipts; skip for now.
+  // "Checking ••5713" / "Savings ••••5713" / "Credit Card ****1234"
+  // / "Checking +5713" (OCR-misread bullet). Single mask char is
+  // enough here because the account-type word provides context;
+  // without it (the bare-mask patterns below) we still require 3+.
+  new RegExp(`\\b${ACCOUNT_TYPE_WORD}[\\s#:\\-]*${MASK_RUN_1}[\\s\\-]?(\\d{4})\\b`, 'i'),
   // "Card: VISA ****1234" / "Card #****1234" / "Card: ••••5713"
   new RegExp(`(?:card|acct|account)[\\s#:]*[a-z]*[\\s]*${MASK_RUN_2}[\\s\\-]?(\\d{4})\\b`, 'i'),
   // "VISA ****1234" / "MasterCard XXXX1234" / "Visa ••••1234"
   new RegExp(`(?:visa|mastercard|master\\s*card|amex|american\\s*express|discover|debit|credit)\\s*${MASK_RUN_2}[\\s\\-]?(\\d{4})\\b`, 'i'),
-  // "************1234" — bare masked PAN
+  // "************1234" — bare masked PAN. Requires 3+ masks here
+  // because there's no contextual word to anchor the match.
   new RegExp(`${MASK_RUN_3}[\\s\\-]?(\\d{4})\\b`),
   // "XXXX-XXXX-XXXX-1234" — full grouped mask
   new RegExp(`${MASK_RUN_4}[\\s\\-]${MASK_RUN_4}[\\s\\-]${MASK_RUN_4}[\\s\\-](\\d{4})\\b`),

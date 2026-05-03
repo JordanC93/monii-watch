@@ -58,6 +58,18 @@ describe('extractLast4', () => {
     expect(extractLast4('Checking ··5713')).toBe('5713');
   });
 
+  it('handles single OCR-misread plus ("Checking +5713")', () => {
+    // Tesseract on a screenshot of a PayPal receipt frequently turns
+    // the U+2022 bullet into a `+`. We treat `+` as a mask glyph for
+    // this reason, and the account-type-prefix pattern accepts a
+    // single mask char (the surrounding "Checking" word disambiguates).
+    expect(extractLast4('Checking +5713')).toBe('5713');
+  });
+
+  it('handles single bullet ("Checking •5713")', () => {
+    expect(extractLast4('Checking •5713')).toBe('5713');
+  });
+
   it('handles bare "Checking 5713"', () => {
     // Lowest-priority pattern; should still match.
     expect(extractLast4('Paid with Checking 5713')).toBe('5713');
@@ -166,6 +178,37 @@ Transaction ID. ABC-123
     expect(r.account?.id).toBe('chase-checking');
     // Checking accounts don't have a card network on file, so confidence
     // sits at MEDIUM — UI surfaces the "Looks like X. Yes / No" prompt.
+    expect(r.confidence).toBe('medium');
+  });
+
+  it('routes the EXACT OCR text the maintainer provided (Tesseract-flattened bullets)', () => {
+    // This is the literal output Tesseract produced from the
+    // PayPal receipt screenshot. Single `+` is a misread of a
+    // single `•` bullet — adding `+` to the mask class plus
+    // accepting a single mask after an account-type word fixes
+    // this without changing any of the strict patterns.
+    const text = `Hello, Jordan Caba
+.
+You paid $22.99 USD to
+Merchant Google
+noreply+support@goog...
+Transaction date May 2, 2026
+Order ID 332243577281350375
+View Payment Details
+
+YouTube Premium $22.99
+Qty: 1
+Subtotal $22.99
+Total $22.99 USD
+Paid Google with
+JPMORGAN CHASE BANK, NA $22.99 USD
+Checking +5713`;
+    const accounts = [
+      acct({ id: 'chase-checking', name: 'Chase Checking', last4: '5713', type: 'checking' }),
+    ];
+    const r = detectAccountFromReceiptText(text, accounts);
+    expect(r.detectedLast4).toBe('5713');
+    expect(r.account?.id).toBe('chase-checking');
     expect(r.confidence).toBe('medium');
   });
 });
