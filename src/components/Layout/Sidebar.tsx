@@ -159,7 +159,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           padding rather than missing content. */}
       <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2 pb-3 sidebar-account-list">
         {!groupCollapsed.onBudget && onBudgetAccts.map((a) => (
-          <AccountItem key={a.id} id={a.id} name={a.name} balance={a.balance} type={a.type} currency={a.currency} pinned={a.pinned} onClick={handleClick} />
+          <AccountItem key={a.id} id={a.id} name={a.name} balance={a.balance} type={a.type} currency={a.currency} pinned={a.pinned} last4={a.last4} onClick={handleClick} />
         ))}
         {!groupCollapsed.onBudget && onBudgetAccts.length === 0 && (
           <button
@@ -180,7 +180,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               Tracking
             </button>
             {!groupCollapsed.tracking && trackingAccts.map((a) => (
-              <AccountItem key={a.id} id={a.id} name={a.name} balance={a.balance} type={a.type} currency={a.currency} pinned={a.pinned} onClick={handleClick} />
+              <AccountItem key={a.id} id={a.id} name={a.name} balance={a.balance} type={a.type} currency={a.currency} pinned={a.pinned} last4={a.last4} onClick={handleClick} />
             ))}
           </>
         )}
@@ -514,7 +514,7 @@ function DraggableNavItem({ entry, onClick }: { entry: NavEntry; onClick?: () =>
   );
 }
 
-function AccountItem({ id, name, balance, type, currency, pinned, onClick }: { id: string; name: string; balance: number; type: keyof typeof ACCOUNT_TYPE_META; currency?: string; pinned?: boolean; onClick?: () => void }) {
+function AccountItem({ id, name, balance, type, currency, pinned, last4, onClick }: { id: string; name: string; balance: number; type: keyof typeof ACCOUNT_TYPE_META; currency?: string; pinned?: boolean; last4?: string; onClick?: () => void }) {
   // Tracking accounts in a non-budget currency render their NATIVE balance
   // with that currency's symbol — a EUR account always shows "€", not "$".
   // Net worth (sidebar bottom) does the conversion separately.
@@ -524,14 +524,24 @@ function AccountItem({ id, name, balance, type, currency, pinned, onClick }: { i
       to={`/accounts/${id}`}
       onClick={onClick}
       className={({ isActive }) => cn(
-        'group flex items-center justify-between px-2 py-1 rounded-md',
+        'group flex items-center justify-between px-2 py-1 rounded-md gap-2',
         isActive ? 'bg-surface-3 text-fg font-medium' : 'text-fg-muted hover:text-fg hover:bg-surface-2',
       )}
-      title={ACCOUNT_TYPE_META[type].label + (currency ? ` (${currency})` : '') + (pinned ? ' · pinned' : '')}
+      title={ACCOUNT_TYPE_META[type].label + (last4 ? ` ····${last4}` : '') + (currency ? ` (${currency})` : '') + (pinned ? ' · pinned' : '')}
     >
-      <span className="truncate flex items-center gap-1 min-w-0">
-        {pinned && <Pin size={10} className="text-accent flex-shrink-0" aria-label="Pinned" />}
-        <span className="truncate">{name}</span>
+      <span className="flex flex-col min-w-0 flex-1">
+        <span className="truncate flex items-center gap-1 min-w-0">
+          {pinned && <Pin size={10} className="text-accent flex-shrink-0" aria-label="Pinned" />}
+          <span className="truncate">{name}</span>
+        </span>
+        {/* v0.7.22 — last-4 chip below the account name. Smaller +
+            lighter so the balance on the right stays the dominant
+            secondary signal. Only renders when the user has set a
+            last-4 in EditAccountModal (account doesn't auto-populate
+            it from a receipt). */}
+        {last4 && (
+          <span className="text-[10.5px] text-fg-subtle tabular leading-tight">····{last4}</span>
+        )}
       </span>
       {formatted ? (
         <span className={cn('tabular text-[12px] flex-shrink-0', balance > 0 && 'text-positive', balance < 0 && 'text-negative')}>{formatted}</span>

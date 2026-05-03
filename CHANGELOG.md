@@ -2,6 +2,60 @@
 
 ## Released
 
+### v0.7.22 — Internal-transfer detection + last-4 in sidebar
+
+#### Internal-transfer detection on receipt upload
+
+Bank transfer-confirmation emails (Capital One, Chase, Wells
+Fargo, etc.) include a clean "From: X ...1234 / To: Y ...5678"
+pair plus an amount and (often) a memo. The receipt classifier
+treated these as one-sided expense receipts, so an $80 internal
+transfer would land as an unmatched outflow without a
+corresponding inflow on the other account.
+
+Added `src/conversation/transferDetect.ts`:
+
+- `looksLikeTransfer(text)` — keyword heuristic ("transfer",
+  "transferred", "money has transferred") gated on a
+  from/to pair.
+- `parseTransfer(text)` — pulls both last-4 digits, both
+  account display names, the amount, the memo, and the date
+  from labeled lines. Tolerates the same mask glyphs the
+  v0.7.18 / v0.7.19 work introduced (`••`, `+`, `*`, `...`).
+- `detectTransferFromText(text, accounts)` — runs both above,
+  matches each last-4 against the user's open accounts. Returns
+  a `fullyMatched` flag when both endpoints resolve.
+
+Wired into `ReceiptUploadModal` as a pre-pass before the regular
+classifier. When both endpoints match, the upload routes to the
+existing CC-payment two-account form (already a
+"from + to + amount" picker) pre-filled with both endpoints, a
+"Detected as transfer" success banner above the form, and the
+memo from the email surfaced in the banner. Saving creates a
+single transfer transaction with both sides linked.
+
+The OCR text doesn't need the bank logo to read correctly —
+Tesseract on the maintainer's Capital One screenshot turned the
+logo into "Capital Oly", but the digits 2470 / 6886 came through
+clean and that's all the matcher uses.
+
+#### Last-4 below account names in sidebar
+
+When an account has a last-4 set (Edit Account → "Card / account
+last 4 digits"), the sidebar now renders "····5713" beneath the
+account name in smaller, lighter text. Lets the user
+disambiguate at a glance when several accounts share the same
+issuer or first word.
+
+Tooltip on the row also shows the last-4 alongside the type and
+currency tags.
+
+#### Tests
+
+12 new unit tests in `transferDetect.test.ts`, including a
+verbatim regression on the OCR text the maintainer pasted
+(garbled bank name and all). 270 tests total.
+
 ### v0.7.21 — Fuzzy payee match on receipt upload
 
 The receipt OCR lifts the vendor name straight out of the scan,

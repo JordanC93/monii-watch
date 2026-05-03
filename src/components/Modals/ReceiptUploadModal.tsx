@@ -18,6 +18,7 @@ import type { PaycheckDeduction } from '../../domain/types';
 import { findCategoryByText } from '../../conversation/parse';
 import { detectAccountFromReceiptText, type CardMatchResult } from '../../conversation/cardMatch';
 import { findFuzzyPayeeMatch, type PayeeMatchResult } from '../../conversation/payeeMatch';
+import { detectTransferFromText, type TransferMatchResult } from '../../conversation/transferDetect';
 import { todayIso } from '../../domain/date';
 import { parseAmountToCents } from '../../domain/calc';
 import { useFormatMoney } from '../../lib/format';
@@ -117,6 +118,11 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
   // when the user accepts (vendor field updated to the existing
   // name) or dismisses (parsed name kept, no further prompts).
   const [payeeMatch, setPayeeMatch] = useState<PayeeMatchResult | null>(null);
+  // v0.7.22 — when the upload looks like an internal transfer with
+  // both endpoints matched, this carries the resolved accounts so the
+  // form can show a "Detected as transfer" banner above the existing
+  // cc-payment two-account picker.
+  const [transferDetect, setTransferDetect] = useState<TransferMatchResult | null>(null);
   const payees = useBudget((s) => s.payees);
   const [rawText, setRawText] = useState<string>('');
   const [docKind, setDocKind] = useState<DocKind>('receipt');
@@ -144,6 +150,7 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
     setAttachReceipt(true);
     setCardMatch(null);
     setPayeeMatch(null);
+    setTransferDetect(null);
     if (fileRef.current) fileRef.current.value = '';
   }
 
@@ -211,6 +218,34 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
   }
 
   function classifyAndPrep(text: string) {
+    // v0.7.22 — internal-transfer pre-pass. Bank transfer-confirmation
+    // emails (Capital One, Chase, Wells Fargo, etc.) have a clear
+    // "From: ...1234 / To: ...5678" pair. When BOTH last-4s resolve
+    // to user accounts on file, route to the cc-payment form (the
+    // only existing form with two account selectors) pre-filled with
+    // both endpoints. The result is a single transfer transaction
+    // instead of an unmatched outflow + missed inflow. Falls through
+    // to the regular classifier when only one (or zero) endpoints
+    // match.
+    const transfer = detectTransferFromText(text, accounts);
+    if (transfer && transfer.fullyMatched) {
+      setDocKind('cc-payment');
+      setTransferDetect(transfer);
+      setDraft({
+        kind: 'cc-payment',
+        issuer: 'Transfer',
+        cardName: transfer.detection.toName ?? '',
+        cardLast4: transfer.detection.toLast4 ?? '',
+        amountText: transfer.detection.amount > 0 ? (transfer.detection.amount / 100).toString() : '',
+        date: transfer.detection.date ?? todayIso(),
+        fromAccountId: transfer.fromAccount!.id,
+        toAccountId: transfer.toAccount!.id,
+      });
+      console.info(
+        `[classify] transfer — from=${transfer.fromAccount!.name} (${transfer.detection.fromLast4}) to=${transfer.toAccount!.name} (${transfer.detection.toLast4}) amount=${transfer.detection.amount}`,
+      );
+      return;
+    }
     const result = classifyDocument(text);
     if (result.kind === 'paystub') {
       setDocKind('paystub');
@@ -351,7 +386,14 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
       const cents = parseAmountToCents(draft.amountText);
       if (cents === null || cents <= 0) { setError('Amount must be a positive number.'); return; }
       if (!draft.fromAccountId || !draft.toAccountId) { setError('Pick both a source and a credit account.'); return; }
-      // Transfer outflow from budget account to credit account.
+      // Transfer outflow from one budget account to the other. The
+      // memo prefers the user's original transfer note ("Pet back up
+      // fund") when v0.7.22 internal-transfer detection identified
+      // both endpoints; otherwise it falls back to the legacy
+      // "Card payment (...1234)" wording for actual CC payments.
+      const transferMemo = transferDetect && transferDetect.fullyMatched
+        ? (transferDetect.detection.memo || `Transfer ····${transferDetect.detection.fromLast4} → ····${transferDetect.detection.toLast4}`)
+        : `${draft.issuer || 'Card'} payment${draft.cardLast4 ? ` (...${draft.cardLast4})` : ''}`;
       createTransaction({
         accountId: draft.fromAccountId,
         date: draft.date,
@@ -359,9 +401,9 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
         categoryId: null,
         transferAccountId: draft.toAccountId,
         amount: -Math.abs(cents),
-        memo: `${draft.issuer || 'Card'} payment${draft.cardLast4 ? ` (...${draft.cardLast4})` : ''}`,
+        memo: transferMemo,
       });
-      console.info(`[upload] created cc payment transfer — from=${draft.fromAccountId} to=${draft.toAccountId} amount=${cents}`);
+      console.info(`[upload] created ${transferDetect?.fullyMatched ? 'transfer' : 'cc payment'} — from=${draft.fromAccountId} to=${draft.toAccountId} amount=${cents}`);
       close();
       return;
     }
@@ -525,12 +567,38 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
             </div>
 
             {draft.kind === 'cc-payment' ? (
-              <CcPaymentForm
-                draft={draft}
-                accounts={accounts}
-                fmt={fmt}
-                onChange={setDraft}
-              />
+              <>
+                {/* v0.7.22 — when the upload was identified as an
+                    internal transfer (not just a CC payment), show a
+                    success banner so the user knows we matched both
+                    sides. The two account dropdowns below are
+                    pre-filled but still editable in case the user
+                    wants to override. Memo from the email is
+                    surfaced too since "Pet back up fund" type notes
+                    are useful context. */}
+                {transferDetect && transferDetect.fullyMatched && (
+                  <div className="flex items-start gap-2 p-2.5 rounded-md border border-positive/40 bg-positive/10 text-[12px] mb-2">
+                    <ArrowDownLeft size={13} className="text-positive flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium">
+                        Detected as transfer between two of your accounts
+                      </div>
+                      <div className="text-[11px] text-fg-subtle mt-0.5">
+                        <strong>{transferDetect.fromAccount!.name}</strong> ····{transferDetect.detection.fromLast4}
+                        {' → '}
+                        <strong>{transferDetect.toAccount!.name}</strong> ····{transferDetect.detection.toLast4}
+                        {transferDetect.detection.memo && <> · "{transferDetect.detection.memo}"</>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <CcPaymentForm
+                  draft={draft}
+                  accounts={accounts}
+                  fmt={fmt}
+                  onChange={setDraft}
+                />
+              </>
             ) : draft.kind === 'paystub' ? (
               <PaystubForm draft={draft} fmt={fmt} onChange={setDraft} />
             ) : draft.kind === 'statement' ? (
