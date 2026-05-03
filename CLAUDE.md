@@ -30,6 +30,15 @@ app (for Mac/Windows/Linux installers). Same Vite codebase compiles to both.
   - MVP scope (accounts, categories, transactions, envelope budget, splits,
     transfers, basic reports)
   - Multiple account types including PayPal/Venmo (not just bank accounts)
+- **iPhone testing path = Capacitor sideload via Xcode** (v0.7.27, May 2026
+  preference). Project owner runs the build on their Mac (remoted into from
+  the Windows box where these chats happen) using `npm run cap:add:ios` →
+  `cap:sync` → `cap:open:ios` → run on the connected iPhone in Xcode. Free
+  Apple ID, 7-day cert refresh accepted. Don't suggest TestFlight or PWA
+  Add-to-Home-Screen as the default mobile path unless they ask — those
+  remain valid alternatives but the dogfood loop runs through Xcode
+  sideload. See [docs/CAPACITOR.md](docs/CAPACITOR.md) for the full
+  command sequence + signing notes.
 
 ## Stack
 
