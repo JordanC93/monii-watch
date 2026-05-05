@@ -96,9 +96,19 @@ export function getEffectiveAccentHex(
 }
 
 /**
- * Write `--accent` + `--accent-rgb` onto `<body>` if there's an active
- * override for the current context, else clear them so the static
- * `html[data-theme='X']` rule in themes.css takes over again.
+ * Write `--accent` + `--accent-rgb` onto `<body>`. Reads the override
+ * for the current context if one exists; otherwise pulls the natural
+ * accent for that context (palette accent for Glass, theme default for
+ * Light/Dark/OLED).
+ *
+ * `--accent-fg` is intentionally NOT touched. The static
+ * `html[data-theme='X']` rule in themes.css owns it. Apple's iOS uses
+ * white text on every saturated accent and accepts a slight WCAG
+ * contrast hit for the aesthetic — Glass theme's static white-on-accent
+ * gives that look for free. Dynamically deriving the foreground via YIQ
+ * was attempted in an earlier v0.7.28 draft and over-corrected: natural
+ * Rose pink (YIQ 157) flipped to dark text, which read as a clash even
+ * though it satisfied WCAG.
  *
  * Called on every theme change, palette change, and override change.
  */
@@ -111,13 +121,70 @@ export function applyAccentForContext(
   const key = getAccentContextKey(theme, glassPalette);
   const override = accentOverrides?.[key];
   const body = document.body.style;
+
+  // Resolve the effective accent for this context.
+  //  - Override always wins when present.
+  //  - For Glass theme without an override: use the palette's natural
+  //    accent (Aurora indigo / Sunset orange / etc). The static
+  //    `html[data-theme='glass']` rule declares `--accent: 64 156 255`
+  //    (systemBlue) for the theme as a whole — that's the fallback
+  //    when no palette accent is meaningful (mono palette) but the
+  //    actual palettes need their own accent applied via JS, since
+  //    themes.css can't know which palette is active.
+  //  - For non-Glass themes without an override: leave `--accent`
+  //    unset on body so the static html rule takes over cleanly.
+  let activeHex: string | null = null;
+  let isOverride = false;
   if (override && /^#[0-9a-f]{3,8}$/i.test(override)) {
-    const triplet = hexToTriplet(override);
-    body.setProperty('--accent', override);
-    if (triplet) body.setProperty('--accent-rgb', triplet);
+    activeHex = override;
+    isOverride = true;
+  } else if (theme === 'glass') {
+    activeHex = getNaturalAccentHex(theme, glassPalette);
+  }
+
+  if (activeHex) {
+    const triplet = hexToTriplet(activeHex);
+    // CRITICAL — `--accent` MUST be written as a space-separated RGB
+    // triplet (e.g. "208 38 227"), NOT a hex string. Every Tailwind
+    // utility that uses the accent expands to
+    //     rgb(var(--accent) / <alpha-value>)
+    // (see tailwind.config.js). Writing a hex makes the rgb() call
+    // invalid → browser silently rejects it → falls back to the
+    // inherited html-level --accent (the theme default). That's why
+    // every `bg-accent` / `border-accent` / `text-accent` consumer
+    // appeared to "ignore" the override across v0.7.27 + v0.7.28 —
+    // only direct hex consumers (the picker disc itself) actually
+    // showed the override. Fixed in v0.7.28 by writing the triplet
+    // here. The static themes.css declarations always used triplets;
+    // this matches that contract.
+    if (triplet) {
+      body.setProperty('--accent', triplet);
+      body.setProperty('--accent-rgb', triplet);
+    } else {
+      // hexToTriplet failed (malformed input). Better to clear and
+      // fall back to the theme default than write garbage.
+      body.removeProperty('--accent');
+      body.removeProperty('--accent-rgb');
+    }
+    // v0.7.28 — force white text whenever the user has explicitly
+    // OVERRIDDEN the accent. The static theme `--accent-fg` was tuned
+    // for that theme's natural accent (e.g. Dark theme uses near-black
+    // because dark-on-cyan reads great); a user-picked override can
+    // land anywhere on the spectrum (#D026E3 magenta, deep purple,
+    // forest green) and dark-on-anything is unreliable. Always-white
+    // matches Apple's iOS / macOS convention for accent-bg surfaces.
+    // Natural palette accents (no override) still use the theme
+    // default so the default Dark cyan tab keeps its high-contrast
+    // dark text.
+    if (isOverride) {
+      body.setProperty('--accent-fg', '255 255 255');
+    } else {
+      body.removeProperty('--accent-fg');
+    }
   } else {
     body.removeProperty('--accent');
     body.removeProperty('--accent-rgb');
+    body.removeProperty('--accent-fg');
   }
 }
 

@@ -96,16 +96,19 @@ export function GlassPalettePicker() {
             <div
               className="h-12 w-full"
               style={{
+                // v0.7.28 — base color matches the lifted runtime backdrop
+                // (#0a0d2c → #050714) so the preview accurately reflects
+                // what the user will see on the page.
                 background: `
                   radial-gradient(120% 100% at 28% 18%, rgb(${p.colors[0]}) 0%, transparent 62%),
                   radial-gradient(120% 100% at 72% 82%, rgb(${p.colors[1]}) 0%, transparent 62%),
                   radial-gradient(140% 110% at 18% 78%, rgb(${p.colors[2]}) 0%, transparent 68%),
                   radial-gradient(140% 110% at 82% 22%, rgb(${p.colors[3]}) 0%, transparent 68%),
-                  linear-gradient(180deg, #060818 0%, #02030a 100%)
+                  linear-gradient(180deg, #0a0d2c 0%, #050714 100%)
                 `,
               }}
             />
-            <div className="text-[11px] font-medium px-2 py-1 text-center bg-surface-2/50">
+            <div className="text-[11px] font-medium px-2 py-1 text-center bg-surface-2/50 glass-palette-swatch-label">
               {p.label}
             </div>
           </button>
@@ -122,7 +125,7 @@ export function GlassPalettePicker() {
           <div className="h-12 w-full grid place-items-center bg-surface-2 text-fg-subtle text-[11px]">
             Custom
           </div>
-          <div className="text-[11px] font-medium px-2 py-1 text-center bg-surface-2/50">
+          <div className="text-[11px] font-medium px-2 py-1 text-center bg-surface-2/50 glass-palette-swatch-label">
             Custom
           </div>
         </button>

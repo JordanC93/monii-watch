@@ -82,7 +82,11 @@ export type ModalState =
   | { type: 'auditLog' }
   | { type: 'tipJar' }
   | { type: 'cloudSyncActivity' }
-  | { type: 'investmentLots'; accountId: string; positionId: string };
+  | { type: 'investmentLots'; accountId: string; positionId: string }
+  // v0.7.28 — desktop replacement for the cramped inline-edit row in
+  // TransactionRow. Mobile keeps the inline form; regular-layout
+  // viewports open this modal instead.
+  | { type: 'editTransaction'; transactionId: string };
 
 export const useUI = create<State>((set, get) => ({
   commandOpen: false,

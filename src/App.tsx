@@ -49,6 +49,8 @@ const SharePage = lazy(() => import('./pages/SharePage').then((m) => ({ default:
 const ReceiptGalleryPage = lazy(() => import('./pages/ReceiptGalleryPage').then((m) => ({ default: m.ReceiptGalleryPage })));
 // Payees management (Tier 7 #3).
 const PayeesPage = lazy(() => import('./pages/PayeesPage').then((m) => ({ default: m.PayeesPage })));
+// Per-payee drill-down (v0.7.28). Lazy because recharts is heavy.
+const PayeeDetailPage = lazy(() => import('./pages/PayeeDetailPage').then((m) => ({ default: m.PayeeDetailPage })));
 // Category drill-down (Tier 7 #4).
 const CategoryDetailPage = lazy(() => import('./pages/CategoryDetailPage').then((m) => ({ default: m.CategoryDetailPage })));
 // In-app help center (built v0.6.2).
@@ -509,6 +511,7 @@ export default function App() {
               <Route path="/share" element={<SharePage />} />
               <Route path="/receipts" element={<ReceiptGalleryPage />} />
               <Route path="/payees" element={<PayeesPage />} />
+              <Route path="/payees/:payeeId" element={<PayeeDetailPage />} />
               <Route path="/categories/:categoryId" element={<CategoryDetailPage />} />
               <Route path="/help" element={<HelpPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />

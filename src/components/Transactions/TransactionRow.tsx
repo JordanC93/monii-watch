@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Flag, Trash2, ArrowLeftRight, Check, Circle, Paperclip, Hourglass } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Flag, Trash2, ArrowLeftRight, Check, Circle, Paperclip, Hourglass, ExternalLink, Pencil } from 'lucide-react';
 import { ReceiptViewer } from './ReceiptViewer';
 import { TxnContextMenu } from './TxnContextMenu';
 import { TxnActionSheet } from './TxnActionSheet';
+import { PayeeAutocomplete } from './PayeeAutocomplete';
 import { useLongPress } from '../../lib/longPress';
 import type { Transaction, FlagColor, ClearedState } from '../../domain/types';
 import { useBudget } from '../../store/budget';
@@ -12,6 +14,7 @@ import { cn } from '../../lib/cn';
 import { updateTransaction, deleteTransaction, setCleared, setFlag } from '../../db/repo';
 import { formatDateShort } from '../../domain/date';
 import { useUI } from '../../store/ui';
+import { useEffectiveLayout } from '../../lib/layout';
 
 type Props = {
   txn: Transaction;
@@ -55,6 +58,22 @@ export function TransactionRow({ txn, showAccount, runningBalance }: Props) {
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(txn);
+  // v0.7.28 — on regular (desktop / wide) layouts, clicks open the
+  // EditTransactionModal instead of switching the row into the cramped
+  // inline-edit grid. Compact (mobile / narrow) layouts keep the
+  // inline-form behavior — bottom-sheet style works well there and
+  // avoids modal-on-modal stacking when the receipt viewer or split
+  // editor opens from inside an edit. `openEdit()` below picks the
+  // right path based on the live layout (resize-aware via the hook).
+  const layout = useEffectiveLayout();
+  const useModalForEdit = layout === 'regular';
+  function openEdit() {
+    if (useModalForEdit) {
+      openModal({ type: 'editTransaction', transactionId: txn.id });
+    } else {
+      setEditing(true);
+    }
+  }
   const [showReceipt, setShowReceipt] = useState(false);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   // Tier 12 #4 — long-press on the mobile row opens an action sheet.
@@ -123,13 +142,37 @@ export function TransactionRow({ txn, showAccount, runningBalance }: Props) {
             onChange={(e) => setDraft({ ...draft, date: e.target.value })}
             className="h-7 px-1 rounded bg-surface-3 border border-border text-[12px] text-fg"
           />
-          <PayeeInput
-            value={payeeName(draft.payeeId, payees)}
-            onChange={(name) => {
-              const found = payees.find((p) => p.name.toLowerCase() === name.toLowerCase());
-              setDraft({ ...draft, payeeId: found?.id ?? `__new__:${name}` });
-            }}
-          />
+          {/* Wrapper provides relative positioning for the autocomplete
+              dropdown + lets us tuck a "view payee history" link into
+              the cell when the current value matches an existing payee. */}
+          <div className="relative flex items-center gap-1 min-w-0">
+            <div className="flex-1 min-w-0">
+              <PayeeAutocomplete
+                value={payeeName(draft.payeeId, payees)}
+                onChange={(name) => {
+                  const found = payees.find((p) => p.name.toLowerCase() === name.toLowerCase());
+                  setDraft({ ...draft, payeeId: found?.id ?? `__new__:${name}` });
+                }}
+                onPickExisting={(id) => setDraft({ ...draft, payeeId: id })}
+              />
+            </div>
+            {/* "View payee history" affordance — only shown when the
+                current value resolves to an existing payee (not a
+                "__new__:" placeholder). Saves a tap vs going to
+                Payees → click. Stops the row click so navigation
+                doesn't trigger the row's own handler. */}
+            {draft.payeeId && !draft.payeeId.startsWith('__new__:') && (
+              <Link
+                to={`/payees/${draft.payeeId}`}
+                onClick={(e) => e.stopPropagation()}
+                className="text-fg-subtle hover:text-accent flex-shrink-0"
+                title="View transaction history with this payee"
+                aria-label="View payee history"
+              >
+                <ExternalLink size={12} />
+              </Link>
+            )}
+          </div>
           {txn.transferAccountId ? (
             <div className="text-[12.5px] text-fg-muted truncate flex items-center gap-1">
               <ArrowLeftRight size={11} /> Transfer · {transferAccount?.name ?? '—'}
@@ -182,14 +225,33 @@ export function TransactionRow({ txn, showAccount, runningBalance }: Props) {
               <Trash2 size={16} />
             </button>
           </div>
-          <PayeeInput
-            value={payeeName(draft.payeeId, payees)}
-            onChange={(name) => {
-              const found = payees.find((p) => p.name.toLowerCase() === name.toLowerCase());
-              setDraft({ ...draft, payeeId: found?.id ?? `__new__:${name}` });
-            }}
-            big
-          />
+          {/* Payee row + view-history link. The link sits inline at
+              the right so the user can tap to see past transactions
+              with this payee without leaving edit mode. */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <PayeeAutocomplete
+                big
+                value={payeeName(draft.payeeId, payees)}
+                onChange={(name) => {
+                  const found = payees.find((p) => p.name.toLowerCase() === name.toLowerCase());
+                  setDraft({ ...draft, payeeId: found?.id ?? `__new__:${name}` });
+                }}
+                onPickExisting={(id) => setDraft({ ...draft, payeeId: id })}
+              />
+            </div>
+            {draft.payeeId && !draft.payeeId.startsWith('__new__:') && (
+              <Link
+                to={`/payees/${draft.payeeId}`}
+                onClick={(e) => e.stopPropagation()}
+                className="text-fg-subtle hover:text-accent flex-shrink-0 p-2 rounded hover:bg-surface-3"
+                title="View transaction history with this payee"
+                aria-label="View payee history"
+              >
+                <ExternalLink size={14} />
+              </Link>
+            )}
+          </div>
           {txn.transferAccountId ? (
             <div className="text-[12.5px] text-fg-muted px-2 py-1.5 bg-surface-3/40 rounded flex items-center gap-1">
               <ArrowLeftRight size={11} /> Transfer · {transferAccount?.name ?? '—'}
@@ -274,7 +336,7 @@ export function TransactionRow({ txn, showAccount, runningBalance }: Props) {
           if (target.closest('button, input, select')) return;
           setDetailTxnId(detailTxnId === txn.id ? null : txn.id);
         }}
-        onDoubleClick={() => setEditing(true)}
+        onDoubleClick={openEdit}
         onContextMenu={(e) => {
           e.preventDefault();
           // Try native context menu first (Tauri desktop). On the web
@@ -310,7 +372,7 @@ export function TransactionRow({ txn, showAccount, runningBalance }: Props) {
         />
         <FlagButton flag={txn.flag} onCycle={(f) => setFlag(txn.id, f)} />
         <button
-          onClick={() => setEditing(true)}
+          onClick={openEdit}
           className="text-[12.5px] text-fg-muted text-left truncate hover:text-fg flex flex-col"
           title={runningBalance !== undefined ? `Balance after this txn: ${(runningBalance / 100).toFixed(2)}` : undefined}
         >
@@ -326,7 +388,7 @@ export function TransactionRow({ txn, showAccount, runningBalance }: Props) {
             </span>
           )}
         </button>
-        <button onClick={() => setEditing(true)} className="text-[13px] truncate text-left hover:text-fg flex items-center gap-1.5">
+        <button onClick={openEdit} className="text-[13px] truncate text-left hover:text-fg flex items-center gap-1.5">
           {txn.transferAccountId && <ArrowLeftRight size={11} className="text-fg-subtle" />}
           <span className="truncate">{payee?.name ?? <span className="text-fg-subtle italic">No payee</span>}</span>
           {showAccount && account && <span className="text-fg-subtle text-[11.5px]">· {account.name}</span>}
@@ -347,7 +409,7 @@ export function TransactionRow({ txn, showAccount, runningBalance }: Props) {
             <span className="text-fg-subtle italic">— Inflow —</span>
           )}
         </div>
-        <button onClick={() => setEditing(true)} className="text-[12.5px] text-fg-subtle truncate text-left hover:text-fg">{txn.memo || '—'}</button>
+        <button onClick={openEdit} className="text-[12.5px] text-fg-subtle truncate text-left hover:text-fg">{txn.memo || '—'}</button>
         <div className="text-right tabular text-[13px]">
           {outflow > 0 ? <Money cents={-outflow} monochrome={false} /> : <span className="text-fg-subtle">—</span>}
         </div>
@@ -393,11 +455,34 @@ export function TransactionRow({ txn, showAccount, runningBalance }: Props) {
 
       {/* Inline expansion strip — alternative to the right-side detail pane.
          Activated by clicking the row chevron (added via the desktop row).
-         Shows quick metadata + actions without leaving the table. */}
+         Shows quick metadata + actions without leaving the table.
+         v0.7.28 — payee is now a Link to the per-payee history page,
+         with a small pencil affordance to drop straight into edit mode
+         on the payee field. */}
       {isExpanded && (
         <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-surface-2/30 border-b border-border/60 text-[12px]">
           <div className="text-fg-subtle uppercase tracking-wider text-[10.5px]">Inline detail</div>
-          <span>{payee?.name ?? 'No payee'}</span>
+          {payee ? (
+            <span className="flex items-center gap-1.5">
+              <Link
+                to={`/payees/${payee.id}`}
+                className="hover:text-accent hover:underline"
+                title={`View transaction history with ${payee.name}`}
+              >
+                {payee.name}
+              </Link>
+              <button
+                onClick={openEdit}
+                className="text-fg-subtle hover:text-accent p-0.5 rounded"
+                title="Edit (incl. fix wrong payee)"
+                aria-label="Edit transaction"
+              >
+                <Pencil size={11} />
+              </button>
+            </span>
+          ) : (
+            <span className="italic text-fg-subtle">No payee</span>
+          )}
           <span className="text-fg-subtle">·</span>
           <span>{category?.name ?? 'Uncategorized'}</span>
           <span className="text-fg-subtle">·</span>
@@ -626,17 +711,9 @@ function EditActions({ onSave, onCancel, onDelete, onRefund, hasRefund }: { onSa
   );
 }
 
-function PayeeInput({ value, onChange, big }: { value: string; onChange: (s: string) => void; big?: boolean }) {
-  return (
-    <input
-      list="payees-datalist"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder="Payee"
-      className={cn(
-        'rounded bg-surface-3 border border-border text-fg',
-        big ? 'h-9 w-full px-2 text-[13px]' : 'h-7 px-1 text-[12px]',
-      )}
-    />
-  );
-}
+// PayeeInput removed in v0.7.28 — replaced by PayeeAutocomplete which
+// has a custom dropdown (filters as you type, ranks by transaction
+// count) and is iOS-keyboard-safe (mousedown + preventDefault on
+// suggestions keeps focus on the input). The native <datalist>
+// approach used here was a stop-gap; iOS Safari's datalist UI is
+// poor and didn't filter meaningfully as the user typed.

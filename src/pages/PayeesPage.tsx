@@ -10,13 +10,14 @@
  */
 
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useBudget } from '../store/budget';
 import { mergePayees, deletePayee } from '../db/repo';
 import { useFormatMoney } from '../lib/format';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { MobilePageHeader } from '../components/Layout/MobilePageHeader';
-import { Merge, Search, Trash2, Lightbulb } from 'lucide-react';
+import { Merge, Search, Trash2, Lightbulb, ChevronRight, Info } from 'lucide-react';
 import { toast } from '../lib/toast';
 
 export function PayeesPage() {
@@ -88,6 +89,25 @@ export function PayeesPage() {
       <MobilePageHeader title="Payees" subtitle={`${payees.length} payee${payees.length === 1 ? '' : 's'}`} />
 
       <div className="p-3 sm:p-5 space-y-4">
+        {/* What this page is for. Without this header users land here
+            and can't tell whether it's a per-payee dashboard, a billing
+            list, or something else. v0.7.28 — added explanation +
+            click-to-drill-down so the page now does both jobs. */}
+        <div className="glass-panel p-3 sm:p-4 flex items-start gap-3">
+          <Info size={16} className="text-accent flex-shrink-0 mt-0.5" />
+          <div className="text-[12.5px] leading-snug">
+            <div className="font-medium text-fg">What's this page?</div>
+            <div className="text-fg-subtle mt-0.5">
+              Every payee you've recorded a transaction with, ordered by lifetime spend.
+              <strong className="text-fg"> Tap a row to see your full history with that payee</strong> —
+              monthly trend chart, year-over-year comparison, and a category breakdown
+              (great for utilities like Con Edison or shops with split totals like Trader Joes).
+              Use the suggestions below to merge near-duplicate names ("STARBUCKS STORE
+              #5821" → "Starbucks") so the spend totals roll up correctly.
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
           <Search size={14} className="text-fg-subtle" />
           <Input
@@ -151,17 +171,24 @@ export function PayeesPage() {
         )}
 
         <div className="glass-panel p-2 sm:p-3">
-          <div className="grid grid-cols-[24px_1fr_70px_70px_28px] gap-2 px-1.5 py-1 text-[10.5px] uppercase tracking-wider text-fg-subtle border-b border-border">
+          <div className="grid grid-cols-[24px_1fr_70px_70px_28px_18px] gap-2 px-1.5 py-1 text-[10.5px] uppercase tracking-wider text-fg-subtle border-b border-border">
             <div></div>
             <div>Payee</div>
             <div className="text-right">Txns</div>
             <div className="text-right">Spent</div>
             <div></div>
+            <div></div>
           </div>
+          {/* Each row is a single grid container. The checkbox + delete
+              button are independent interactive elements; the rest of
+              the row (name + counts + chevron) is wrapped in a Link to
+              the payee detail page. We don't make the WHOLE row a link
+              because the checkbox click would navigate away — separate
+              clickable zones is the cleaner pattern. */}
           {visible.map(({ payee, count, total }) => (
             <div
               key={payee.id}
-              className="grid grid-cols-[24px_1fr_70px_70px_28px] gap-2 px-1.5 py-1.5 text-[12px] items-center hover:bg-surface-2/30 border-b border-border/50 last:border-0"
+              className="grid grid-cols-[24px_1fr_70px_70px_28px_18px] gap-2 px-1.5 py-1.5 text-[12px] items-center hover:bg-surface-2/30 border-b border-border/50 last:border-0"
             >
               <input
                 type="checkbox"
@@ -170,9 +197,27 @@ export function PayeesPage() {
                 className="accent-accent"
                 aria-label={`Select ${payee.name}`}
               />
-              <div className="font-medium truncate">{payee.name}</div>
-              <div className="tabular text-right text-fg-subtle">{count}</div>
-              <div className="tabular text-right">{fmt(total)}</div>
+              <Link
+                to={`/payees/${payee.id}`}
+                className="font-medium truncate hover:text-accent flex items-center gap-1.5"
+                title={`View transaction history with ${payee.name}`}
+              >
+                {payee.name}
+              </Link>
+              <Link
+                to={`/payees/${payee.id}`}
+                className="tabular text-right text-fg-subtle hover:text-fg"
+                title="View history"
+              >
+                {count}
+              </Link>
+              <Link
+                to={`/payees/${payee.id}`}
+                className="tabular text-right hover:text-accent"
+                title="View history"
+              >
+                {fmt(total)}
+              </Link>
               <button
                 onClick={() => {
                   if (count > 0) {
@@ -185,6 +230,16 @@ export function PayeesPage() {
               >
                 <Trash2 size={12} />
               </button>
+              {/* Chevron telegraphs that the row is navigable. Tap
+                  target is the chevron itself + the three text columns
+                  via their individual Link wrappers. */}
+              <Link
+                to={`/payees/${payee.id}`}
+                className="text-fg-subtle hover:text-fg flex justify-end"
+                aria-label={`View details for ${payee.name}`}
+              >
+                <ChevronRight size={14} />
+              </Link>
             </div>
           ))}
           {visible.length === 0 && (

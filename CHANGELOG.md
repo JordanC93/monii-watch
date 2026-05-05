@@ -2,6 +2,313 @@
 
 ## Released
 
+### v0.7.28 — Glass theme actually pops with bright palettes + iOS scroll-lock fix + per-payee drill-down
+
+**Highlight color override actually applies to Tailwind utilities (THE fix)**:
+
+The override has been silently broken since v0.7.27 split accent
+control into `applyAccentForContext()`. That function wrote `--accent`
+as a hex string (`#D026E3`) — but every Tailwind utility expands the
+accent via `rgb(var(--accent) / <alpha-value>)` (per
+tailwind.config.js), and `rgb(#D026E3 / 1)` is invalid CSS. Browser
+silently rejected it and fell back to the inherited html-level
+`--accent` (the theme's static cyan triplet).
+
+Result: only the picker disc itself (which uses hex directly) showed
+the override; every `bg-accent`, `border-accent`, `text-accent`,
+`shadow-accent` consumer rendered as the theme default. Selected
+theme tile borders, primary button gradients, focus rings, accent
+icons, the Money component's accent state, all the active-nav
+indicators — everything that should have honored the override was
+showing the wrong color.
+
+`applyAccentForContext()` now writes `--accent` as a space-separated
+RGB triplet (e.g. `208 38 227`), matching the contract themes.css
+already followed for static values. Direct CSS consumers in Monii
+already wrap in `rgb(var(--accent))` so the change is transparent
+for them too. Monitrr is unaffected — it uses `color-mix()` and bare
+`var(--accent)` in gradients (which need hex), so it kept storing
+hex correctly.
+
+This single-line fix retroactively repairs every override-related
+issue from v0.7.27 onward.
+
+**Override accent forces white text on `bg-accent` surfaces**:
+
+When the user picks a Highlight color override, the active surfaces
+that use `bg-accent text-accent-fg` (Settings tabs, primary buttons,
+active nav pills, etc.) now force the foreground to white via a
+body-level `--accent-fg: 255 255 255` override. Natural palette
+accents (no override) still use the theme's static `--accent-fg`
+(near-black on Dark / OLED, white on Light / Glass) so the default
+appearance is unchanged.
+
+Why this matters: the static theme-level `--accent-fg` was tuned for
+each theme's NATURAL accent color (e.g. Dark theme uses near-black
+because dark-on-cyan reads great), but a user-picked override can
+land anywhere on the spectrum (Dark + magenta `#D026E3` → near-black
+text on magenta = invisible). Forcing white only-when-overridden
+keeps the default looking right while making any override readable
+without bringing back the YIQ-derive logic the maintainer disliked
+earlier in this version's iteration.
+
+Mirrored in Monitrr — uses `def.accentIsAuto === false` from the
+resolver to detect override mode.
+
+**Mobile bottom-nav as floating dock-style island**:
+
+The 5-tab BottomNav now floats above the bottom edge with rounded
+corners + breathing room from the screen edges, mirroring iOS 26 /
+iPadOS 26 tab bars + macOS Sequoia Control Center pills. Sizing is
+centralized via two CSS custom properties (`--mobile-nav-inset` for
+the gap, `--mobile-nav-radius` for the corner radius) so future
+tweaks ripple to every theme automatically.
+
+Per-theme finish:
+- **Glass**: chromatic meniscus ring (the `data-no-meniscus` flag
+  was removed since the bar is no longer edge-pinned), Apple-style
+  multi-layer shadow stack.
+- **Dark / OLED**: solid theme border + simple drop shadow.
+- **Light**: softer border + lighter shadow tones so the bar reads
+  as elevated without becoming a heavy block on the light canvas.
+
+Layout's main-content bottom padding bumped from 72 → 88 px to clear
+the float gap.
+
+**Edit-transaction modal on desktop (replaces cramped inline edit)**:
+
+The desktop inline-edit row was ~9 columns trying to fit on one line —
+Date / Payee / Category / Memo / Outflow / Inflow / actions — and got
+unworkable past 3-word names. The new `EditTransactionModal` opens
+when a transaction is clicked on regular layouts, stacking fields
+vertically with breathing room (matches the mobile inline form's
+shape, but shows as a centered card on desktop and a bottom sheet on
+narrow viewports).
+
+Behavior matrix:
+- **Regular layout (desktop, wide iPad)**: clicking a row / cell
+  opens the modal. Double-clicking opens the modal too.
+- **Compact layout (phone, narrow viewport)**: keeps the existing
+  inline-edit form (bottom-sheet style, no extra modal stacking when
+  receipt viewer / split editor opens from inside an edit).
+
+The modal carries the same field semantics as the inline form: date,
+flag (cycle button), cleared (cycle), payee (PayeeAutocomplete with
+view-history link), category (or transfer label / split badge), memo,
+outflow / inflow money inputs, refund tag, split-shortcut button.
+Save / Cancel / Delete in the footer with Delete on the opposite side
+to prevent mispress.
+
+**Payee field on transactions: link + edit pencil + autocomplete**:
+
+When viewing a transaction in detail (right-side detail pane on
+desktop, edit form on mobile), the payee is now a Link to the
+per-payee history page introduced earlier in v0.7.28 — tap "Con
+Edison" or "Trader Joes" and you land on their drill-down. A pencil
+icon next to the payee opens an inline edit affordance that flips
+just that field into a `PayeeAutocomplete` (other fields stay
+read-only) so users can fix a wrong payee without entering the full
+edit-row mode.
+
+`PayeeAutocomplete` is a new component that replaces the previous
+native HTML `<datalist>` — datalist worked but had poor iOS Safari
+UX (no fuzzy filtering, dropdown rendered above the keyboard
+chrome). The new implementation:
+
+- **iOS-keyboard-safe**: suggestion clicks use `onMouseDown` with
+  `preventDefault()` instead of `onClick`. mousedown fires before the
+  input blurs; preventDefault cancels the focus shift, so the input
+  stays focused → iOS WKWebView never dismisses the keyboard between
+  keystroke and tap. Same trick used by Algolia / Headless UI.
+- **Ranked suggestions**: prefix match → word-boundary match →
+  substring match. Within each tier, payees with more historical
+  transactions rank higher (more "canonical").
+- **Transaction count per suggestion**: dropdown shows e.g.
+  "Starbucks · 47 txns" alongside "Starbucks Coffee · 3 txns" so
+  users disambiguate near-duplicates at a glance.
+- **"+ Use as new payee" footer**: appears when the typed text
+  doesn't match any existing payee. One tap commits a new payee with
+  the typed name (saves the user from having to confirm).
+- **Keyboard navigation**: ↑/↓ to highlight, Enter to pick, Escape
+  to close. Datalist couldn't do this.
+- **No focus-stealing useEffect**: the v0.7.25 Modal bug is the
+  cautionary tale — every effect-driven `.focus()` in the new
+  component fires only on user-initiated commits, never on prop
+  changes, so re-renders don't dismiss the keyboard.
+
+Wired into TransactionRow (desktop + mobile edit forms),
+TxnDetailPane (right-side detail pane), and the related-txns list
+in the detail pane (each related-txn payee is also a Link now).
+
+The desktop inline expansion strip (chevron button on a row) was
+also updated: payee shows as a Link with a pencil icon for
+quick-fixing wrong payees.
+
+**Per-payee drill-down (Payees page)**:
+
+The Payees page used to be a maintenance / cleanup tool only — list,
+merge dupes, delete. Now each row is a link to a per-payee detail page
+(`/payees/<id>`) with:
+
+- 12-month spend trend chart (recharts bar — same component
+  CategoryDetailPage uses, lazy-loaded). Reveals fluctuation patterns
+  for utility bills (Con Edison summer-AC vs winter-baseline) and
+  recurring shops (Trader Joes weekly-grocery rhythm).
+- Variability banner: flags payees whose max-month / min-month range
+  ratio is ≥ 1.5×, with the actual high / low / avg spelled out.
+- YTD-vs-last-YTD comparison with directional indicator.
+- Stats grid: avg/mo, avg/visit, highest mo, lowest mo.
+- Top categories used at this payee (with inline progress bars showing
+  what % of spend landed in each) — surfaces split-transaction patterns
+  like Trader Joes → Groceries 80% / Household 15% / Pet 5%.
+- Recent transactions list (newest first, links back to owning
+  Account page).
+- First-seen / last-seen dates so you can tell at a glance how long
+  this payee has been in your data.
+
+New computation lives in `src/domain/payeeDetail.ts`. Honors splits via
+`categoriesTouched()`, includes one-time transactions (unlike
+categoryDetail — they're exactly what you want to see in payee
+history), respects on-budget account filtering.
+
+Page is lazy-loaded — users who never visit Payees don't pay the
+recharts cost on first render.
+
+The Payees list page itself also gained a description card explaining
+what the page does (list + merge + drill-down), so users landing there
+fresh aren't left guessing.
+
+
+
+Two fixes shipped together since both showed up in the same iOS dogfood
+session.
+
+**Glass theme brightness rebalance** (the one you'd notice first):
+
+The v0.7.10 backdrop had a 55% black dimming overlay sitting on top of
+the colorful blobs as a "calming" layer. Combined with blob alphas of
+35-42% and a near-black base color (`#060818`), this clipped any bright
+palette into middle-gray. Pick all-white wallpaper colors and the math
+ended up `0.45 × (0.40 × 255 + 0.60 × 6) + 0.55 × 6 ≈ 51` — dark gray.
+
+Re-balanced four knobs:
+
+- **Dimming overlay** 0.55 → 0.18 alpha. Bright picks now read as bright.
+- **Vignette corners** softer (0.30/0.65 → 0.18/0.42 alpha).
+- **Blob alphas** 0.35-0.42 → 0.55-0.62. Picked colors saturate the
+  canvas the way Apple's actual Sequoia / iOS 26 wallpapers do.
+- **Base gradient** lifted from `#060818 → #02030a` (essentially black)
+  to `#0a0d2c → #050714` (low-saturation deep navy) so even no-blob
+  zones carry some color.
+- Saturation filter on the drift layer 1.15 → 1.25 to compensate.
+
+Also dropped `brightness(0.96)` → `brightness(1.0)` from every
+`.glass-panel` material variant so the glass material doesn't double-dim
+the wallpaper showing through. Mobile blur ceiling rule got the same
+treatment.
+
+Aurora / Sunset / Ocean / Forest / Rose still feel familiar (their
+colors were dark-ish so the math change is subtle). The change is
+biggest for Custom palettes with light picks — those finally render
+the way the user expects.
+
+Glass palette preset preview swatches updated to use the lifted base
+color too, so the previews stay representative.
+
+**Auto-mode accent regression fix + icon contrast on accent buttons**:
+
+The split that moved accent control out of `applyGlassPalette()` into
+`applyAccentForContext()` accidentally dropped the auto-mode write for
+Glass theme. Result: the picker UI showed the right palette accent
+(Rose pink, etc.) but the live `--accent` fell back to the static
+`html[data-theme='glass']` rule (systemBlue), so the FAB / back-to-top
+buttons / active nav rendered cyan while the picker said pink. Picker
+and live UI disagreed.
+
+`applyAccentForContext()` now resolves the effective accent end-to-end:
+override wins when present; otherwise for Glass theme it pulls the
+palette's natural accent and writes it; non-Glass themes with no
+override still defer to the static html rule.
+
+Foreground color (`--accent-fg`) is intentionally NOT touched by JS —
+themes.css declares it per-theme and Glass already uses white, which
+matches Apple's iOS convention (white text on every saturated accent,
+even when contrast suffers slightly because the bold weight + accent
+gradient + drop shadow do the legibility work). An earlier draft
+derived `--accent-fg` from the override's YIQ brightness; that
+over-corrected and made natural Rose pink (YIQ 157) flip to dark text
+which the maintainer correctly flagged as a clash.
+
+Also: icons inside `bg-accent` buttons (FAB, back-to-top, active nav
+pills) get `stroke-width: 2.4` + a 1 px drop shadow on Glass theme so
+the white glyph stays clearly visible above bright accent fills. The
+global `svg.lucide { stroke-width: 1.5 }` rule was making the white
+plus / arrow read as faint against light accents like Rose or Sunset.
+
+**Back-to-top button moved to bottom-LEFT + suppressed on data-light pages**:
+
+Previously anchored bottom-right at the same x-axis as the MobileFab,
+which invited a mispress whenever both buttons were visible at once
+on a long scroll. Mirrored to the opposite side. Also suppressed on
+Settings, Help, Workspaces, Privacy, Recover, Share, and Onboarding
+routes — those pages are tab-paged or read top-down and don't need a
+quick-jump shortcut.
+
+**Auto-rules tab readable on Glass theme**:
+
+The Auto-rules page's active tab indicator used `bg-surface text-fg`,
+which is fine on every theme except Glass — there `--surface` is
+deliberately white (it's the glass-panel material color), so the
+indicator rendered as white text on a white background. Added a
+glass-theme-scoped CSS override that switches text to a dark navy on
+any element combining `bg-surface` with `text-fg` (only the Auto-rules
+tabs hit this combo currently, but the rule covers any future
+segmented control that follows the same pattern).
+
+**Selectable tile glass overlay**:
+
+The brighter v0.7.28 wallpaper exposed a latent issue: tiles in
+Settings (theme picker, money colors, display density, palette
+swatches, etc.) were styled as `border-2` cards with no background, so
+the wallpaper bled straight through and tile text labels lost contrast
+on bright palettes. New CSS rule scoped to glass theme adds a light
+backdrop-blur (10px) + 42%-alpha dark fill to any `button.rounded-lg`
+or `button.rounded-md` carrying `border-2`. Selected tiles get a
+slightly stronger backing + a subtle accent glow so the active pick
+stays distinguishable.
+
+Palette swatch label strips ("Aurora", "Sunset", etc.) get a matching
+8px backdrop-blur layer on top of their existing translucent fill so
+the label reads cleanly even when the preview gradient above is
+bright.
+
+**Highlight color override now picks a readable text color**:
+
+Reproduced on Dark theme: override the highlight to a dark color like
+`#571C5E` and the active Settings tab became invisible — the tab styling
+is `bg-accent text-accent-fg`, but `--accent-fg` was a static near-black
+declared on `html[data-theme='dark']` (intended to contrast against the
+default cyan accent). Dark text on dark-purple background = unreadable.
+
+`applyAccentForContext()` now derives `--accent-fg` from the override's
+YIQ perceived brightness and writes it onto `<body>` alongside
+`--accent` and `--accent-rgb`. Light overrides get dark text, dark
+overrides get white text. Same fix mirrored in Monitrr — the
+`.nav-item.active` and `.btn-primary` rules now read
+`color: var(--accent-fg, #fff)` so a near-white accent override doesn't
+hide the label.
+
+**Modal scroll lock — iOS WKWebView bulletproof**:
+
+The v0.7.26 fix used `body { overflow: hidden }` which doesn't reliably
+stop touch-drag scrolling in iOS WKWebView (the Capacitor sideload of
+v0.7.26 still let users scroll the page behind the welcome modal).
+Switched to the position:fixed + scrollY-snapshot pattern that's
+standard for iOS modal libraries: snapshot scrollY → set body to
+position:fixed with top:-scrollY → on close restore styles AND
+scrollTo(0, scrollY). Layered: keeps `overflow: hidden` for older
+Android WebView that ignores position:fixed.
+
 ### v0.7.27 — Per-context highlight color overrides
 
 The "Highlight color" picker is now visible across every theme (not just

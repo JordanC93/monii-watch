@@ -10,15 +10,17 @@
  */
 
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useBudget } from '../../store/budget';
 import { useFormatMoney } from '../../lib/format';
 import { ACCOUNT_TYPE_META } from '../../domain/types';
 import { formatDate } from '../../domain/date';
 import { setCleared, setFlag, deleteTransaction, updateTransaction } from '../../db/repo';
 import { TagInput } from './TagInput';
+import { PayeeAutocomplete } from './PayeeAutocomplete';
 import { useUI } from '../../store/ui';
 import { Money } from '../ui/Money';
-import { X, Trash2, ArrowLeftRight, Receipt as ReceiptIcon, Hourglass, Tag } from 'lucide-react';
+import { X, Trash2, ArrowLeftRight, Receipt as ReceiptIcon, Hourglass, Tag, ExternalLink, Pencil, Check as CheckIcon } from 'lucide-react';
 import { ReceiptViewer } from './ReceiptViewer';
 
 type Props = { transactionId: string; onClose: () => void };
@@ -32,6 +34,11 @@ export function TxnDetailPane({ transactionId, onClose }: Props) {
   const fmt = useFormatMoney();
   const openModal = useUI((s) => s.openModal);
   const [showReceipt, setShowReceipt] = useState(false);
+  // v0.7.28 — inline payee edit. Click pencil to swap the read-only
+  // Link to a PayeeAutocomplete; commit on selection or save button.
+  // Doesn't disturb the rest of the pane (other fields stay read-only).
+  const [editingPayee, setEditingPayee] = useState(false);
+  const [payeeDraft, setPayeeDraft] = useState('');
 
   const related = useMemo(() => {
     if (!txn) return [] as typeof allTxns;
@@ -67,7 +74,91 @@ export function TxnDetailPane({ transactionId, onClose }: Props) {
         <div className="grid grid-cols-2 gap-3">
           <Field label="Date" value={formatDate(txn.date)} />
           <Field label="Account" value={account?.name ?? '—'} subtle={!isOnBudget ? 'tracking' : undefined} />
-          <Field label="Payee" value={payee?.name ?? '—'} />
+
+          {/* v0.7.28 — Payee field: read-only by default with a Link to
+              the per-payee history page + a pencil to flip into inline
+              edit mode (autocomplete dropdown). Spans both columns
+              when editing so the dropdown has room. */}
+          <div className={editingPayee ? 'col-span-2' : ''}>
+            <div className="text-[10.5px] uppercase tracking-wider text-fg-subtle mb-0.5">Payee</div>
+            {editingPayee ? (
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <PayeeAutocomplete
+                    big
+                    autoFocus
+                    value={payeeDraft}
+                    onChange={(name) => setPayeeDraft(name)}
+                    onPickExisting={(id, name) => {
+                      // Persist immediately on pick — saves the user
+                      // an extra confirmation tap.
+                      updateTransaction(txn.id, { payeeId: id });
+                      setPayeeDraft(name);
+                      setEditingPayee(false);
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    // Commit free-text: resolve to existing if name
+                    // matches case-insensitively; otherwise stage as a
+                    // new payee. Mirrors the row-edit save flow.
+                    const trimmed = payeeDraft.trim();
+                    if (!trimmed) {
+                      updateTransaction(txn.id, { payeeId: null });
+                    } else {
+                      const existing = payees.find((p) => p.name.toLowerCase() === trimmed.toLowerCase());
+                      if (existing) updateTransaction(txn.id, { payeeId: existing.id });
+                      else updateTransaction(txn.id, { payee: trimmed });
+                    }
+                    setEditingPayee(false);
+                  }}
+                  className="text-accent hover:bg-accent/15 p-2 rounded flex-shrink-0"
+                  title="Save"
+                  aria-label="Save payee"
+                >
+                  <CheckIcon size={14} />
+                </button>
+                <button
+                  onClick={() => setEditingPayee(false)}
+                  className="text-fg-subtle hover:text-fg p-2 rounded flex-shrink-0"
+                  title="Cancel"
+                  aria-label="Cancel payee edit"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <div className="text-[12.5px] flex items-center gap-1.5 min-w-0">
+                {payee ? (
+                  <>
+                    <Link
+                      to={`/payees/${payee.id}`}
+                      className="truncate hover:text-accent hover:underline flex items-center gap-1"
+                      title={`View transaction history with ${payee.name}`}
+                    >
+                      {payee.name}
+                      <ExternalLink size={10} className="text-fg-subtle flex-shrink-0" />
+                    </Link>
+                  </>
+                ) : (
+                  <span className="text-fg-subtle italic">No payee</span>
+                )}
+                <button
+                  onClick={() => {
+                    setPayeeDraft(payee?.name ?? '');
+                    setEditingPayee(true);
+                  }}
+                  className="ml-auto text-fg-subtle hover:text-accent p-1 rounded"
+                  title="Fix wrong payee"
+                  aria-label="Edit payee"
+                >
+                  <Pencil size={11} />
+                </button>
+              </div>
+            )}
+          </div>
+
           <Field
             label="Category"
             value={txn.transferAccountId ? `Transfer · ${accounts.find((a) => a.id === txn.transferAccountId)?.name ?? '—'}` : (category?.name ?? 'Uncategorized')}
@@ -147,7 +238,17 @@ export function TxnDetailPane({ transactionId, onClose }: Props) {
               return (
                 <div key={t.id} className="flex items-center gap-2 text-[12px] py-1 border-b border-border/40 last:border-0">
                   <div className="flex-1 min-w-0">
-                    <div className="truncate">{p?.name ?? 'No payee'}</div>
+                    {p ? (
+                      <Link
+                        to={`/payees/${p.id}`}
+                        className="truncate hover:text-accent hover:underline block"
+                        title={`View history with ${p.name}`}
+                      >
+                        {p.name}
+                      </Link>
+                    ) : (
+                      <div className="truncate text-fg-subtle italic">No payee</div>
+                    )}
                     <div className="text-[10.5px] text-fg-subtle tabular">{formatDate(t.date)}</div>
                   </div>
                   <Money cents={t.amount} className="tabular" />

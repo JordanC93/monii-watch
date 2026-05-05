@@ -121,7 +121,13 @@ export function Layout({ children }: { children: ReactNode }) {
           tabIndex={-1}
           className={cn(
             'flex-1 overflow-y-auto page-enter focus:outline-none',
-            isCompact && 'pb-[calc(72px+env(safe-area-inset-bottom,0))]',
+            // v0.7.28 — bottom padding bumped from 72 → 88 px because
+            // the BottomNav now floats with a 12 px gap above the
+            // safe-area instead of sitting flush. Math: 64 px nav
+            // height + 12 px float gap + 12 px breathing room = 88 px
+            // above safe-area. Update if `--mobile-nav-inset` in
+            // globals.css changes.
+            isCompact && 'pb-[calc(88px+env(safe-area-inset-bottom,0))]',
           )}
           style={{
             paddingLeft: 'env(safe-area-inset-left, 0)',

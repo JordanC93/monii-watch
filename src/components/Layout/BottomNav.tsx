@@ -26,9 +26,16 @@ import { cn } from '../../lib/cn';
 export function BottomNav() {
   return (
     <nav
-      data-no-meniscus
+      // `data-no-meniscus` is intentionally OMITTED so the glass-panel
+      // chromatic ring wraps the rounded pill on the glass theme (Apple
+      // iOS 26 dock convention). On non-glass themes the meniscus rule
+      // doesn't render anyway, so this is harmless.
       data-material="regular"
-      className="fixed bottom-0 left-0 right-0 z-30 glass-panel rounded-none border-t border-border bg-surface/95 backdrop-blur"
+      // `mobile-bottom-nav` is the stable class hook the glass-theme
+      // override in globals.css uses to float + round the bar into a
+      // dock-style island. Other themes keep the flush-bottom edge-pinned
+      // look (the rules below are scoped to `html[data-theme='glass']`).
+      className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-30 glass-panel rounded-none border-t border-border bg-surface/95 backdrop-blur"
       style={{
         paddingBottom: 'env(safe-area-inset-bottom, 0)',
         paddingLeft: 'env(safe-area-inset-left, 0)',
