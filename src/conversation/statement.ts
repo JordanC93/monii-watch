@@ -42,6 +42,18 @@ export type ParsedStatementRow = {
   isPeerPayment: boolean;
   /** True when the row looks like income (positive amount + payroll keyword or "credit" type). */
   isIncome: boolean;
+  /**
+   * v0.7.29 — true for credit-card statement rows that represent the
+   * cardholder paying down their card balance ("Payment Thank You -
+   * Web", "ONLINE PAYMENT", "AUTOPAY PAYMENT", etc). These are NOT
+   * spending transactions; they're the credit-card-side leg of a
+   * transfer from the user's bank account. The import modal
+   * defaults them to UNCHECKED so they don't get imported as normal
+   * transactions — the matching bank-side debit will appear on the
+   * user's checking statement separately and they can record it
+   * there as a transfer.
+   */
+  isCardPayment: boolean;
 };
 
 export type ParsedStatement = {
@@ -86,7 +98,16 @@ const MONEY_RE = /([\-−–+]?)\s*\$?\s*(\d{1,3}(?:,\d{3})*|\d+)\.(\d{2})\b/;
 const MONEY_RE_GLOBAL = /([\-−–+]?)\s*\$?\s*(\d{1,3}(?:,\d{3})*|\d+)\.(\d{2})\b/g;
 
 // Dates we'll recognize at the start of a row OR on a header line above.
-const DATE_RE = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b|\b\d{1,2}\/\d{1,2}\/\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b/i;
+//
+// Order matters in this alternation — JS regex matches left-to-right, so
+// longer/more-specific forms must come first or they'll be eaten by a
+// shorter pattern. The bare `MM/DD` (no year) at the end is what most
+// US credit-card statements use in the per-row column (Capital One,
+// Chase, Citi, Amex, Discover…) — the year sits in the page header and
+// is implied for every row. The `(?!\/\d)` negative lookahead prevents
+// it from matching the MM/DD prefix of MM/DD/YYYY (which the second
+// alternation already handles).
+const DATE_RE = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b|\b\d{1,2}\/\d{1,2}\/\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}\/\d{1,2}\b(?!\/\d)/i;
 
 // Bank "type" column tokens — used as a signal that a row is a transaction
 // (vs. a receipt line item) AND as a sign-direction hint.
@@ -105,6 +126,13 @@ const CREDIT_TOKEN_RE = /\b(?:credit|deposit|refund|payroll|reversal)\b/i;
 // "debit"/"withdrawal"/"purchase" tokens force a negative sign.
 const DEBIT_TOKEN_RE = /\b(?:debit|withdrawal|purchase|payment\s+to|atm)\b/i;
 
+// v0.7.29 — recognise credit-card-statement payment rows. These are
+// the leg of a transfer from the user's bank to their card; importing
+// them as normal transactions double-counts a payment they'll already
+// log from the bank side. Phrases cover Capital One, Chase, Citi,
+// Amex, Discover, BofA, and the typical online-bill-pay descriptors.
+const CARD_PAYMENT_RE = /\b(?:payment\s+thank\s*you|thank\s*you\s*[-,]\s*payment|payment\s*-\s*thank\s*you|online\s+payment|autopay\s+payment|automatic\s+payment|electronic\s+payment|mobile\s+payment|web\s+payment|payment\s+received|electronic\s+payment\s*-\s*thank\s*you)\b/i;
+
 // -- Main parser ---------------------------------------------------------
 
 export function parseStatementText(text: string): ParsedStatement {
@@ -114,13 +142,39 @@ export function parseStatementText(text: string): ParsedStatement {
     .map((l) => l.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
 
+  // v0.7.29 — implied-year inference for `MM/DD` rows. US credit-card
+  // statements (Capital One, Chase, Citi, Amex, Discover) print the
+  // year ONCE in the page header (e.g. "Statement period: 04/01/2026
+  // - 04/30/2026") and then `MM/DD` for every row. We sweep the doc
+  // once for any year-bearing date and use that as the running year;
+  // otherwise we fall back to the current year and back off by one if
+  // the resulting date would land more than 31 days in the future
+  // (which would mean we're parsing last-year's statement in January
+  // and the parser saw "12/15" — implying Dec 2025, not Dec 2026).
+  const impliedYear: number = (() => {
+    for (const line of lines) {
+      // Look for a full date with year — try each year-bearing pattern.
+      const isoMatch = line.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+      if (isoMatch) return Number(isoMatch[1]);
+      const slashMatch = line.match(/\b\d{1,2}\/\d{1,2}\/(\d{2,4})\b/);
+      if (slashMatch) {
+        let y = slashMatch[1];
+        if (y.length === 2) y = (Number(y) > 50 ? '19' : '20') + y;
+        return Number(y);
+      }
+      const monMatch = line.match(/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+(\d{4})\b/i);
+      if (monMatch) return Number(monMatch[1]);
+    }
+    return new Date().getFullYear();
+  })();
+
   const rows: ParsedStatementRow[] = [];
   let currentDate: string | null = null;
 
   for (const line of lines) {
     // Header-only date (no money on the line) → update the running date.
     if (DATE_RE.test(line) && !MONEY_RE.test(line)) {
-      const iso = parseDate(line.match(DATE_RE)![0]);
+      const iso = parseDate(line.match(DATE_RE)![0], impliedYear);
       if (iso) currentDate = iso;
       continue;
     }
@@ -141,7 +195,7 @@ export function parseStatementText(text: string): ParsedStatement {
     const dateMatch = line.match(DATE_RE);
     let rowDate: string | null = null;
     if (dateMatch) {
-      rowDate = parseDate(dateMatch[0]);
+      rowDate = parseDate(dateMatch[0], impliedYear);
       if (rowDate) currentDate = rowDate;
     }
     rowDate = rowDate ?? currentDate;
@@ -177,6 +231,10 @@ export function parseStatementText(text: string): ParsedStatement {
     const { vendor, isPeerPayment } = extractInnerVendor(desc);
     const hint = inferVendorCategoryHint(vendor) ?? inferVendorCategoryHint(desc);
     const isIncome = (cents > 0 && (hint === 'income' || /\bcredit\b|\bdeposit\b|\bpayroll\b/i.test(typeStr ?? ''))) ?? false;
+    // Card-payment detection — match against the cleaned-up description
+    // OR the original line so wording variations like "PAYMENT - THANK
+    // YOU" with stripped punctuation still register.
+    const isCardPayment = CARD_PAYMENT_RE.test(desc) || CARD_PAYMENT_RE.test(line);
 
     rows.push({
       date: rowDate,
@@ -187,6 +245,7 @@ export function parseStatementText(text: string): ParsedStatement {
       categoryHint: hint,
       isPeerPayment,
       isIncome,
+      isCardPayment,
     });
   }
 
@@ -227,13 +286,18 @@ function parseSignedAmount(match: RegExpMatchArray, fullLine: string): number {
   return -cents;
 }
 
-/** Parse a date fragment in any of our recognized forms to ISO. */
-function parseDate(fragment: string): string | null {
+/**
+ * Parse a date fragment in any of our recognized forms to ISO. The
+ * `impliedYear` is used ONLY for `MM/DD` (no-year) fragments; the
+ * year-bearing forms always trust their own year. v0.7.29 — gained
+ * `MM/DD` handling for credit-card statement rows.
+ */
+function parseDate(fragment: string, impliedYear: number = new Date().getFullYear()): string | null {
   const trimmed = fragment.trim();
   // ISO already.
   const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-  // MM/DD/YYYY or MM/DD/YY
+  // MM/DD/YYYY or MM/DD/YY (must be tried before bare MM/DD).
   const slash = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
   if (slash) {
     const m = slash[1].padStart(2, '0');
@@ -251,6 +315,24 @@ function parseDate(fragment: string): string | null {
     const m = String(monthIdx + 1).padStart(2, '0');
     const d = mon[2].padStart(2, '0');
     return `${mon[3]}-${m}-${d}`;
+  }
+  // Bare MM/DD — credit-card statement rows. Year filled from the doc's
+  // header (or current year). If the resulting date lands more than 31
+  // days in the future, back off by one year — that handles the
+  // "January 2027 looking at a December 2026 statement" case.
+  const bare = trimmed.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (bare) {
+    const m = bare[1].padStart(2, '0');
+    const d = bare[2].padStart(2, '0');
+    const monthN = Number(m);
+    const dayN = Number(d);
+    if (monthN < 1 || monthN > 12 || dayN < 1 || dayN > 31) return null;
+    let y = impliedYear;
+    const candidate = new Date(`${y}-${m}-${d}T00:00:00`);
+    const now = Date.now();
+    const daysAhead = (candidate.getTime() - now) / (24 * 60 * 60 * 1000);
+    if (daysAhead > 31) y = y - 1;
+    return `${y}-${m}-${d}`;
   }
   return null;
 }

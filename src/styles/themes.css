@@ -23,8 +23,17 @@ html[data-theme='light'] {
   --fg-muted:    74  86 106;
   --fg-subtle:  138 150 168;
 
-  --accent:       14 116 144;    /* cyan-700 */
-  --accent-fg:   255 255 255;
+  /* v0.7.29 — accent updated to #6FC1D8 (lighter cyan) per maintainer
+     pick. Foreground stays NEAR-WHITE (the brief WCAG-aware swap to
+     near-black was reverted because the dark text clashed visually
+     with the light theme's overall palette, per maintainer feedback).
+     White-on-light-cyan accepts the lower contrast — same trade-off
+     iOS makes everywhere (Apple uses white text on every saturated
+     control color). The bold weight + accent fill do most of the
+     legibility work; users who care about WCAG-strict contrast can
+     pick a darker accent override via the Highlight color picker. */
+  --accent:      111 193 216;    /* #6FC1D8 — light cyan */
+  --accent-fg:   250 250 252;    /* near-white (slate-50-ish), softer than pure #fff */
 
   --positive:     21 128  61;    /* green-700 */
   --negative:    185  28  28;    /* red-700   */
@@ -52,8 +61,11 @@ html[data-theme='dark'] {
   --fg-muted:   161 170 184;
   --fg-subtle:  113 124 140;
 
-  --accent:       34 211 238;    /* cyan-400 */
-  --accent-fg:    8  15  20;
+  /* v0.7.29 — accent updated to #606262 (medium-dark gray) per
+     maintainer pick. Switched accent-fg to white because gray bg
+     + dark text would be unreadable; gray + white reads cleanly. */
+  --accent:       96  98  98;    /* #606262 — medium-dark gray */
+  --accent-fg:   255 255 255;
 
   --positive:     74 222 128;
   --negative:    248 113 113;
@@ -81,8 +93,12 @@ html[data-theme='oled'] {
   --fg-muted:   170 170 180;
   --fg-subtle:  120 120 130;
 
-  --accent:       34 211 238;
-  --accent-fg:    0   0   0;
+  /* v0.7.29 — accent updated to #2049EE (vivid blue) per maintainer
+     pick. Switched accent-fg to white — black on saturated blue is
+     ~3:1 (poor); white on saturated blue is ~6.5:1 (good) and
+     matches the iOS systemBlue convention OLED users expect. */
+  --accent:       32  73 238;    /* #2049EE — vivid blue */
+  --accent-fg:   255 255 255;
 
   --positive:     74 222 128;
   --negative:    248 113 113;

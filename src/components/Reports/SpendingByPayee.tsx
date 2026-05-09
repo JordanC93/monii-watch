@@ -9,6 +9,8 @@ import { useBudget } from '../../store/budget';
 import { computePayeeSpend } from '../../domain/payeeSpend';
 import { useFormatMoney } from '../../lib/format';
 import { format, parseISO } from 'date-fns';
+import { EmptyState } from '../ui/EmptyState';
+import { Tag } from 'lucide-react';
 
 export function SpendingByPayee({ months = 3, limit = 25 }: { months?: number; limit?: number }) {
   const accounts = useBudget((s) => s.accounts);
@@ -23,7 +25,16 @@ export function SpendingByPayee({ months = 3, limit = 25 }: { months?: number; l
   }, [accounts, txns, payees, months, limit]);
 
   if (rows.length === 0) {
-    return <div className="text-[12.5px] text-fg-subtle text-center py-6">No payee activity in the past {months} months yet.</div>;
+    return (
+      <EmptyState
+        icon={Tag}
+        title={`No payee activity yet`}
+        body={`Once you record transactions, the top vendors over the last ${months} months will rank here.`}
+        ctaLabel="Add a transaction"
+        ctaTo="/budget"
+        compact
+      />
+    );
   }
 
   const max = rows[0]?.totalSpent ?? 1;

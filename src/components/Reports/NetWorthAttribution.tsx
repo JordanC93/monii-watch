@@ -37,7 +37,7 @@ export function NetWorthAttribution() {
             <button
               key={m}
               onClick={() => setMonth(m)}
-              className={`px-2 py-0.5 rounded text-[11.5px] font-medium ${m === month ? 'bg-accent text-accent-fg' : 'bg-surface-2/40 text-fg-muted hover:text-fg'}`}
+              className={`px-2.5 py-0.5 rounded-full text-[11.5px] font-medium ${m === month ? 'bg-accent text-accent-fg' : 'bg-surface-2/40 text-fg-muted hover:text-fg'}`}
             >
               {m}
             </button>

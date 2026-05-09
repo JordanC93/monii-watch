@@ -20,13 +20,15 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeftRight, Trash2, Hourglass, ExternalLink, Tag, Receipt as ReceiptIcon, Flag } from 'lucide-react';
+import { ArrowLeftRight, Trash2, Hourglass, ExternalLink, Tag, Receipt as ReceiptIcon, Flag, Link as LinkIcon, Unlink, Eye } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { MoneyInput } from '../ui/MoneyInput';
+import { Money } from '../ui/Money';
 import { useBudget } from '../../store/budget';
 import { useUI } from '../../store/ui';
-import { updateTransaction, deleteTransaction, setFlag, setCleared } from '../../db/repo';
+import { updateTransaction, deleteTransaction, setCleared, unlinkTransaction, setReviewNeeded } from '../../db/repo';
+import { formatDate } from '../../domain/date';
 import { PayeeAutocomplete } from '../Transactions/PayeeAutocomplete';
 import { cn } from '../../lib/cn';
 import type { Transaction, FlagColor, ClearedState } from '../../domain/types';
@@ -51,6 +53,7 @@ export function EditTransactionModal({ open, onClose, transactionId }: Props) {
   const accounts = useBudget((s) => s.accounts);
   const categories = useBudget((s) => s.categories);
   const payees = useBudget((s) => s.payees);
+  const transactions = useBudget((s) => s.transactions);
   const openModal = useUI((s) => s.openModal);
 
   // Local draft mirror — same pattern as TransactionRow's inline edit.
@@ -313,6 +316,65 @@ export function EditTransactionModal({ open, onClose, transactionId }: Props) {
             </span>
           )}
         </div>
+
+        {/* v0.7.29 — linked-transaction surface. When linked, show the
+            partner with an unlink button + a tap-target that closes
+            this modal and opens the partner. When NOT linked, show a
+            "Link to…" button that pops the picker. */}
+        {(() => {
+          const partner = txn.linkedTxnId ? transactions.find((t) => t.id === txn.linkedTxnId) : null;
+          if (partner) {
+            const partnerPayee = payees.find((p) => p.id === partner.payeeId);
+            return (
+              <div className="rounded-md border border-accent/30 bg-accent/5 px-2.5 py-2 text-[11.5px] flex items-center gap-2 flex-wrap">
+                <LinkIcon size={12} className="text-accent flex-shrink-0" />
+                <span className="text-fg-subtle">Linked to</span>
+                <button
+                  onClick={() => {
+                    onClose();
+                    openModal({ type: 'editTransaction', transactionId: partner.id });
+                  }}
+                  className="font-medium text-accent hover:underline truncate flex items-center gap-1"
+                  title="Open the linked transaction"
+                >
+                  <Eye size={11} />
+                  {partnerPayee?.name ?? <span className="italic">No payee</span>} · {formatDate(partner.date)} ·{' '}
+                  <Money cents={partner.amount} className="text-[11.5px]" monochrome />
+                </button>
+                <button
+                  onClick={() => unlinkTransaction(txn.id)}
+                  className="ml-auto text-fg-subtle hover:text-negative flex items-center gap-1 text-[11px]"
+                  title="Remove the link (both sides)"
+                >
+                  <Unlink size={11} /> Unlink
+                </button>
+              </div>
+            );
+          }
+          return (
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  openModal({ type: 'linkTxnPicker', fromTxnId: txn.id });
+                }}
+                className="text-[11.5px] text-accent hover:underline flex items-center gap-1"
+                title="Link this to another transaction (refund, transfer pair, etc.)"
+              >
+                <LinkIcon size={12} /> Link to…
+              </button>
+              <button
+                type="button"
+                onClick={() => setReviewNeeded(txn.id, !txn.reviewNeeded)}
+                className={`text-[11.5px] hover:underline flex items-center gap-1 ${txn.reviewNeeded ? 'text-warning' : 'text-fg-subtle hover:text-fg'}`}
+                title={txn.reviewNeeded ? 'Remove from review queue' : 'Mark for later review'}
+              >
+                <Eye size={12} /> {txn.reviewNeeded ? 'In review queue' : 'Mark for review'}
+              </button>
+            </div>
+          );
+        })()}
       </div>
     </Modal>
   );

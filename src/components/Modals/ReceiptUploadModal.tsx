@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ImagePlus, Loader2, Check, AlertTriangle, FileText, CreditCard, Receipt as ReceiptIcon, Trash2, Table2, Users, Banknote, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Tag } from 'lucide-react';
+import { ImagePlus, Loader2, Check, AlertTriangle, FileText, CreditCard, Receipt as ReceiptIcon, Trash2, Table2, Users, Banknote, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Tag, RotateCcw } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -51,6 +51,25 @@ type StatementRowDraft = {
   /** Bank's type column (e.g. "ACH debit"). */
   type: string | null;
   isPeerPayment: boolean;
+  /**
+   * v0.7.29 — true for "credit / inflow on the destination" rows on a
+   * credit-card statement ("Payment Thank You", "ONLINE PAYMENT", etc).
+   * The sign on the statement is FROM THE ISSUER'S PERSPECTIVE
+   * (negative = credit reducing what you owe); on import we treat
+   * this as an INFLOW on the destination account regardless of what
+   * sign was printed.
+   */
+  isCardPayment: boolean;
+  /**
+   * v0.7.29 — the parser's RAW signed amount in cents, preserved
+   * through statement-kind changes. `amountText` (the user-visible
+   * field) is re-derived from this whenever `statementKind` flips, so
+   * the row visibly shows the post-flip number that'll actually be
+   * imported. Without this, picking "Credit card statement" would
+   * still display "-4,273.33" while save() silently saved
+   * "+4,273.33" — confusing for the user reviewing the import.
+   */
+  originalAmount: number;
   /** Tier 7 #2 — id of an existing transaction this row likely duplicates. */
   dupOfId?: string;
 };
@@ -91,6 +110,29 @@ type Draft =
       kind: 'statement';
       /** Account ALL rows are imported into. Bank statements are per-account. */
       accountId: string;
+      /**
+       * v0.7.29 — explicit statement type. Tells the parser/importer how
+       * to interpret the SIGN of detected payment rows:
+       *
+       *   - 'credit-card': the doc is a credit-card issuer statement.
+       *     "Payment Thank You" rows print with a NEGATIVE sign in the
+       *     issuer's books, but represent INFLOWS in the cardholder's
+       *     account (paying down debt). We flip the sign so the
+       *     destination card balance moves toward zero.
+       *
+       *   - 'bank': the doc is a checking / savings statement. "PAYMENT
+       *     TO CAPITAL ONE" lines are already negative from the
+       *     account-holder's perspective (money leaving the account).
+       *     No sign flip needed.
+       *
+       *   - 'other': miscellaneous (investment, prepaid, etc.). Sign
+       *     preserved as printed.
+       *
+       * Defaulted from the destination account's type at parse time;
+       * user can override with the inline selector at the top of the
+       * import view.
+       */
+      statementKind: 'credit-card' | 'bank' | 'other';
       rows: StatementRowDraft[];
     };
 
@@ -315,7 +357,20 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
           console.warn('[duplicates] scan failed', err);
         }
       }
-      setDraft({ kind: 'statement', accountId: defaultAcct, rows });
+      // v0.7.29 — pre-pick the statement type from the destination
+      // account's type. Credit / loan / mortgage → 'credit-card' (sign
+      // flip on payment rows). Checking / savings / cash → 'bank'.
+      // Anything else → 'other'. User can override the inline selector
+      // at the top of the import view if the auto-pick is wrong.
+      const destAcct = accounts.find((a) => a.id === defaultAcct);
+      const inferredKind: 'credit-card' | 'bank' | 'other' =
+        destAcct && (destAcct.type === 'credit' || destAcct.type === 'loan' || destAcct.type === 'mortgage') ? 'credit-card'
+        : destAcct && (destAcct.type === 'checking' || destAcct.type === 'savings' || destAcct.type === 'cash') ? 'bank'
+        : 'other';
+      // Apply the kind's sign rules to the parsed rows so the visible
+      // amounts match what'll be saved.
+      const rowsForKind = applyKindToRows(rows, inferredKind);
+      setDraft({ kind: 'statement', accountId: defaultAcct, statementKind: inferredKind, rows: rowsForKind });
       console.info(`[classify] statement — ${rows.length} rows extracted`);
       return;
     }
@@ -374,20 +429,30 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
     if (draft.kind === 'statement') {
       if (!draft.accountId) { setError('Pick an account to import the rows into.'); return; }
       const inputs: TxnInput[] = [];
+      // v0.7.29 — `amountText` is already the post-sign-flip value
+      // (applyKindToRows() rewrote it whenever the user picked a
+      // statement kind), so save() just trusts what's on screen. The
+      // user reviews exactly what'll be imported.
+      const treatAsCardInflow = draft.statementKind === 'credit-card';
       for (const r of draft.rows) {
         if (!r.include) continue;
         const cents = parseAmountToCents(r.amountText);
         if (cents === null || cents === 0) continue;
         if (!r.date || !/^\d{4}-\d{2}-\d{2}$/.test(r.date)) continue;
+        const isCardPaymentInflow = r.isCardPayment && treatAsCardInflow;
         inputs.push({
           accountId: draft.accountId,
           date: r.date,
-          payee: r.vendor.trim() || null,
-          // Income inflows route to Ready-to-Assign (categoryId=null).
-          // Outflows respect the user's category choice (may be null = uncategorized).
-          categoryId: r.isIncome ? null : (r.categoryId || null),
+          payee: isCardPaymentInflow ? null : (r.vendor.trim() || null),
+          // Card-payment inflows + income inflows both route to
+          // Ready-to-Assign / no category (a card-side payment is just
+          // a balance adjustment, not spending). Outflows respect the
+          // user's category choice (may be null = uncategorized).
+          categoryId: (r.isIncome || isCardPaymentInflow) ? null : (r.categoryId || null),
           amount: cents,
-          memo: r.rawDescription ? `From statement · ${r.type ?? ''}`.trim() : 'From statement',
+          memo: isCardPaymentInflow
+            ? 'Card payment (from statement)'
+            : (r.rawDescription ? `From statement · ${r.type ?? ''}`.trim() : 'From statement'),
         });
       }
       if (inputs.length === 0) { setError('No rows selected. Pick at least one to import.'); return; }
@@ -1172,6 +1237,11 @@ function PaystubForm({
  * Build a row draft from a parser result. Pre-resolves the category from the
  * brand-map hint so common merchants (Starbucks, Uber, Con Ed) land in the
  * right envelope by default — user still gets to override before saving.
+ *
+ * Card-payment rows are imported as positive inflows on the destination
+ * account (sign-flipped from the statement's negative; see save() for
+ * the flip logic). No second account choice — the destination picked
+ * once at the top of the modal is the only account the row touches.
  */
 function statementRowToDraft(r: ParsedStatementRow, categories: any[]): StatementRowDraft {
   let categoryId = '';
@@ -1192,13 +1262,35 @@ function statementRowToDraft(r: ParsedStatementRow, categories: any[]): Statemen
     rawDescription: r.rawDescription,
     type: r.type,
     isPeerPayment: r.isPeerPayment,
+    isCardPayment: r.isCardPayment,
+    originalAmount: r.amount,
   };
+}
+
+/**
+ * Re-compute `amountText` for every card-payment row given the active
+ * statement type. v0.7.29 — keeps the visible amount in sync with the
+ * sign that'll be saved, so the user reviews the post-flip number
+ * instead of the parser's raw output.
+ *
+ *  - 'credit-card' + isCardPayment → display +abs (inflow on the card)
+ *  - 'bank' / 'other' + isCardPayment → display the parser's original
+ *    sign (preserve as printed; on a checking statement that's
+ *    correctly a negative outflow)
+ *  - non-card-payment rows → unchanged
+ */
+function applyKindToRows<T extends StatementRowDraft>(rows: T[], kind: 'credit-card' | 'bank' | 'other'): T[] {
+  return rows.map((r) => {
+    if (!r.isCardPayment) return r;
+    const target = kind === 'credit-card' ? Math.abs(r.originalAmount) : r.originalAmount;
+    return { ...r, amountText: (target / 100).toString() };
+  });
 }
 
 function StatementForm({
   draft, accounts, categories, fmt, onChange,
 }: {
-  draft: { kind: 'statement'; accountId: string; rows: StatementRowDraft[] };
+  draft: { kind: 'statement'; accountId: string; statementKind: 'credit-card' | 'bank' | 'other'; rows: StatementRowDraft[] };
   accounts: any[];
   categories: any[];
   fmt: (cents: number) => string;
@@ -1233,6 +1325,45 @@ function StatementForm({
 
   return (
     <div className="space-y-3">
+      {/* v0.7.29 — explicit statement-type selector. Auto-defaulted from
+          the destination account type at parse time; the user can
+          override here if the auto-pick is wrong (e.g. they're
+          importing an investment statement into a tracking account, or
+          a CC statement into "Other"). The selected kind drives the
+          sign-flip behavior for "Payment Thank You" / "ONLINE PAYMENT"
+          rows: 'credit-card' flips them to inflows (correct for the
+          cardholder's account), 'bank' / 'other' preserve the printed
+          sign. */}
+      <div>
+        <label className="text-[11.5px] text-fg-subtle">What kind of statement is this?</label>
+        <Select
+          value={draft.statementKind}
+          onChange={(e) => {
+            const nextKind = e.target.value as 'credit-card' | 'bank' | 'other';
+            // v0.7.29 — re-derive amountText for card-payment rows so
+            // the displayed value matches what will actually be saved.
+            const nextRows = applyKindToRows(draft.rows, nextKind);
+            onChange({ ...draft, statementKind: nextKind, rows: nextRows });
+          }}
+          className="mt-0.5 w-full"
+        >
+          <option value="credit-card">Credit card statement</option>
+          <option value="bank">Bank statement (checking / savings)</option>
+          <option value="other">Other (investment, prepaid, etc.)</option>
+        </Select>
+        <div className="text-[10.5px] text-fg-subtle mt-1 leading-snug">
+          {draft.statementKind === 'credit-card' && (
+            <>Payments on the statement (e.g. <em>Payment Thank You</em>) will be imported as <strong>inflows</strong> to reduce the card balance, even though the issuer prints them with a negative sign.</>
+          )}
+          {draft.statementKind === 'bank' && (
+            <>Signs are preserved as printed: deposits stay positive, payments and withdrawals stay negative.</>
+          )}
+          {draft.statementKind === 'other' && (
+            <>Signs preserved as printed. You can adjust each row before saving.</>
+          )}
+        </div>
+      </div>
+
       {/* Account chooser + totals header */}
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
         <div>
@@ -1339,8 +1470,12 @@ function StatementRow({
         <div className="flex items-center gap-1">
           {row.isIncome && <ArrowDownLeft size={11} className="text-positive flex-shrink-0" aria-label="Income" />}
           {!row.isIncome && row.isPeerPayment && <Users size={11} className="text-warning flex-shrink-0" aria-label="Peer payment" />}
-          {!row.isIncome && /atm|cash withdrawal/i.test(row.rawDescription) && <Banknote size={11} className="text-fg-subtle flex-shrink-0" aria-label="Cash" />}
-          {!row.isIncome && !row.isPeerPayment && cents < 0 && <ArrowUpRight size={11} className="text-negative flex-shrink-0" aria-label="Outflow" />}
+          {/* Card-payment marker. Cycle icon (RotateCcw) signals "this is a
+              transfer / repeat transaction, not a purchase" — matches the
+              icon vocabulary used elsewhere in the app for transfers. */}
+          {row.isCardPayment && <RotateCcw size={11} className="text-accent flex-shrink-0" aria-label="Credit-card payment (defaulted off)" />}
+          {!row.isIncome && !row.isCardPayment && /atm|cash withdrawal/i.test(row.rawDescription) && <Banknote size={11} className="text-fg-subtle flex-shrink-0" aria-label="Cash" />}
+          {!row.isIncome && !row.isPeerPayment && !row.isCardPayment && cents < 0 && <ArrowUpRight size={11} className="text-negative flex-shrink-0" aria-label="Outflow" />}
           <Input
             value={row.vendor}
             onChange={(e) => onPatch({ vendor: e.target.value })}
@@ -1348,6 +1483,16 @@ function StatementRow({
             placeholder="Vendor"
           />
         </div>
+        {row.isCardPayment && (
+          /* v0.7.29 — card-payment hint. Wording adapts to the parent
+             form's `statementKind` (passed via the row's effective
+             treatment is computed in save()). On a credit-card
+             statement: imports as inflow. On a bank statement: imports
+             as outflow. */
+          <div className="text-[10.5px] text-accent mt-0.5">
+            Card payment row — sign handled by the statement type up top.
+          </div>
+        )}
         {row.dupOfId && (
           <div className="text-[10px] text-warning truncate mt-0.5" title="Looks like a duplicate of an existing transaction">
             ⚠ Likely duplicate, auto-deselected

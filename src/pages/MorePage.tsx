@@ -14,7 +14,7 @@ import {
   CalendarClock, CreditCard, Search as SearchIcon, Settings as SettingsIcon,
   Cloud, Wallet, BarChart3, FileText, ChevronRight, HelpCircle, Wrench,
   Plane, Calendar, TrendingUp, Wand2, Sparkles, Bookmark, Star, Tag, Image as ImageIcon,
-  BookOpen, Trash2, Heart, LifeBuoy, ScrollText, ShieldCheck,
+  BookOpen, Trash2, Heart, LifeBuoy, ScrollText, ShieldCheck, Repeat, Eye,
 } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { useUI } from '../store/ui';
@@ -54,6 +54,9 @@ export function MorePage() {
         <Row to="/trips" icon={<Plane size={16} />} label="Trips & events" subtitle="Tag transactions to a trip / event" />
         <Row to="/calendar" icon={<Calendar size={16} />} label="Calendar view" subtitle="Heatmap of daily spending" />
         <Row to="/auto-rules" icon={<Wand2 size={16} />} label="Auto-categorize rules" subtitle="Vendor → category, bulk apply" />
+        <Row to="/subscriptions" icon={<Repeat size={16} />} label="Recurring expenses" subtitle="Audit subscriptions · annualized cost · creep" />
+        <Row to="/review" icon={<Eye size={16} />} label="Review queue" subtitle="Transactions you marked for later review" />
+        <Row to="/budget/annual" icon={<BarChart3 size={16} />} label="Annual budget grid" subtitle="All 12 months at a glance · seasonality" />
       </Section>
 
       <Section title="Find">
@@ -118,7 +121,19 @@ function Row({ to, icon, label, subtitle }: { to: string; icon: React.ReactNode;
       to={to}
       className="flex items-center gap-3 px-3.5 py-3 hover:bg-surface-2/40 active:bg-surface-2/70"
     >
-      <span className="w-8 h-8 grid place-items-center rounded-lg bg-surface-2 text-fg-muted flex-shrink-0">{icon}</span>
+      {/* v0.7.29 — icon container is one shade darker than the live
+          highlight color. `color-mix` blends 85 % of the accent with
+          15 % black for a subtle "deeper accent" tint that still
+          reads as the highlight color, just a touch deeper. Glyph
+          uses `--accent-fg` (white-ish on every theme + override) so
+          it stays readable on the darker chip. Browser support for
+          color-mix matches @property — same baseline the glass
+          backdrop already requires (Chrome 111+, Safari 16.2+,
+          Firefox 113+). */}
+      <span
+        className="w-8 h-8 grid place-items-center rounded-lg text-accent-fg flex-shrink-0"
+        style={{ background: 'color-mix(in srgb, rgb(var(--accent)) 85%, #000 15%)' }}
+      >{icon}</span>
       <span className="flex-1 min-w-0">
         <span className="text-[14px] font-medium block leading-tight">{label}</span>
         {subtitle && <span className="text-[11.5px] text-fg-subtle leading-tight">{subtitle}</span>}
@@ -134,7 +149,19 @@ function ButtonRow({ onClick, icon, label, subtitle }: { onClick: () => void; ic
       onClick={onClick}
       className="w-full flex items-center gap-3 px-3.5 py-3 hover:bg-surface-2/40 active:bg-surface-2/70 text-left"
     >
-      <span className="w-8 h-8 grid place-items-center rounded-lg bg-surface-2 text-fg-muted flex-shrink-0">{icon}</span>
+      {/* v0.7.29 — icon container is one shade darker than the live
+          highlight color. `color-mix` blends 85 % of the accent with
+          15 % black for a subtle "deeper accent" tint that still
+          reads as the highlight color, just a touch deeper. Glyph
+          uses `--accent-fg` (white-ish on every theme + override) so
+          it stays readable on the darker chip. Browser support for
+          color-mix matches @property — same baseline the glass
+          backdrop already requires (Chrome 111+, Safari 16.2+,
+          Firefox 113+). */}
+      <span
+        className="w-8 h-8 grid place-items-center rounded-lg text-accent-fg flex-shrink-0"
+        style={{ background: 'color-mix(in srgb, rgb(var(--accent)) 85%, #000 15%)' }}
+      >{icon}</span>
       <span className="flex-1 min-w-0">
         <span className="text-[14px] font-medium block leading-tight">{label}</span>
         {subtitle && <span className="text-[11.5px] text-fg-subtle leading-tight">{subtitle}</span>}

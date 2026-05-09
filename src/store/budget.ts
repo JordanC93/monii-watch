@@ -257,21 +257,27 @@ export function wireStoreToYjs() {
     // Glass palette: apply only when the chosen preset / custom colors
     // actually changed. JSON-serialize for cheap deep-equality.
     const concrete = t === 'auto' ? document.documentElement.getAttribute('data-theme') : t;
+    let paletteChanged = false;
     if (concrete === 'glass') {
       const paletteJson = JSON.stringify(settings.glassPalette ?? null);
       if (paletteJson !== lastAppliedGlassPaletteJson) {
         lastAppliedGlassPaletteJson = paletteJson;
+        paletteChanged = true;
         import('../lib/glassPalettes').then((m) => m.applyGlassPalette(settings.glassPalette));
       }
     }
 
-    // v0.7.27 — accent overrides: apply when the map changed OR when the
-    // theme/palette context changed (since the picker's effective value
-    // depends on the current context). The reapply is cheap (one or two
-    // setProperty calls) so we just re-fire on every settings change
-    // when something accent-relevant moved.
+    // v0.7.29 — accent must be re-applied whenever the glass PALETTE
+    // changes too, not just when accentOverrides does. Switching
+    // Aurora → Sunset changes the natural accent (indigo → orange)
+    // even with no override; without re-apply, the picker UI showed
+    // the new color while `--accent` on body kept the old palette's
+    // accent. Now `paletteChanged` short-circuits the
+    // accentOverrides-equality check so a palette switch always
+    // re-applies. (Theme switches separately re-apply via
+    // `reapply()` in store/theme.ts → that path is unchanged.)
     const overridesJson = JSON.stringify(settings.accentOverrides ?? {});
-    if (overridesJson !== lastAppliedAccentOverridesJson) {
+    if (overridesJson !== lastAppliedAccentOverridesJson || paletteChanged) {
       lastAppliedAccentOverridesJson = overridesJson;
       const concreteForAccent = (concrete === 'glass' || concrete === 'light' || concrete === 'dark' || concrete === 'oled')
         ? concrete

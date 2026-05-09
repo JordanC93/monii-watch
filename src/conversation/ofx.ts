@@ -86,6 +86,16 @@ function parseTrn(blockText: string): ParsedStatementRow {
     hint === 'income' ||
     /CREDIT|DEP|DIRECTDEP|XFER|INT/i.test(trnType)
   );
+  // v0.7.29 — credit-card payment detection on the OFX side too. The
+  // CC issuer's OFX file uses `XFER` or `PAYMENT` for the trnType on
+  // the cardholder's monthly payment. We default these to "skip" in
+  // the import modal so they don't double-count vs. the bank-side
+  // debit. Match against both the description (string) and the OFX
+  // trnType (PAYMENT — common card-issuer code).
+  const isCardPayment = (
+    /\b(?:payment\s+thank\s*you|online\s+payment|autopay\s+payment|electronic\s+payment|mobile\s+payment|web\s+payment)\b/i.test(rawDescription)
+    || (trnType === 'PAYMENT' && amountCents > 0 && /payment/i.test(rawDescription))
+  );
 
   return {
     date,
@@ -96,6 +106,7 @@ function parseTrn(blockText: string): ParsedStatementRow {
     categoryHint: hint,
     isPeerPayment,
     isIncome,
+    isCardPayment,
   };
 }
 

@@ -41,6 +41,7 @@ import { TipJarModal } from './TipJarModal';
 import { CloudSyncActivityModal } from './CloudSyncActivityModal';
 import { InvestmentLotsModal } from './InvestmentLotsModal';
 import { EditTransactionModal } from './EditTransactionModal';
+import { LinkTxnPickerModal } from './LinkTxnPickerModal';
 
 export function ModalRoot() {
   const modal = useUI((s) => s.modal);
@@ -91,6 +92,7 @@ export function ModalRoot() {
     case 'cloudSyncActivity': return <CloudSyncActivityModal open onClose={close} />;
     case 'investmentLots': return <InvestmentLotsModal open onClose={close} accountId={modal.accountId} positionId={modal.positionId} />;
     case 'editTransaction': return <EditTransactionModal open onClose={close} transactionId={modal.transactionId} />;
+    case 'linkTxnPicker': return <LinkTxnPickerModal open onClose={close} fromTxnId={modal.fromTxnId} />;
     default: return null;
   }
 }

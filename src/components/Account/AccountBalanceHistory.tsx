@@ -49,7 +49,7 @@ export function AccountBalanceHistory({ account }: { account: Account }) {
               key={r.id}
               onClick={() => setMonths(r.id)}
               aria-pressed={months === r.id}
-              className={`px-2 py-0.5 rounded text-[11.5px] font-medium ${
+              className={`px-2.5 py-0.5 rounded-full text-[11.5px] font-medium ${
                 months === r.id ? 'bg-accent text-accent-fg' : 'bg-surface-2/40 text-fg-muted hover:text-fg'
               }`}
             >

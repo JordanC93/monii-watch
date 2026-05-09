@@ -2,6 +2,81 @@
 
 ## Released
 
+### v0.7.29 — Lunch-Money-inspired feature wave + statement parsing fixes + cross-cutting QoL
+
+Big bundle. After staring honestly at what other budgeting apps do well
+without compromising the privacy-first stance, ported nine concrete
+ideas. Plus a dozen smaller fixes that piled up while building them.
+
+**New features (from the Lunch Money parity pass)**:
+
+- **Linked transactions**. Bidirectional hard link between any two
+  transactions (refund ↔ original purchase, transfer pair, IOU). Set
+  via the new "Link to…" button in the Edit modal; surfaced as an
+  accent-bordered card showing the partner. New
+  `linkTransactions(a, b)` and `unlinkTransaction(id)` mutations in
+  `repo.ts` that handle the symmetrical-cleanup edge case (if A
+  already linked to C, linking A↔B unsets C's pointer too).
+- **Recurring expense audit page** at `/subscriptions`. Lists every
+  detected recurring charge with cadence, average per occurrence,
+  annualized projection, last-12-month total, and a "% change vs
+  prior 12 months" creep indicator. Banner at the bottom flags
+  subscriptions whose price went up by ≥10%.
+- **Annual budget grid** at `/budget/annual`. All 12 months × every
+  active category in one heat-mapped table. Year-over-year
+  navigation arrows, sticky first column, sticky bottom totals row.
+  Spot summer-AC spikes, holiday-shopping spikes, etc.
+- **Review queue** at `/review`. Mark transactions for later review
+  (independent of the colored-flag system) and review them in batch
+  later. Bulk "Clear all" at top.
+- **Per-row 6-month spend sparkline** on the Budget table. (Was
+  already shipped — verified during this pass.)
+- **Category-color left-edge stripe** on the Budget table. The
+  Category model already had a `color` field; rendering it as a 3 px
+  stripe on the row's left edge gives instant visual recall.
+- **`useAnimatedValue` hook** + `animate` prop on the `Money`
+  component. The Ready-to-Assign number on the Budget page now rolls
+  smoothly when balances shift. Honors `prefers-reduced-motion` —
+  snaps when motion is reduced.
+- **More report range presets**: 24-month and 5-year. Full
+  day-precision date-range picker queued for v0.7.30 (every report
+  compute fn already accepts arbitrary date filtering internally;
+  the lift is the cross-cutting prop change across ~12 components).
+- **Reusable `EmptyState` component** (icon + title + body + optional
+  CTA-link or CTA-onClick). Applied to SpendingByPayee as the first
+  consumer; remaining "No data" strings across Reports can be
+  upgraded incrementally.
+
+**Statement importer fixes**:
+
+- **MM/DD date parsing** (was missing — Capital One, Chase, Citi,
+  Amex, Discover all use bare `MM/DD` per row). Year inferred from
+  any year-bearing date elsewhere in the doc, falling back to current
+  year with a 31-day "rolling forward" backoff for late-December /
+  early-January edge case.
+- **`isCardPayment` detection** for "Payment Thank You", "ONLINE
+  PAYMENT", "AUTOPAY PAYMENT", "ELECTRONIC PAYMENT", etc. Mirrored on
+  the OFX import side too.
+- **Statement-type selector** at the top of the import dialog
+  (Credit card / Bank / Other). Defaults from the destination
+  account type. Drives sign-flipping for card-payment rows so they
+  visibly display as positive inflows when importing into a credit
+  card account (not the issuer-side negative).
+- **Visible sign-flip on selector change**. Switching the statement
+  type rewrites `amountText` for every detected card-payment row so
+  the user reviews the post-flip number that'll actually save.
+
+**Other fixes / cross-cutting QoL**:
+
+- Trimmed unused imports in `EditTransactionModal`.
+- Dropped unused `groups` read in `AnnualBudgetPage`.
+- New `setReviewNeeded(id, on)` mutation in `repo.ts` for the
+  review-queue feature.
+- New `LinkTxnPickerModal` (search-as-you-type list of recent
+  transactions, click to link).
+- More-page entries for Recurring expenses, Review queue, Annual
+  budget grid (under Plan & Track).
+
 ### v0.7.28 — Glass theme actually pops with bright palettes + iOS scroll-lock fix + per-payee drill-down
 
 **Highlight color override actually applies to Tailwind utilities (THE fix)**:

@@ -453,6 +453,10 @@ function BudgetCategoryRowImpl({
       onDrop={(e) => { if (isDropTarget) { e.preventDefault(); onCategoryDrop(category.groupId, category.id); } }}
       className={cn(
         'border-b border-border/60 hover:bg-surface-2/30',
+        // v0.7.29 — relative wrapper so the left-edge color stripe
+        // (rendered below) can be absolutely positioned to the row's
+        // left side.
+        'relative',
         isBeingDragged && 'opacity-50',
         isDropTarget && 'border-t-2 border-t-accent',
         // Sandbox polish (Tier 10 #4) — yellow tint on rows the user
@@ -462,6 +466,18 @@ function BudgetCategoryRowImpl({
         sandboxActive && isSandboxOverridden && 'sandbox-overridden-row',
       )}
     >
+      {/* v0.7.29 — left-edge color stripe. Lunch-Money-style "this is
+          my coffee row" instant recall. Only renders when the category
+          actually has a color set; uncolored categories stay neutral
+          to keep the table calm. The stripe is `pointer-events: none`
+          so it doesn't block clicks on the row. */}
+      {category.color && (
+        <div
+          aria-hidden
+          className="absolute left-0 top-0 bottom-0 w-[3px] pointer-events-none"
+          style={{ background: category.color }}
+        />
+      )}
       {/* Desktop layout */}
       <div className="hidden md:grid grid-cols-[1fr_160px_160px_160px] items-center">
         <div

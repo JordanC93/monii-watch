@@ -980,6 +980,54 @@ export function deleteTransaction(id: string): void {
 
 export function setCleared(id: string, cleared: ClearedState): void { updateTransaction(id, { cleared }); }
 export function setFlag(id: string, flag: FlagColor | null): void { updateTransaction(id, { flag }); }
+export function setReviewNeeded(id: string, on: boolean): void { updateTransaction(id, { reviewNeeded: on || undefined }); }
+
+/**
+ * v0.7.29 — symmetrical hard-link between two transactions. Atomic via
+ * tx() so peers see both sides set together. If either side already
+ * had a different link, that previous partner is unlinked first
+ * (transactions can only have one linked partner; A↔B not A↔[B,C]).
+ *
+ * Use cases:
+ *   - refund row linked to its original purchase
+ *   - card-statement payment row linked to the bank-side debit
+ *   - two halves of an ad-hoc IOU
+ */
+export function linkTransactions(idA: string, idB: string): void {
+  if (idA === idB) return;
+  const m = txnsMap();
+  const a = m.get(idA);
+  const b = m.get(idB);
+  if (!a || !b) return;
+  tx(() => {
+    // Break any pre-existing partner of A or B so we don't strand
+    // a one-sided link (B previously linked to C → C still points at
+    // B but B now points at A).
+    if (a.linkedTxnId && a.linkedTxnId !== idB) {
+      const prev = m.get(a.linkedTxnId);
+      if (prev) m.set(prev.id, { ...prev, linkedTxnId: undefined, updatedAt: Date.now() });
+    }
+    if (b.linkedTxnId && b.linkedTxnId !== idA) {
+      const prev = m.get(b.linkedTxnId);
+      if (prev) m.set(prev.id, { ...prev, linkedTxnId: undefined, updatedAt: Date.now() });
+    }
+    m.set(a.id, { ...a, linkedTxnId: idB, updatedAt: Date.now() });
+    m.set(b.id, { ...b, linkedTxnId: idA, updatedAt: Date.now() });
+  });
+}
+
+/** Symmetrical unlink — clears the link on both sides. v0.7.29. */
+export function unlinkTransaction(id: string): void {
+  const m = txnsMap();
+  const t = m.get(id);
+  if (!t || !t.linkedTxnId) return;
+  const partnerId = t.linkedTxnId;
+  const partner = m.get(partnerId);
+  tx(() => {
+    m.set(t.id, { ...t, linkedTxnId: undefined, updatedAt: Date.now() });
+    if (partner) m.set(partner.id, { ...partner, linkedTxnId: undefined, updatedAt: Date.now() });
+  });
+}
 
 // -- Bulk transaction operations -----------------------------------------
 

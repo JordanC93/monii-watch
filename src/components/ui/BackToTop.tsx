@@ -20,6 +20,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowUp } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { useEffectiveLayout } from '../../lib/layout';
 
 const THRESHOLD_PX = 400;
 
@@ -42,6 +43,15 @@ const SUPPRESS_PREFIXES = [
 
 export function BackToTop() {
   const { pathname } = useLocation();
+  const layout = useEffectiveLayout();
+  // v0.7.29 — layout-aware positioning. Compact (mobile/iPad-narrow)
+  // anchors at bottom-LEFT to clear the bottom-right MobileFab.
+  // Regular (desktop, no FAB) anchors at bottom-RIGHT — the original
+  // v0.7.27-shipped placement, before the FAB-collision fix moved
+  // everything left. On desktop the sidebar occupies the left edge,
+  // so a left-anchored floating button would overlap the sidebar
+  // chrome (Customize / Add workspace).
+  const isCompact = layout === 'compact';
   const suppress = SUPPRESS_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/') || pathname.startsWith(p + '#'));
 
   const [show, setShow] = useState(false);
@@ -86,14 +96,28 @@ export function BackToTop() {
       onClick={scrollToTop}
       aria-label="Back to top"
       title="Back to top"
-      className="fixed left-4 z-30 w-10 h-10 rounded-full grid place-items-center bg-accent text-accent-fg shadow-glass-lg active:scale-95 transition-transform"
-      style={{
-        bottom: 'calc(env(safe-area-inset-bottom, 0) + 96px)',
-        // Mirror the FAB's safe-area handling on the opposite side so
-        // landscape Dynamic Island insets push the button inward instead
-        // of letting it tuck under the Island bezel.
-        left: 'max(1rem, env(safe-area-inset-left, 0))',
-      }}
+      className="fixed z-30 w-10 h-10 rounded-full grid place-items-center bg-accent text-accent-fg shadow-glass-lg active:scale-95 transition-transform"
+      style={
+        isCompact
+          ? {
+              // Mobile / compact — bottom-LEFT, clears the bottom-right
+              // MobileFab. The 96 px bottom offset clears both the
+              // floating-pill BottomNav (~76 px) and the home indicator
+              // safe-area inset.
+              bottom: 'calc(env(safe-area-inset-bottom, 0) + 96px)',
+              left: 'max(1rem, env(safe-area-inset-left, 0))',
+            }
+          : {
+              // Desktop / regular — bottom-RIGHT in the content area.
+              // Sits clear of the sidebar (which occupies the left
+              // edge) and floats just above the DesktopStatusBar
+              // (32 px tall, with ~8 px page bottom padding) so the
+              // arrow doesn't collide with the "20 transactions"
+              // status pill.
+              bottom: 'calc(env(safe-area-inset-bottom, 0) + 48px)',
+              right: 'max(1rem, env(safe-area-inset-right, 0))',
+            }
+      }
     >
       <ArrowUp size={16} />
     </button>

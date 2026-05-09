@@ -93,11 +93,14 @@ export function AutoRulesPage() {
           </div>
         </div>
 
-        <div className="flex gap-1 p-1 bg-surface-2/40 rounded-lg w-fit">
+        {/* Outer pill carries the inactive-track look; inner pills are
+            full-radius so the selected tab reads as a true iOS-style
+            segmented-control thumb. */}
+        <div className="flex gap-1 p-1 bg-surface-2/40 rounded-full w-fit">
           <button
             onClick={() => setTab('category')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-[12.5px] font-medium flex items-center gap-1.5',
+              'px-3.5 py-1.5 rounded-full text-[12.5px] font-medium flex items-center gap-1.5',
               tab === 'category' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted',
             )}
           >
@@ -106,7 +109,7 @@ export function AutoRulesPage() {
           <button
             onClick={() => setTab('transfer')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-[12.5px] font-medium flex items-center gap-1.5',
+              'px-3.5 py-1.5 rounded-full text-[12.5px] font-medium flex items-center gap-1.5',
               tab === 'transfer' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted',
             )}
           >

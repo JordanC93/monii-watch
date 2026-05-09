@@ -714,7 +714,7 @@ function SettingsTabs({ active, onPick }: { active: TabId; onPick: (t: TabId) =>
           role="tab"
           aria-selected={active === id}
           onClick={() => onPick(id)}
-          className={`px-3 py-1.5 rounded-md text-[12.5px] font-medium whitespace-nowrap transition ${
+          className={`px-3.5 py-1.5 rounded-full text-[12.5px] font-medium whitespace-nowrap transition ${
             active === id
               ? 'bg-accent text-accent-fg'
               : 'text-fg-muted hover:text-fg hover:bg-surface-2/40'

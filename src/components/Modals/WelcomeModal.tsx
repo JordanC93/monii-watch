@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
   Sparkles, ListChecks, Wallet, Cloud, ArrowLeft, ArrowRight, Check,
-  ShieldCheck, MessageSquare, BarChart3, CreditCard, Plus, Rocket,
+  ShieldCheck, MessageSquare, BarChart3, CreditCard, Plus, Rocket, Palette,
 } from 'lucide-react';
 // Note: every icon listed above appears in the STEPS body below; the linter
 // would warn on any unused imports.
@@ -21,6 +21,8 @@ import { useFormatMoney } from '../../lib/format';
 import { ACCOUNT_TYPE_META, type AccountType } from '../../domain/types';
 import { todayIso } from '../../domain/date';
 import { cn } from '../../lib/cn';
+import { setTheme as applyTheme, THEMES } from '../../store/theme';
+import type { ThemeName } from '../../domain/types';
 
 /**
  * Multi-step onboarding. Mixes concept teaching with real setup actions —
@@ -202,6 +204,60 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
           )}
         </>
       ),
+    },
+    /* v0.7.29 — theme picker, intentionally near the start so the rest
+       of the tour renders in whatever look the user likes. Live preview:
+       each tap calls `applyTheme()` immediately (and persists via
+       setSettingsField inside it), but doesn't auto-advance the wizard
+       — the user clicks Next to move on. Mirrors how iOS first-run
+       lets you pick Light / Dark before showing other setup. */
+    {
+      icon: <Palette size={28} className="text-accent" />,
+      title: 'Pick your look',
+      body: (
+        <>
+          <p>
+            Choose how Monii Watch should appear. The rest of this tour
+            updates instantly so you can see what each one feels like
+            before continuing.
+          </p>
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {THEMES.map((t) => {
+              const isActive = settings.theme === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => applyTheme(t.id)}
+                  className={cn(
+                    'text-left rounded-xl border-2 p-2.5 transition active:scale-[0.98]',
+                    isActive
+                      ? 'border-accent ring-2 ring-accent/30'
+                      : 'border-border hover:border-border-strong',
+                  )}
+                  aria-pressed={isActive}
+                >
+                  {/* Mini preview swatch — uses each theme's actual
+                      bg + accent so the preview matches what the
+                      whole app will look like. Inline styles since
+                      themes.css values aren't accessible from
+                      Tailwind utilities at this granularity. */}
+                  <ThemeMiniSwatch themeId={t.id} />
+                  <div className="text-[12.5px] font-medium mt-1.5">{t.label}</div>
+                  <div className="text-[10.5px] text-fg-subtle leading-snug">{t.description}</div>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-fg-subtle text-[11.5px] leading-snug">
+            You can change this anytime from <strong className="text-fg">Settings → Display</strong>.
+            Liquid Glass also gets a palette + highlight-color picker
+            once it's selected.
+          </p>
+        </>
+      ),
+      // No `onNext` override — uses the default `next()` which just
+      // advances. Selecting a theme intentionally does NOT auto-advance;
+      // user must hit the Next button.
     },
     {
       icon: <ListChecks size={28} className="text-accent" />,
@@ -723,7 +779,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
       onNext: complete,
     },
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [incomeText, incomeCadence, acctName, acctType, acctBalance, accounts.length, fmt]);
+  ], [incomeText, incomeCadence, acctName, acctType, acctBalance, accounts.length, fmt, settings.theme, presetPicked, presetExpanded, acctLast4]);
 
   const cur = STEPS[step];
   const last = step === STEPS.length - 1;
@@ -785,5 +841,56 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
         ))}
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Tiny "this is what the theme looks like" preview tile shown inside
+ * each theme button on the welcome wizard's theme-picker step.
+ *
+ * Uses inline styles with the actual hex values so the preview is
+ * accurate even when the OUTER theme is something different (e.g.
+ * the user is currently on Dark and is hovering the Light option —
+ * the preview tile shows the Light bg + Light accent regardless of
+ * what's active on `<html>`). Without this, the preview would
+ * inherit the active theme's CSS vars and every tile would look the
+ * same.
+ *
+ * `auto` is shown as a half-light-half-dark split so the user can
+ * see at a glance that it follows the system. The split uses the
+ * Light + Dark theme's bg colors directly.
+ */
+function ThemeMiniSwatch({ themeId }: { themeId: ThemeName }) {
+  // Hardcoded hex values mirror themes.css. Kept in sync manually —
+  // the tradeoff is easier preview accuracy vs. one more place to
+  // update when a theme palette shifts. See themes.css for the
+  // canonical source.
+  const PREVIEWS: Record<Exclude<ThemeName, 'auto'>, { bg: string; surface: string; accent: string }> = {
+    light: { bg: '#e9ecf1', surface: '#f7f8fb', accent: '#6FC1D8' },
+    dark:  { bg: '#0f1218', surface: '#161a22', accent: '#606262' },
+    oled:  { bg: '#000000', surface: '#070708', accent: '#2049EE' },
+    glass: { bg: '#0a0d2c', surface: '#322d4e', accent: '#5a82f0' /* Aurora default */ },
+  };
+  if (themeId === 'auto') {
+    return (
+      <div className="h-12 w-full rounded-lg overflow-hidden flex">
+        <div style={{ background: PREVIEWS.light.bg, width: '50%' }} className="flex items-center justify-center">
+          <div style={{ background: PREVIEWS.light.accent }} className="h-3 w-3 rounded-full" />
+        </div>
+        <div style={{ background: PREVIEWS.dark.bg, width: '50%' }} className="flex items-center justify-center">
+          <div style={{ background: PREVIEWS.dark.accent }} className="h-3 w-3 rounded-full" />
+        </div>
+      </div>
+    );
+  }
+  const p = PREVIEWS[themeId];
+  return (
+    <div
+      className="h-12 w-full rounded-lg flex items-center px-2 gap-2"
+      style={{ background: p.bg }}
+    >
+      <div style={{ background: p.accent }} className="h-3 w-3 rounded-full flex-shrink-0" />
+      <div style={{ background: p.surface }} className="h-2 flex-1 rounded-full" />
+    </div>
   );
 }

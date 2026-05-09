@@ -37,7 +37,16 @@ const RANGES = [
   { id: 3,  label: 'Last 3 Months' },
   { id: 6,  label: 'Last 6 Months' },
   { id: 12, label: 'Last 12 Months' },
+  { id: 24, label: 'Last 24 Months' },
+  { id: 60, label: 'Last 5 Years' },
 ];
+// v0.7.29 — added 24-month + 5-year presets to cover the common "all
+// time / show me everything" range ask without the substantial
+// refactor of switching every report component from `months: number`
+// to `start/end: ISO`. A proper day-precision date-range picker is
+// queued for v0.7.30 — every report's compute fn already accepts
+// arbitrary date filtering internally, the lift is the cross-cutting
+// prop change.
 
 /**
  * Reports tab grouping (Tier 10 #3). Maps each card key to one of

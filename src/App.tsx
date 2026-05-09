@@ -51,6 +51,12 @@ const ReceiptGalleryPage = lazy(() => import('./pages/ReceiptGalleryPage').then(
 const PayeesPage = lazy(() => import('./pages/PayeesPage').then((m) => ({ default: m.PayeesPage })));
 // Per-payee drill-down (v0.7.28). Lazy because recharts is heavy.
 const PayeeDetailPage = lazy(() => import('./pages/PayeeDetailPage').then((m) => ({ default: m.PayeeDetailPage })));
+// Recurring expense audit (v0.7.29). Reuses subscription detector.
+const SubscriptionsAuditPage = lazy(() => import('./pages/SubscriptionsAuditPage').then((m) => ({ default: m.SubscriptionsAuditPage })));
+// Review queue (v0.7.29).
+const ReviewQueuePage = lazy(() => import('./pages/ReviewQueuePage').then((m) => ({ default: m.ReviewQueuePage })));
+// Annual budget grid (v0.7.29) — categories × 12 months heatmap.
+const AnnualBudgetPage = lazy(() => import('./pages/AnnualBudgetPage').then((m) => ({ default: m.AnnualBudgetPage })));
 // Category drill-down (Tier 7 #4).
 const CategoryDetailPage = lazy(() => import('./pages/CategoryDetailPage').then((m) => ({ default: m.CategoryDetailPage })));
 // In-app help center (built v0.6.2).
@@ -512,6 +518,9 @@ export default function App() {
               <Route path="/receipts" element={<ReceiptGalleryPage />} />
               <Route path="/payees" element={<PayeesPage />} />
               <Route path="/payees/:payeeId" element={<PayeeDetailPage />} />
+              <Route path="/subscriptions" element={<SubscriptionsAuditPage />} />
+              <Route path="/review" element={<ReviewQueuePage />} />
+              <Route path="/budget/annual" element={<AnnualBudgetPage />} />
               <Route path="/categories/:categoryId" element={<CategoryDetailPage />} />
               <Route path="/help" element={<HelpPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />

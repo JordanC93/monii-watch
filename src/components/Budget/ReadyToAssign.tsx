@@ -3,6 +3,7 @@ import { computeReadyToAssign } from '../../domain/budget';
 import { useFormatMoney } from '../../lib/format';
 import { cn } from '../../lib/cn';
 import { Sparkles, AlertTriangle, Copy, Bookmark, Wand2 } from 'lucide-react';
+import { Money } from '../ui/Money';
 import { computeGoalProgress } from '../../domain/goals';
 import { computeMonthBudgetCached as computeMonthBudget } from '../../domain/budgetCache';
 import { shiftMonth } from '../../domain/date';
@@ -83,7 +84,13 @@ export function ReadyToAssign() {
           tone === 'positive' && 'text-positive',
           tone === 'zero' && 'text-fg',
           tone === 'negative' && 'text-negative',
-        )}>{fmt(rta)}</div>
+        )}>
+          {/* v0.7.29 — animate roll on RTA changes. The user moves
+              money in/out of categories from this exact card; smooth
+              roll makes the cause-and-effect feel intentional rather
+              than jarring. Honors prefers-reduced-motion. */}
+          <Money cents={rta} animate monochrome />
+        </div>
         <div className="text-[12px] text-fg-subtle mt-0.5">
           {tone === 'positive' && 'Give every dollar a job.'}
           {tone === 'zero' && 'Every dollar has a job. Well done.'}

@@ -136,26 +136,20 @@ html[data-theme='glass']::before {
   inset: -10%;  /* over-extend so animated drift doesn't reveal edges */
   z-index: -2;
   background:
-    /* v0.7.28 — soft tint instead of a heavy dimming wash. The previous
-       0.55 alpha killed every bright palette: pick white and the math
-       (40% white over near-black + 55% black on top) clipped down to
-       middle-gray. Apple's Sequoia / iOS 26 wallpapers don't dim like
-       that — they let the picked color really sing. We keep a tiny
-       0.18 wash so very-saturated picks still feel anchored, but
-       light palettes finally read as light. */
+    /* v0.7.28 — soft tint instead of a heavy dimming wash. Critical
+       for the macOS Sequoia / iOS 26 Liquid Glass aesthetic: bright
+       saturated wallpaper bleeds through translucent panels. The
+       earlier 0.55 alpha killed every bright palette by clipping
+       blob math down to middle-gray. */
     linear-gradient(rgba(6, 8, 22, 0.18), rgba(6, 8, 22, 0.18)),
-    /* Vignette — softer than before so corners aren't crushed to
-       near-black. v0.7.28: 0.30 → 0.18 mid, 0.65 → 0.42 corner. */
+    /* Vignette — softer corners so they aren't crushed to near-black. */
     radial-gradient(140% 100% at 50% 50%,
       transparent 40%,
       rgba(0, 0, 0, 0.18) 75%,
       rgba(0, 0, 0, 0.42) 100%),
-    /* v0.7.10 — four large radial blobs replaced the conic that had a
-       singularity. v0.7.28: alphas bumped from 0.35-0.42 → 0.55-0.62
-       so picked colors actually pop instead of getting muted by the
-       dimming layers above. White at 60% over a deep-blue base reads
-       as bright white-on-blue; previously the same input rendered as
-       muddy gray. */
+    /* Four large radial blobs — alphas at the bumped 0.55-0.62 values
+       so picked colors actually saturate the canvas. White at 60%
+       over a deep-blue base reads as bright white-on-blue. */
     radial-gradient(140% 110% at var(--glass-pos-1, 28%) var(--glass-pos-1y, 18%),
       rgb(var(--glass-c1, 58 72 200) / 0.62),
       transparent 65%),
@@ -168,17 +162,13 @@ html[data-theme='glass']::before {
     radial-gradient(150% 120% at var(--glass-pos-4, 82%) var(--glass-pos-4y, 22%),
       rgb(var(--glass-c4, 40 130 200) / 0.58),
       transparent 70%),
-    /* Solid base — slight lift from near-black to deep navy. v0.7.28:
-       was #060818 → #02030a (essentially black) which fought every
-       palette. Now low-saturation deep blue so even a "no blob" zone
-       still has some color presence. */
+    /* Lifted base — low-saturation deep navy so even no-blob zones
+       still carry color presence. */
     linear-gradient(180deg, #0a0d2c 0%, #050714 100%);
   animation: glass-aurora-drift 120s linear infinite;
   pointer-events: none;
-  /* Slight saturation boost gives the wash richness without pushing
-     alphas higher (which would create banding at the blob edges).
-     v0.7.28: bumped from 1.15 → 1.25 to compensate for the lighter
-     dimming layers — Apple's wallpapers feel chromatic, not pastel. */
+  /* Slight saturation boost to compensate for the lighter dimming
+     layers. Apple's wallpapers feel chromatic, not pastel. */
   filter: saturate(1.25);
 }
 
@@ -319,11 +309,9 @@ html[data-theme='glass'] .glass-panel {
   --surface-alpha: 0.06;
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  /* v0.7.28: dropped brightness(0.96) → brightness(1.0). The previous
-     value darkened content visible through the glass by 4% which fought
-     the brighter v0.7.28 wallpaper math. The white-tint background-image
-     below already provides the "frosted glass" feel; the brightness
-     filter was double-dimming. */
+  /* brightness 1.0 — no double-dimming through the glass material;
+     the white-tint background-image below provides the frosted
+     feel on its own. */
   backdrop-filter: blur(32px) saturate(180%) brightness(1.0) contrast(1.04);
   -webkit-backdrop-filter: blur(32px) saturate(180%) brightness(1.0) contrast(1.04);
   background-image:
@@ -366,8 +354,7 @@ html[data-theme='glass'] .glass-panel {
  */
 html[data-theme='glass'] .glass-panel[data-material="thin"] {
   --surface-alpha: 0.04;
-  /* v0.7.28: brightness 0.98 → 1.0 — let the brighter wallpaper math
-     come through unchanged. */
+  /* brightness 1.0 — let the wallpaper come through unchanged. */
   backdrop-filter: blur(20px) saturate(160%) brightness(1.0);
   -webkit-backdrop-filter: blur(20px) saturate(160%) brightness(1.0);
   box-shadow:
@@ -377,7 +364,7 @@ html[data-theme='glass'] .glass-panel[data-material="thin"] {
 }
 html[data-theme='glass'] .glass-panel[data-material="regular"] {
   --surface-alpha: 0.05;
-  /* v0.7.28: brightness 0.96 → 1.0 (same reason as the thick variant). */
+  /* brightness 1.0 — same reason as the thick variant. */
   backdrop-filter: blur(26px) saturate(170%) brightness(1.0);
   -webkit-backdrop-filter: blur(26px) saturate(170%) brightness(1.0);
 }
@@ -470,8 +457,8 @@ html[data-theme='glass'] .glass-panel > :not(.absolute):not(.fixed):not(.sticky)
  * stutters during scroll. Drop one notch for compact viewports. */
 @media (max-width: 768px) {
   html[data-theme='glass'] .glass-panel {
-    /* v0.7.28: brightness 0.96 → 1.0 — match the desktop change so iOS
-       sees the same brighter wallpaper through the panel material. */
+    /* brightness 1.0 — match the desktop change so iOS sees the same
+       brighter wallpaper through the panel material. */
     backdrop-filter: blur(22px) saturate(170%) brightness(1.0);
     -webkit-backdrop-filter: blur(22px) saturate(170%) brightness(1.0);
   }

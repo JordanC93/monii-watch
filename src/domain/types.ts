@@ -482,6 +482,25 @@ export type Transaction = {
    */
   receiptText?: string;
   /**
+   * v0.7.29 — explicit hard link to another transaction. Symmetrical:
+   * if A.linkedTxnId = B then B.linkedTxnId = A. Use cases:
+   *   - Refund linked to original purchase
+   *   - Bank-side debit linked to credit-card-side payment (when
+   *     statement imports double-import the same money movement)
+   *   - Two halves of an ad-hoc payment split between people
+   * The link is hard (single-target), not a tag — for many-to-many
+   * relationships use tags or splits. Unsetting one side automatically
+   * unsets the other via `unlinkTransaction()`.
+   */
+  linkedTxnId?: string;
+  /**
+   * v0.7.29 — "needs review" flag. Independent of `flag` (the colored
+   * flag for visual triage) so a transaction can be flagged red AND
+   * marked for review without one overriding the other. The Review
+   * Queue page lists every transaction with this set to true.
+   */
+  reviewNeeded?: boolean;
+  /**
    * Tier 14 #3 — free-form tags. Cross-cutting labels orthogonal to
    * categories: "vacation", "tax-deductible", "client-billable",
    * "kid", "anniversary". Multi-tag per transaction. Reports can
