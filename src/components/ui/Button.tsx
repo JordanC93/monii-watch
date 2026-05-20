@@ -49,7 +49,14 @@ export const Button = forwardRef<HTMLButtonElement, Props>(function Button(
     <button
       ref={ref}
       className={cn(
-        'inline-flex items-center justify-center gap-1.5 font-medium select-none transition active:translate-y-px',
+        // v0.7.30 — `whitespace-nowrap` so labels stay on a single line and
+        // the pill auto-grows to fit. Without it, a long string ("Save &
+        // add another", "Mark transactions for review") wraps to a second
+        // line but the fixed `h-9` / `h-11` height clips the second line.
+        // Pair with `shrink-0` so a row of buttons doesn't collapse one
+        // mid-label when its parent gets narrow — the row should overflow
+        // / wrap as whole pills, not as broken text.
+        'inline-flex items-center justify-center gap-1.5 font-medium select-none transition active:translate-y-px whitespace-nowrap shrink-0',
         iconOnly ? iconSizes[size] : sizes[size],
         variants[variant],
         className,

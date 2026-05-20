@@ -9,13 +9,14 @@
 
 import { useMemo } from 'react';
 import { useBudget } from '../../store/budget';
-import { useFormatMoney } from '../../lib/format';
-import { todayIso, formatDateShort } from '../../domain/date';
+import { useFormatMoney, useFormatDateShort } from '../../lib/format';
+import { todayIso } from '../../domain/date';
 import { useUI } from '../../store/ui';
 import { CheckCircle2, AlertTriangle, Hourglass } from 'lucide-react';
 import { markRefundReceived } from '../../db/repo';
 
 export function PendingRefunds() {
+  const formatDateShort = useFormatDateShort();
   const txns = useBudget((s) => s.transactions);
   const payees = useBudget((s) => s.payees);
   const accounts = useBudget((s) => s.accounts);

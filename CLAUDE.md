@@ -75,7 +75,13 @@ src/
 │   ├── creditCard.ts    computeCreditCardSummary, utilizationStatus,
 │   │                    totalCreditUtilization (per-card + aggregate)
 │   ├── paySchedule.ts   per-pay-period math (weekly/biweekly/...)
-│   ├── goalProjection.ts trailing-rate projection of goal completion
+│   ├── goalProjection.ts trailing-rate projection of goal completion;
+│   │                    factors in scheduled-transfer rates via
+│   │                    autoAssignCategoryId (v0.7.26)
+│   ├── payeeDetail.ts   per-payee 12-month spend, top categories,
+│   │                    YoY, recent txns (v0.7.28; powers
+│   │                    PayeeDetailPage)
+│   ├── categoryDetail.ts per-category drill-down analytics (Tier 7 #4)
 │   └── usaStateTax.ts   50 states + DC top marginal rates (2025)
 ├── conversation/    rule-based chat intent system; see docs/CONVERSATION.md
 │   ├── types.ts         Intent, IntentResult, ChatMessage, ChatEffect
@@ -120,32 +126,52 @@ src/
 │   ├── ui.ts            Modals, command palette, selection state
 │   └── undo.ts          Yjs UndoManager wrapper (Cmd+Z / Cmd+Shift+Z)
 ├── pages/               Top-level routes (Budget, Account, AllAccounts,
-│                        Reports, Scheduled, Settings, Search). Reports +
-│                        Settings are React.lazy.
+│                        Reports, Scheduled, Settings, Search,
+│                        PayeeDetailPage, SubscriptionsAuditPage,
+│                        ReviewQueuePage, AnnualBudgetPage). Reports +
+│                        Settings are React.lazy. Per-payee detail and
+│                        the v0.7.29-added pages are also lazy.
 ├── components/
 │   ├── Layout/          Sidebar (desktop), TopBar (Chat + Command btns),
-│   │                    BottomNav (mobile), GlassBackdrop (active under
-│   │                    Liquid Glass theme)
+│   │                    BottomNav (mobile floating dock under Glass —
+│   │                    centralized via --mobile-nav-inset/-radius CSS
+│   │                    vars), GlassBackdrop (active under Liquid Glass)
 │   ├── Chat/            ChatPanel slide-over for the conversational interface
-│   ├── Budget/          BudgetTable, ReadyToAssign, QuickStats,
-│   │                    OverspendingAlert, SetupChecklist, GoalDealBanner
-│   │                    (surfaces price-tracker deal alerts globally)
-│   ├── Transactions/    TransactionTable, TransactionRow, QuickAdd
+│   ├── Budget/          BudgetTable (with category color stripe + per-row
+│   │                    sparkline), ReadyToAssign (animated number),
+│   │                    QuickStats, OverspendingAlert, SetupChecklist,
+│   │                    GoalDealBanner, CategorySparkline
+│   ├── Transactions/    TransactionTable, TransactionRow (desktop click
+│   │                    opens EditTransactionModal; mobile keeps inline),
+│   │                    QuickAdd, PayeeAutocomplete (iOS-keyboard-safe
+│   │                    custom implementation, NOT native datalist)
 │   ├── Reports/         SpendingByCategory, NetWorth, IncomeVsExpenses,
-│   │                    BillsTrend (multi-series monthly outflow chart),
-│   │                    Subscriptions, TaxCalculator, DebtPayoff
-│   ├── Settings/        DesktopUpdates (Tauri auto-updater bridge UI)
+│   │                    BillsTrend, Subscriptions, TaxCalculator,
+│   │                    DebtPayoff, NetWorthAttribution, DayOfWeekHeatmap
+│   ├── Settings/        DesktopUpdates (Tauri auto-updater bridge UI),
+│   │                    GlassPalettePicker, AccentColorPicker (per-theme
+│   │                    + per-glass-palette highlight overrides)
 │   ├── Modals/          ModalRoot dispatcher + each modal as own file +
-│   │                    CommandPalette + WelcomeModal (the tutorial)
-│   └── ui/              Button, Input, Select, Modal, Money, MoneyInput, Badge,
-│                        CategoryIcon, IconPicker, CategoryAvatar, CircularProgress,
-│                        HelpHint, Toaster
+│   │                    CommandPalette + WelcomeModal (the tutorial) +
+│   │                    EditTransactionModal (desktop replacement for
+│   │                    inline edit) + LinkTxnPickerModal (search + link
+│   │                    two transactions bidirectionally)
+│   └── ui/              Button, Input, Select, Modal, Money (with
+│                        `animate` prop), MoneyInput, Badge, CategoryIcon,
+│                        IconPicker, CategoryAvatar, CircularProgress,
+│                        HelpHint, Toaster, EmptyState (reusable
+│                        "no data yet" component), BackToTop (layout-aware
+│                        — bottom-LEFT compact, bottom-RIGHT regular)
 ├── lib/                 cn (clsx wrapper), format, shortcuts (global hotkeys),
 │                        logs (in-app log capture), categoryIcons (catalog),
 │                        toast (in-app notifications), imageResize (avatar uploads),
 │                        swipe (touch-swipe hook), desktopUpdater (Tauri updater bridge),
 │                        device (iOS/iPad/touch/Tauri detection),
-│                        layout (useEffectiveLayout hook + per-device localStorage)
+│                        layout (useEffectiveLayout hook + per-device localStorage),
+│                        accentOverrides (per-context highlight color resolver +
+│                        applier; writes to body, NOT html — see Iron Rule #26),
+│                        useAnimatedValue (rAF-driven number interpolation
+│                        with prefers-reduced-motion guard)
 ├── styles/              globals.css + themes.css (4 themes via CSS vars)
 ├── App.tsx              Routes, lazy boundaries, welcome-on-first-run effect
 └── main.tsx             Bootstrap order: theme → persistence → db init →
@@ -459,6 +485,90 @@ server/                  Self-hosted y-websocket sync server (Docker Compose
     cleaned up too, that requires a `git filter-repo` rewrite +
     force-push of all branches and tags — destructive, never
     done without explicit consent (Iron Rule #20).
+
+26. **CSS variables that Tailwind utilities consume MUST be
+    space-separated RGB triplets, NEVER hex strings.** Tailwind's
+    `tailwind.config.js` defines `accent`, `accent-fg`, `bg`,
+    `surface`, `fg`, etc. as `rgb(var(--accent) / <alpha-value>)`.
+    Writing a hex value (`#D026E3`) into the CSS variable makes
+    the runtime expansion `rgb(#D026E3 / 1)` — invalid CSS, the
+    browser silently rejects it and the property falls back to the
+    inherited value (whatever was on `<html>` from themes.css —
+    typically the default cyan).
+
+    This bit us hard in v0.7.27 / v0.7.28: highlight color
+    overrides looked correct in the picker (which reads hex
+    directly) but applied to NOTHING that touched a Tailwind
+    utility (`bg-accent`, `text-accent`, `border-accent`,
+    `shadow-accent`). The user reported "highlight isn't working"
+    across multiple iterations and I kept trying wrong fixes
+    because I was looking at the picker UI, not the live `--accent`
+    value. Final fix: convert override hex → triplet before
+    `setProperty('--accent', triplet)`. v0.7.28's
+    `applyAccentForContext` does this.
+
+    Same rule applies to anything else added to the Tailwind theme
+    config in `tailwind.config.js`: if it's referenced via
+    `rgb(var(--X) / <alpha-value>)`, the value MUST be a triplet.
+    The static `themes.css` declarations are all triplets — that's
+    the contract. JS overrides need to honor it.
+
+    Cascade companion: also matters WHERE you write the var.
+    Static theme rules in themes.css declare `--accent` on
+    `body.theme-X` (Monitrr) or `html[data-theme='X']` (Monii).
+    A more-specific selector wins; if you write the JS override
+    on `<html>` but the static rule lives on `body.theme-X`, body's
+    own declaration shadows yours. Monii's
+    `applyAccentForContext` writes to `body` for this reason.
+
+27. **Tauri 2 desktop apps need
+    `app.windows[0].dragDropEnabled: false` in
+    `tauri.conf.json`.** Default is `true`, which routes
+    mouse-drag events to the OS-level "files dropped onto the app
+    window" callbacks. The webview swallows them BEFORE forwarding
+    as HTML5 drag-and-drop events. Result: every internal HTML5
+    dnd surface in the app silently breaks on the desktop wrapper
+    while continuing to work in the web build / preview.
+
+    Surfaces that depend on HTML5 dnd: sidebar nav drag-reorder,
+    Budget category drag-recategorize, BudgetTable edit-mode drag
+    handles, transaction-onto-category recategorize. All of these
+    looked broken on the Mac desktop app for users who pulled
+    v0.7.x and worked perfectly in the browser. v0.7.29 fix.
+
+    Trade-off you give up: dragging a file from Finder onto the
+    Monii window. The app doesn't subscribe to that event anywhere
+    (receipt upload uses file picker + clipboard paste; CSV import
+    uses file picker; no code listens for `tauri://drag-drop`),
+    so disabling it is harmless.
+
+    Same setting applies cross-platform — WebView2 (Windows) and
+    WebKitGTK (Linux) have the equivalent intercept. The single
+    flag covers all three desktop platforms.
+
+28. **Statement-import sign convention is
+    destination-account-relative.** A "Payment Thank You -$X" line
+    on a credit-card statement prints negative because that's the
+    issuer's accounting (a credit reducing what you owe), but
+    represents a POSITIVE inflow on the cardholder's account
+    (paying down debt = balance toward zero). The reverse is true
+    on a checking-statement import — a "PAYMENT TO CAPITAL ONE
+    -$X" line is correctly negative for the checking account
+    (money leaving).
+
+    The import dialog has a `statementKind` selector
+    (`'credit-card' | 'bank' | 'other'`) at the top, defaulted
+    from the destination account's type. When the kind is
+    `credit-card`, every row flagged `isCardPayment` by the parser
+    gets sign-flipped to positive at SAVE time AND the visible
+    `amountText` is rewritten when the kind selector changes (so
+    the user reviews the post-flip value, not the parser's raw
+    output).
+
+    Don't try to auto-detect statement type from the document
+    content. The classifier already has heuristics for it but
+    they're unreliable across issuers; the explicit selector is
+    the source of truth. Default + show, never silent-infer.
 
 ## Theme system
 
@@ -916,6 +1026,240 @@ Headlines:
   `classify.ts`. Sidebar AccountItem + AccountPage header
   both show `····1234` below the account name when set.
 
+### v0.7.24–0.7.29
+
+The "v0.7.x dogfood-driven polish" wave continued. Headlines below;
+the per-version commit messages have the implementation depth.
+
+- **v0.7.24**: scrubbed maintainer's real account last-4 digits
+  from receipt-handling test fixtures (codified as Iron Rule
+  #25). v0.7.18 → v0.7.23 tags ARE published with the originals
+  visible — tag rewrite was offered, declined.
+- **v0.7.25**: fixed iOS keyboard dismissing on every keystroke
+  inside any modal. `Modal.tsx` focus-management `useEffect`
+  listed `onClose` in deps; every parent re-render gave a new
+  inline arrow, re-firing the effect → calling
+  `cardRef.current.focus()` → iOS WKWebView dismisses keyboard
+  on focus changes. Fixed via `onCloseRef` ref pattern; effect
+  now depends only on `open`. Cross-cutting; affects every
+  modal in the app.
+- **v0.7.26**: onboarding overhaul (body scroll lock added to
+  Modal — see Iron Rule #26 below; sample data is now opt-in
+  via "Try with sample data" button instead of auto-seeding;
+  preset-category previews + "None / blank" option; Last-4
+  field on the account-add step + "Save & add another"
+  button; credit-cards explainer step moved BEFORE the
+  account-add step; chat shortcut copy is platform-aware).
+  Goals page header switched from `Target` to `Trophy` icon.
+  Goal projection now factors in scheduled transfers via the
+  `autoAssignCategoryId` field; new ETA-from-scheduled tile.
+  Same-shape-of-bug audit on `MoneyInput.tsx` and
+  `TxnContextMenu.tsx` — both had focus-stealing useEffects
+  with unstable deps.
+- **v0.7.27**: per-context highlight color overrides. New
+  `Settings.accentOverrides: Record<string, string>` map keyed
+  by `light` / `dark` / `oled` / `glass:aurora` / etc. — each
+  theme/palette context remembers its own override. New
+  `lib/accentOverrides.ts` owns the resolver
+  (`getAccentContextKey`, `getEffectiveAccentHex`,
+  `applyAccentForContext`). New `AccentColorPicker` component
+  unconditional in Settings. Critical: writes `--accent` to
+  `<body>`, NOT `<html>` (the static theme rules declare it on
+  `body.theme-X`, more specific selector wins; html-level
+  writes are silently shadowed). Static glass theme block on
+  `html[data-theme='glass']` writes there too — same element,
+  no shadow.
+- **v0.7.28**: 14-fix bundle. Highlights:
+  - **Glass theme brightness rebalance** (then partly reverted
+    in v0.7.29's overall-bg conversation; current state is the
+    BRIGHT v0.7.28 dimming + blob alphas — see globals.css).
+    Reduced dimming overlay from 0.55 → 0.18, vignette
+    softened, blob alphas bumped from 0.35-0.42 → 0.55-0.62,
+    base gradient lifted from `#060818 → #02030a` to
+    `#0a0d2c → #050714`, saturate filter 1.15 → 1.25,
+    glass-panel `brightness(0.96)` → `brightness(1.0)`. Bright
+    palettes finally read as bright.
+  - **iOS WKWebView scroll lock**: `Modal.tsx` switched from
+    `body { overflow: hidden }` to the `position: fixed` +
+    scrollY-snapshot pattern. Plain overflow:hidden didn't
+    reliably stop touch-drag scroll on iOS WKWebView.
+  - **Highlight override TAILWIND BUG** (Iron Rule #26 below).
+    `applyAccentForContext` was writing `--accent` as hex
+    (`#D026E3`); Tailwind's utilities expand to
+    `rgb(var(--accent) / <alpha>)` which made `rgb(#D026E3 / 1)`
+    = invalid CSS = silent fallback to inherited cyan. Two
+    versions of "highlight isn't working" complaints traced to
+    this single mismatch. Fix: write triplet form. Critical
+    foundation for every overrideable accent surface in the app.
+  - **Per-payee drill-down** at `/payees/<id>` — 12-month spend
+    chart, top categories breakdown, recent txns, YoY,
+    variability banner. New `domain/payeeDetail.ts`. Reuses
+    `CategoryDetailChart`. Lazy-loaded.
+  - **Edit-transaction modal** on desktop. Replaces the cramped
+    9-column inline-edit row. Mobile keeps inline. Layout-aware
+    via `useEffectiveLayout()`.
+  - **Mobile bottom-nav as floating dock**. Centralized via
+    `--mobile-nav-inset` + `--mobile-nav-radius` CSS vars so
+    future tweaks ripple to every theme.
+  - **Tauri Mac drag-drop fix**:
+    `app.windows[0].dragDropEnabled: false` in
+    `tauri.conf.json`. Default `true` makes WKWebView swallow
+    HTML5 drag-and-drop events. See Iron Rule #27 below.
+  - Statement parser MM/DD support (most US credit-card
+    statements omit the per-row year; year inferred from doc
+    header or current year). New `isCardPayment` detection +
+    statement-type selector at top of import dialog drives
+    sign-flipping. See Iron Rule #28 below.
+  - Theme accent defaults updated per maintainer pick: Light
+    `#6FC1D8`, Dark `#606262`, OLED `#2049EE`. Each with a
+    matching `--accent-fg` for contrast.
+  - Reverts during the conversation: tile glass overlay,
+    accent-tinted More icons. Final state: More icon
+    containers use `bg-surface-2 text-fg-muted` (the original
+    pre-experiment look).
+- **v0.7.29**: Lunch-Money parity wave + cross-cutting QoL.
+  - **Linked transactions**: `Transaction.linkedTxnId`
+    (symmetrical hard link). `linkTransactions(a, b)` and
+    `unlinkTransaction(id)` mutations in `repo.ts` —
+    symmetrical cleanup of any pre-existing partner. New
+    `LinkTxnPickerModal` (search-filter + click to link).
+    Edit-modal surface shows partner with click-to-jump +
+    Unlink button.
+  - **Recurring expenses audit page** at `/subscriptions` —
+    annualized cost, last-12-mo total, "% change vs prior
+    year" creep indicator. Reuses `detectSubscriptions`.
+  - **Annual budget grid** at `/budget/annual` — categories ×
+    12 months heatmap. Year nav. Sticky first column + sticky
+    bottom totals row. `overflow-x-auto` for mobile.
+  - **Review queue** at `/review` — `Transaction.reviewNeeded`
+    flag, `setReviewNeeded(id, on)` mutation, dedicated page
+    with bulk-clear-all.
+  - **`useAnimatedValue` hook** in `lib/` + `animate` prop on
+    `Money`. Applied to Ready-to-Assign card. Honors
+    `prefers-reduced-motion` (snaps when reduced).
+  - **Category color stripe** on Budget rows (3 px left edge).
+    Render gated on `category.color` being set; `pointer-events:
+    none` so it doesn't block clicks.
+  - **EmptyState component** (`ui/EmptyState.tsx`) — reusable
+    "no data yet" treatment with icon + title + body + optional
+    CTA-link / CTA-onClick. Applied to SpendingByPayee as the
+    first consumer; remaining "No data" strings can be
+    upgraded incrementally.
+  - **Statement-type selector** in the import dialog with
+    visible sign-flip on change — switch between Credit /
+    Bank / Other and the displayed `amountText` for every
+    detected card-payment row rewrites to match the
+    post-flip value the user will save.
+  - Reports range presets: 24-month + 5-year added (full
+    day-precision date-range picker queued for v0.7.30 — every
+    report compute fn already accepts arbitrary date filtering
+    internally; the lift is the cross-cutting prop change).
+  - 8 new statement-parser tests covering MM/DD + isCardPayment
+    cases. Total now 285 tests.
+
+### v0.7.30
+The biggest single version yet — parser rewrites, OCR pipeline,
+local-LLM fallback, Tier 1 polish + Tier 2 v1-readiness pass.
+
+- **Statement parser two-pass rewrite** (`conversation/statement.ts`).
+  Replaced the single-pass forward-walk with a tokenize → assemble
+  flow that handles five distinct bank layouts: inline-date (Capital
+  One), leading-date (Wells Fargo Zelle / mobile bank with date
+  headers), trailing-date (Chase mobile pending list), iOS
+  notifications (`Yesterday, 5:50 PM` / `Sun 11:13 AM` / time-only),
+  desktop-bank-with-BALANCE-column. Layout detection collapsed to a
+  single robust signal: whichever event kind (date or money)
+  appears FIRST in the doc.
+- **Stacked Month/Day stitcher** for banks that render the date as
+  two vertical tokens. Three variants handled (both alone, month
+  glued to desc, day glued to subtext).
+- **Signed-token-wins amount selection** — when a row has both an
+  AMOUNT and a BALANCE column, prefer the explicitly-signed token
+  as the row amount.
+- **OCR-mangled-amount placeholder injection** — when Tesseract
+  produces "CER" instead of "+$80.00" on rows that match a
+  transaction keyword AND have peer rows with confirmed amounts,
+  inject the mode of those peers as a placeholder. Recovers 3/9
+  rows the user was missing in a Capital One savings statement.
+- **Monthly Interest date inference** — interest rows sandwiched
+  between two 1st-of-consecutive-months transfers get re-dated to
+  the last day of the month between. Handles OCR-mangled day
+  numbers (`30` → `2`, `31` → `Eo`, etc.) on a recognizable
+  recurring shape.
+- **OCR pre-processing pipeline** (`conversation/ocr.ts`):
+  - 3-way scale policy: down-cap >3000px, up-sample <1000px, leave
+    1000-3000px alone
+  - YIQ-luma grayscale + edge-pixel-driven dark-mode invert
+  - Linear contrast stretch (k=1.7)
+  - 3×3 median denoise (in-place with delayed-commit scratch row)
+  - Otsu binarization for variance-maximized text/background split
+  - Projection-profile deskew (1° integer search ± 0.5° refinement)
+  - Explicit canvas/ImageBitmap buffer release to bound peak memory
+- **Local LLM fallback** (`conversation/llmStatement.ts`,
+  `@mlc-ai/web-llm`). Lazy-loaded 6 MB chunk, separate from main
+  bundle, opt-in via Settings → On-device AI parsing. Module-level
+  engine cache so repeat parses reuse the GPU buffers instead of
+  re-allocating ~500 MB each call. Falls back gracefully when
+  WebGPU is unavailable.
+- **Multi-file upload queue** in `ReceiptUploadModal`. Drop N
+  statements at once, process them sequentially with "X of N"
+  indicator + Skip button. Single source of truth in `fileQueue`
+  + `queueIdx` state.
+- **Vendor-correction memory**. `Settings.ocrCorrections` records
+  user edits to vendor names in the review dialog; future imports
+  replay the substitution automatically. LRU-trimmed at 200
+  entries. Exact match only (substring rules would over-trigger).
+- **Raw-text editor + Re-parse** in the import dialog's
+  "View raw extracted text" disclosure. User fixes one mangled
+  character and re-runs the parser without re-uploading the image.
+- **`useFormatDate` / `useFormatDateShort` hooks** + new
+  `Settings.dateFormat` (iso / us / eu / long). Onboarding asks
+  new users to pick before they touch any transaction data; the
+  hooks reactively re-render all date displays when the setting
+  changes. 19 UI consumers wired in.
+- **Statement-import UI polish**:
+  - Modal bumped from `lg` (max-w-2xl) to `xl` (max-w-4xl) on
+    desktop, columns rebalanced
+  - `amountText` initialized with `.toFixed(2)` so the rows show
+    aligned `-3.00 / -14.10 / -11.92` instead of `-3 / -14.1 / -11.92`
+  - Mobile: row table gets a 2×2 grid layout, header row stacks
+    vertically, modal padding tightened, `overflow-x-hidden` to
+    prevent the spec-coerced horizontal scroll
+  - LLM progress banner shown above the row list during model
+    load + inference
+- **Button + Modal app-wide tweaks**:
+  - `<Button>` adds `whitespace-nowrap shrink-0` so labels never
+    wrap; pills auto-grow to fit
+  - Base CSS rule `button { white-space: nowrap }` covers all
+    inline pill buttons (receipt-match banners, statement chips)
+  - AccountPage action row uses 2×2 grid on mobile (`Edit /
+    Reconcile / Import CSV / Paste txns`) for uniform pills
+  - `Modal` content area gets `overflow-x-hidden` + mobile padding
+    drops from p-5 to p-4
+- **Iron Rule #16 removed** — `maintainerMode` field, page,
+  route, sidebar/More entries, Settings section all gone. Pre-v1
+  cleanup done.
+- **#9 cold-start optimization** — converted 7 more pages
+  (`AccountPage`, `AllAccountsPage`, `SearchPage`, `ScheduledPage`,
+  `CreditCardsPage`, `GoalsPage`, `MorePage`) to lazy imports.
+  Main chunk dropped from 852 KB → 712 KB (-140 KB, -17%) /
+  gzip 238 KB → 204 KB.
+- **TransactionRow memoization** — wrapped in `React.memo` so a
+  parent re-render (filter typing, bulk-select toggle, page
+  expansion) doesn't fan out to every visible row.
+- **Pagination cap** on the transaction list (default 250 rows,
+  "Show next 250" / "Show all" expansion). Lighter touch than
+  full virtualization, no new dep.
+- **Iron Rules added**:
+  - #29 Statement parsing layout discrimination uses the
+    first-event-kind signal, not money.prev or date.prev
+  - #30 OCR preprocessing canvas buffers MUST be explicitly
+    released (`canvas.width = 0`) — peak memory matters on iOS
+- **Tests**: 285 → 325 (40 new). Includes a fresh
+  `importFlow.test.ts` integration suite covering classify →
+  parse → TxnInput chain across Chase trailing, iOS notification,
+  desktop bank-with-BALANCE, and OCR-recovery formats.
+
 ## Recent code-level subsystems
 
 These showed up in the v0.7.x receipt-handling work and are
@@ -941,7 +1285,7 @@ worth knowing about:
   cc-payment, then receipt. Now exports `pickIssuerLabel`
   for reuse.
 
-## Release pipeline (current state — Apr 2026)
+## Release pipeline (current state — May 2026)
 
 The desktop release pipeline is FULLY working as of v0.5.13. Long
 history of debugging condensed:
@@ -1010,6 +1354,20 @@ reference a tier/number.
 ## Known gaps / future work
 
 In rough priority order (after v0.6.4):
+
+0. **Apple Foundation Models for the on-device LLM parser** — v0.7.30
+   landed local-LLM statement parsing via WebLLM + a 500 MB Qwen 2.5
+   0.5B model loaded on demand. Works cross-platform (web / Tauri /
+   Capacitor) but the model download is large and the WebGPU path
+   isn't available on older iPhones. iOS 26+ exposes Apple's on-device
+   Foundation Models via a JS bridge — ~3B params, ships with the
+   OS, no extra download, hardware-accelerated. When iOS 26 adoption
+   crosses ~70%, swap the iOS path to use Foundation Models and keep
+   the WebLLM path for everyone else. Approximate effort: 2 days for
+   the Capacitor plugin wrapper + a `parseStatementWithFoundation()`
+   adapter in `src/conversation/llmStatement.ts` that delegates by
+   platform.
+
 
 1. **Native iOS / Android via Capacitor (Tier 9 #1)** — biggest
    remaining platform gap. PWA works on iOS but no real notifications,

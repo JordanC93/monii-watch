@@ -4,9 +4,8 @@ import { useBudget } from '../../store/budget';
 import { useUI } from '../../store/ui';
 import { detectSubscriptions, annualCost, type DetectedSubscription } from '../../domain/subscriptions';
 import { createScheduled, listScheduled } from '../../db/repo';
-import { useFormatMoney } from '../../lib/format';
+import { useFormatMoney, useFormatDate } from '../../lib/format';
 import { FREQUENCY_LABELS } from '../../domain/recurrence';
-import { formatDate } from '../../domain/date';
 import { Money } from '../ui/Money';
 import { cn } from '../../lib/cn';
 
@@ -22,6 +21,7 @@ import { cn } from '../../lib/cn';
  *     duplicate them
  */
 export function Subscriptions() {
+  const formatDate = useFormatDate();
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
   const payees = useBudget((s) => s.payees);

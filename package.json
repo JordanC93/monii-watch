@@ -1,7 +1,7 @@
 {
   "name": "monii-watch",
   "private": true,
-  "version": "0.7.29",
+  "version": "0.7.30",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -30,6 +30,7 @@
     "cap:run:android": "npm run build && cap sync android && cap run android"
   },
   "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.83",
     "@noble/ciphers": "^2.2.0",
     "@noble/hashes": "^2.2.0",
     "@tauri-apps/api": "^2.10.1",

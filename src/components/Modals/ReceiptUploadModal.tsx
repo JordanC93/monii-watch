@@ -5,7 +5,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { useBudget } from '../../store/budget';
-import { createTransaction, setSettingsField, bulkCreateTransactions, attachReceiptImage, type TxnInput } from '../../db/repo';
+import { createTransaction, setSettingsField, bulkCreateTransactions, attachReceiptImage, recordOcrCorrection, type TxnInput } from '../../db/repo';
 import { resizeReceiptToDataUrl } from '../../lib/imageResize';
 import { resolveReceipt, type Receipt } from '../../conversation/receipt';
 import { recognizeReceipt, type OcrProgress } from '../../conversation/ocr';
@@ -21,7 +21,7 @@ import { findFuzzyPayeeMatch, type PayeeMatchResult } from '../../conversation/p
 import { detectTransferFromText, type TransferMatchResult } from '../../conversation/transferDetect';
 import { todayIso } from '../../domain/date';
 import { parseAmountToCents } from '../../domain/calc';
-import { useFormatMoney } from '../../lib/format';
+import { useFormatMoney, useFormatDate } from '../../lib/format';
 import { cn } from '../../lib/cn';
 import { toast } from '../../lib/toast';
 import { findDuplicateOf } from '../../domain/duplicates';
@@ -70,6 +70,10 @@ type StatementRowDraft = {
    * "+4,273.33" — confusing for the user reviewing the import.
    */
   originalAmount: number;
+  /** v0.7.30 — the parser's RAW vendor name, preserved so the save
+   *  handler can detect user edits and record them as
+   *  `Settings.ocrCorrections` for replay on future imports. */
+  originalVendor: string;
   /** Tier 7 #2 — id of an existing transaction this row likely duplicates. */
   dupOfId?: string;
 };
@@ -172,6 +176,12 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
   const [transferDetect, setTransferDetect] = useState<TransferMatchResult | null>(null);
   const payees = useBudget((s) => s.payees);
   const [rawText, setRawText] = useState<string>('');
+  // v0.7.30 — local-LLM fallback progress (model download / inference).
+  // Null when idle; an object while the LLM is running so the UI can
+  // render a banner over the statement-import view.
+  type LlmStage = { stage: 'loading-model'; text: string; progress: number } | { stage: 'inferring' };
+  const [llmProgress, setLlmProgress] = useState<LlmStage | null>(null);
+  const llmEnabled = useBudget((s) => s.settings.llmStatementParsing ?? false);
   const [docKind, setDocKind] = useState<DocKind>('receipt');
   /** Holds the original image file so we can attach a resized copy to the
    *  transaction after the user confirms. */
@@ -184,6 +194,13 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
    *  visible. Defaults to ON for receipts since that's the main use. */
   const [attachReceipt, setAttachReceipt] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
+  // v0.7.30 — multi-file queue. When the user picks N files in the
+  // native picker, we hold them all here and process one at a time.
+  // After each save / skip, `advanceQueue()` resets the per-file draft
+  // and starts the next file. When the last file finishes the modal
+  // closes naturally.
+  const [fileQueue, setFileQueue] = useState<File[]>([]);
+  const [queueIdx, setQueueIdx] = useState(0);
 
   function reset() {
     setProgress(null);
@@ -203,11 +220,37 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
 
   function close() {
     reset();
+    setFileQueue([]);
+    setQueueIdx(0);
     onClose();
   }
 
-  // Dismiss on Esc-after-success
-  useEffect(() => { if (!open) reset(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [open]);
+  /**
+   * v0.7.30 — advance to the next file in the queue if there is one,
+   * otherwise close the modal. Called from each successful save and
+   * from the "Skip" button.
+   */
+  function advanceQueue() {
+    const nextIdx = queueIdx + 1;
+    if (nextIdx >= fileQueue.length) {
+      close();
+      return;
+    }
+    reset();
+    setQueueIdx(nextIdx);
+    void ingest(fileQueue[nextIdx]);
+  }
+
+  // Dismiss on Esc-after-success. Also clear the multi-file queue so
+  // a stale queue from a previous open can't resurface unexpectedly.
+  useEffect(() => {
+    if (!open) {
+      reset();
+      setFileQueue([]);
+      setQueueIdx(0);
+    }
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [open]);
 
   async function ingest(file: File) {
     setError(null);
@@ -329,7 +372,18 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
     if (result.kind === 'statement') {
       setDocKind('statement');
       const defaultAcct = accounts.find((a) => !a.closed)?.id ?? '';
-      const rows = result.statement.rows.map((r) => statementRowToDraft(r, categories));
+      // v0.7.30 — replay learned vendor corrections. If the user has
+      // previously fixed a parser mistake, apply the substitution
+      // automatically so they don't have to fix it again.
+      const corrections = useBudget.getState().settings.ocrCorrections ?? [];
+      const correctionMap = new Map<string, string>();
+      for (const c of corrections) correctionMap.set(c.from, c.to);
+      const rows = result.statement.rows.map((r) => {
+        const draft = statementRowToDraft(r, categories);
+        const learned = correctionMap.get(draft.vendor);
+        if (learned) draft.vendor = learned;
+        return draft;
+      });
       // Tier 7 #2 — flag likely duplicates against the existing
       // transactions in the chosen account. Auto-deselect them.
       if (defaultAcct && rows.length > 0) {
@@ -372,6 +426,14 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
       const rowsForKind = applyKindToRows(rows, inferredKind);
       setDraft({ kind: 'statement', accountId: defaultAcct, statementKind: inferredKind, rows: rowsForKind });
       console.info(`[classify] statement — ${rows.length} rows extracted`);
+      // v0.7.30 — LLM fallback. Kicked off only when (a) the user has
+      // the toggle on AND (b) the regex parser's row count came in
+      // materially below what the OCR text suggests. Fires async so
+      // the regex result is shown first; the draft is replaced (or
+      // augmented) once the LLM completes.
+      if (llmEnabled) {
+        void runLLMStatementFallback(text, rows.length, inferredKind, defaultAcct);
+      }
       return;
     }
     if (result.kind === 'cc-payment') {
@@ -424,6 +486,59 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
     }
   }
 
+  /**
+   * v0.7.30 — local LLM fallback for statement parsing. Runs only when
+   * the user has the feature toggled on (Settings → Advanced) AND the
+   * regex parser's row count looks materially below what the OCR text
+   * suggests. The first invocation per device triggers a one-time
+   * ~500 MB model download; subsequent runs are fast (cached in
+   * IndexedDB by WebLLM). Pure fire-and-forget: when the LLM finishes,
+   * the existing draft is replaced with the LLM result if it covered
+   * MORE rows than the regex did.
+   */
+  async function runLLMStatementFallback(
+    text: string,
+    regexRowCount: number,
+    inferredKind: 'credit-card' | 'bank' | 'other',
+    defaultAcct: string,
+  ): Promise<void> {
+    try {
+      const { shouldFallBackToLLM, parseStatementWithLLM, hasWebGPU } =
+        await import('../../conversation/llmStatement');
+      if (!hasWebGPU()) {
+        console.info('[llm] skipped — WebGPU unavailable on this device');
+        return;
+      }
+      if (!shouldFallBackToLLM(regexRowCount, text)) {
+        console.info(`[llm] skipped — regex got ${regexRowCount} rows, deemed sufficient`);
+        return;
+      }
+      console.info('[llm] regex result sparse — running LLM fallback');
+      const llmRows = await parseStatementWithLLM(text, {
+        onProgress: (p) => {
+          if (p.stage === 'done') setLlmProgress(null);
+          else setLlmProgress(p);
+        },
+      });
+      setLlmProgress(null);
+      if (!llmRows || llmRows.length <= regexRowCount) {
+        console.info(`[llm] no improvement (${llmRows?.length ?? 0} rows); keeping regex result`);
+        return;
+      }
+      console.info(`[llm] replaced ${regexRowCount} regex rows with ${llmRows.length} LLM rows`);
+      const drafted = llmRows.map((r) => statementRowToDraft(r, categories));
+      const adjusted = applyKindToRows(drafted, inferredKind);
+      setDraft((d) =>
+        d && d.kind === 'statement'
+          ? { ...d, rows: adjusted, accountId: d.accountId || defaultAcct }
+          : d,
+      );
+    } catch (err) {
+      console.warn('[llm] fallback errored', err);
+      setLlmProgress(null);
+    }
+  }
+
   function save() {
     if (!draft) return;
     if (draft.kind === 'statement') {
@@ -456,10 +571,23 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
         });
       }
       if (inputs.length === 0) { setError('No rows selected. Pick at least one to import.'); return; }
+      // v0.7.30 — capture vendor edits as learned corrections BEFORE
+      // the import lands. If the user changed any row's vendor name
+      // from what the parser proposed, persist the substitution so
+      // future imports replay it automatically.
+      let learned = 0;
+      for (const r of draft.rows) {
+        if (!r.include) continue;
+        if (r.originalVendor && r.vendor !== r.originalVendor) {
+          recordOcrCorrection(r.originalVendor, r.vendor);
+          learned++;
+        }
+      }
+      if (learned > 0) console.info(`[corrections] learned ${learned} vendor edit${learned === 1 ? '' : 's'}`);
       const { created } = bulkCreateTransactions(inputs);
       console.info(`[upload] imported ${created} statement rows into account ${draft.accountId}`);
       toast.success(`Imported ${created} transaction${created === 1 ? '' : 's'}`);
-      close();
+      advanceQueue();
       return;
     }
     if (draft.kind === 'paystub') {
@@ -469,7 +597,7 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
       setSettingsField('deductions', next);
       console.info(`[upload] saved paystub — ${cleaned.length} deductions, mode=${draft.replace ? 'replace' : 'append'}`);
       toast.success(`Saved ${cleaned.length} deduction${cleaned.length === 1 ? '' : 's'} from paystub`);
-      close();
+      advanceQueue();
       return;
     }
     if (draft.kind === 'cc-payment') {
@@ -495,7 +623,7 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
         memo: transferMemo,
       });
       console.info(`[upload] created ${transferDetect?.fullyMatched ? 'transfer' : 'cc payment'} — from=${draft.fromAccountId} to=${draft.toAccountId} amount=${cents}`);
-      close();
+      advanceQueue();
       return;
     }
     // receipt / unknown → outflow
@@ -542,7 +670,7 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
         })
         .catch((err) => console.warn('[upload] PDF rasterize failed', err));
     }
-    close();
+    advanceQueue();
   }
 
   const busy = progress && progress.stage !== 'done';
@@ -581,21 +709,53 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
 
   const includedRowCount = draft?.kind === 'statement' ? draft.rows.filter((r) => r.include).length : 0;
 
+  const queueLength = fileQueue.length;
+  const queueLabel = queueLength > 1
+    ? (
+        <span className="flex items-center gap-2">
+          <span>Upload Document</span>
+          <span className="text-[11px] text-fg-subtle font-normal tabular bg-surface-2/60 rounded-full px-2 py-0.5">
+            {queueIdx + 1} of {queueLength}
+          </span>
+        </span>
+      )
+    : 'Upload Document';
+
   return (
     <Modal
       open={open}
       onClose={close}
-      title="Upload Document"
-      size="lg"
+      title={queueLabel}
+      /*
+        v0.7.30 — size bumped from `lg` (max-w-2xl, 672 px) to `xl`
+        (max-w-4xl, 896 px) on desktop. The statement-import flow
+        has a 6-column table — date + vendor + category + amount +
+        controls — that felt cramped at 2xl: vendor names truncated
+        to "Metropoli...", dates clipped the year, category select
+        couldn't show the full category name. The extra 224 px lets
+        each column breathe. Mobile is unaffected (the size token
+        only kicks in at sm: and above; mobile is always w-full).
+      */
+      size="xl"
       footer={
-        <div className="flex justify-between gap-2">
+        <div className="flex justify-between gap-2 flex-wrap">
           <Button variant="ghost" onClick={close}>Cancel</Button>
-          <Button variant="primary" onClick={save} disabled={!draft || !!busy}>
-            <Check size={13} /> {draft?.kind === 'cc-payment' ? 'Create transfer'
-              : draft?.kind === 'paystub' ? 'Save deductions'
-              : draft?.kind === 'statement' ? `Import ${includedRowCount} row${includedRowCount === 1 ? '' : 's'}`
-              : 'Create transaction'}
-          </Button>
+          <div className="flex gap-2">
+            {/* v0.7.30 — Skip current file (only relevant when there's
+                more than one queued). Discards the current draft
+                without importing and advances to the next file. */}
+            {queueLength > 1 && queueIdx < queueLength - 1 && (
+              <Button variant="secondary" onClick={advanceQueue} disabled={!!busy}>
+                Skip this file
+              </Button>
+            )}
+            <Button variant="primary" onClick={save} disabled={!draft || !!busy}>
+              <Check size={13} /> {draft?.kind === 'cc-payment' ? 'Create transfer'
+                : draft?.kind === 'paystub' ? 'Save deductions'
+                : draft?.kind === 'statement' ? `Import ${includedRowCount} row${includedRowCount === 1 ? '' : 's'}`
+                : 'Create transaction'}
+            </Button>
+          </div>
         </div>
       }
     >
@@ -618,10 +778,15 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
           ref={fileRef}
           type="file"
           accept="image/*,application/pdf,.pdf,.ofx,.qfx"
+          multiple
           className="hidden"
           onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) ingest(f);
+            const list = e.target.files;
+            if (!list || list.length === 0) return;
+            const files = Array.from(list);
+            setFileQueue(files);
+            setQueueIdx(0);
+            void ingest(files[0]);
           }}
         />
 
@@ -694,13 +859,41 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
             ) : draft.kind === 'paystub' ? (
               <PaystubForm draft={draft} fmt={fmt} onChange={setDraft} />
             ) : draft.kind === 'statement' ? (
-              <StatementForm
-                draft={draft}
-                accounts={accounts}
-                categories={categories}
-                fmt={fmt}
-                onChange={setDraft}
-              />
+              <>
+                {/* v0.7.30 — LLM fallback progress banner. Shown only
+                    while the on-device LLM is loading its model or
+                    running inference. Rows from the regex parser are
+                    visible below it the whole time, so the user can
+                    start editing while the LLM runs in the background. */}
+                {llmProgress && (
+                  <div className="p-2.5 rounded-md border border-accent/40 bg-accent/10 text-[12px] flex items-start gap-2">
+                    <Loader2 size={14} className="text-accent animate-spin flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium">
+                        {llmProgress.stage === 'loading-model'
+                          ? 'Loading on-device parser…'
+                          : 'Running on-device parser…'}
+                      </div>
+                      <div className="text-[11px] text-fg-subtle mt-0.5 truncate">
+                        {llmProgress.stage === 'loading-model'
+                          ? `${llmProgress.text || 'Downloading model…'}${
+                              llmProgress.progress > 0
+                                ? ` (${Math.round(llmProgress.progress * 100)}%)`
+                                : ''
+                            }`
+                          : 'Re-parsing the screenshot. Will replace the rows below if it finds more.'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <StatementForm
+                  draft={draft}
+                  accounts={accounts}
+                  categories={categories}
+                  fmt={fmt}
+                  onChange={setDraft}
+                />
+              </>
             ) : (
               <>
                 {/* Tier 12 #16 — auto-route by last-4 banner. Only
@@ -750,7 +943,35 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
             {rawText && (
               <details className="text-[11.5px]">
                 <summary className="cursor-pointer text-fg-subtle hover:text-fg">View raw extracted text</summary>
-                <pre className="mt-2 p-2 rounded bg-surface-3 text-fg-muted text-[11px] whitespace-pre-wrap max-h-32 overflow-y-auto">{rawText}</pre>
+                {/* v0.7.30 Tier 1.4 — editable textarea + Re-parse
+                    button. When OCR mangles a single token or two
+                    (e.g. a "30" misread as "Eo"), the user can fix
+                    the raw text and re-run the parser without
+                    re-uploading the screenshot. Edits are local to
+                    the modal state — they don't change the saved
+                    OCR text that gets attached to the transaction. */}
+                <textarea
+                  value={rawText}
+                  onChange={(e) => setRawText(e.target.value)}
+                  className="mt-2 p-2 rounded bg-surface-3 text-fg-muted text-[11px] font-mono whitespace-pre-wrap w-full max-h-48 overflow-y-auto resize-y border border-border focus:border-accent focus:outline-none"
+                  rows={8}
+                  spellCheck={false}
+                  aria-label="Raw extracted text — edit and re-parse"
+                />
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <div className="text-[10.5px] text-fg-subtle leading-snug">
+                    Fix garbled characters and click Re-parse to re-run
+                    extraction. Doesn't re-upload the image.
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => classifyAndPrep(rawText)}
+                    disabled={!!busy}
+                  >
+                    Re-parse
+                  </Button>
+                </div>
               </details>
             )}
           </>
@@ -763,6 +984,7 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
 function progressLabel(p: Progress): string {
   if (!p) return 'Working…';
   switch (p.stage) {
+    case 'preprocessing':  return 'Cleaning up the image…';
     case 'loading-engine': return 'Loading engine (one-time)…';
     case 'recognizing':    return 'Reading image…';
     case 'reading-page':   return 'Reading PDF…';
@@ -1256,7 +1478,11 @@ function statementRowToDraft(r: ParsedStatementRow, categories: any[]): Statemen
     include: true,
     date: r.date,
     vendor: r.vendor,
-    amountText: (r.amount / 100).toString(),
+    // v0.7.30 — always 2-decimal format. `.toString()` would emit
+    // "-3" for $-3.00 (trailing zeros stripped) and produce a mixed
+    // table like "-3 / -14.1 / -11.92". `.toFixed(2)` keeps every row
+    // visually aligned and looks right against the tabular font.
+    amountText: (r.amount / 100).toFixed(2),
     categoryId,
     isIncome: r.isIncome,
     rawDescription: r.rawDescription,
@@ -1264,6 +1490,7 @@ function statementRowToDraft(r: ParsedStatementRow, categories: any[]): Statemen
     isPeerPayment: r.isPeerPayment,
     isCardPayment: r.isCardPayment,
     originalAmount: r.amount,
+    originalVendor: r.vendor,
   };
 }
 
@@ -1283,7 +1510,7 @@ function applyKindToRows<T extends StatementRowDraft>(rows: T[], kind: 'credit-c
   return rows.map((r) => {
     if (!r.isCardPayment) return r;
     const target = kind === 'credit-card' ? Math.abs(r.originalAmount) : r.originalAmount;
-    return { ...r, amountText: (target / 100).toString() };
+    return { ...r, amountText: (target / 100).toFixed(2) };
   });
 }
 
@@ -1296,6 +1523,11 @@ function StatementForm({
   fmt: (cents: number) => string;
   onChange: (d: any) => void;
 }) {
+  // v0.7.30 — settings-aware date formatter for the row preview text.
+  // The user reported seeing raw ISO dates here; this routes the display
+  // through their `Settings.dateFormat` choice (set during onboarding or
+  // in Settings → Display).
+  const fmtDate = useFormatDate();
   function patchRow(rowId: string, patch: Partial<StatementRowDraft>) {
     onChange({ ...draft, rows: draft.rows.map((r) => r.rowId === rowId ? { ...r, ...patch } : r) });
   }
@@ -1381,8 +1613,11 @@ function StatementForm({
         </div>
       </div>
 
-      {/* Bulk toggle */}
-      <div className="flex items-center justify-between text-[11.5px]">
+      {/* Bulk toggle — v0.7.30 mobile: stack the description below the
+          checkbox so the long "Sub-extracted vendor names (N)…" string
+          doesn't push the row width past the modal. Desktop keeps the
+          inline justify-between layout. */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-[11.5px]">
         <label className="flex items-center gap-1.5 text-fg-muted cursor-pointer">
           <input
             type="checkbox"
@@ -1407,7 +1642,11 @@ function StatementForm({
           <div className="text-right">Amount</div>
           <div></div>
         </div>
-        <div className="max-h-[340px] overflow-y-auto divide-y divide-border">
+        {/* v0.7.30 — overflow-x-hidden so the row list scrolls
+            vertically only. Without it, a single row whose vendor input
+            briefly overflows during typing triggers a horizontal scroll
+            on the whole table. */}
+        <div className="max-h-[340px] overflow-y-auto overflow-x-hidden divide-y divide-border">
           {draft.rows.length === 0 ? (
             <div className="px-3 py-6 text-center text-[12px] text-fg-subtle">
               No rows extracted. Try a clearer screenshot, or upload as a single receipt instead.
@@ -1418,6 +1657,7 @@ function StatementForm({
               row={r}
               categories={categories}
               fmt={fmt}
+              fmtDate={fmtDate}
               onPatch={(p) => patchRow(r.rowId, p)}
               onRemove={() => removeRow(r.rowId)}
             />)
@@ -1436,19 +1676,26 @@ function StatementForm({
 }
 
 function StatementRow({
-  row, categories, fmt, onPatch, onRemove,
+  row, categories, fmt, fmtDate, onPatch, onRemove,
 }: {
   row: StatementRowDraft;
   categories: any[];
   fmt: (cents: number) => string;
+  fmtDate: (iso: string) => string;
   onPatch: (patch: Partial<StatementRowDraft>) => void;
   onRemove: () => void;
 }) {
   const cents = parseAmountToCents(row.amountText) ?? 0;
   const isInflow = cents > 0;
 
+  // v0.7.30 — `min-w-0` on the grid container itself prevents an
+  // oversized child (long vendor input value, fixed-width date
+  // input on desktop) from pushing the row wider than the table.
+  // Combined with the table's overflow-x-hidden, this guarantees the
+  // row reshapes to the available width on mobile no matter what the
+  // vendor name is.
   return (
-    <div className="grid grid-cols-[28px_1fr_28px] sm:grid-cols-[28px_92px_1fr_140px_110px_28px] gap-1.5 px-2 py-1.5 items-center hover:bg-surface-2/30">
+    <div className="grid grid-cols-[28px_1fr_28px] sm:grid-cols-[28px_120px_1fr_160px_120px_28px] gap-1.5 px-2 py-1.5 items-center hover:bg-surface-2/30 min-w-0">
       {/* Include checkbox */}
       <input
         type="checkbox"
@@ -1499,7 +1746,7 @@ function StatementRow({
           </div>
         )}
         <div className="text-[10px] text-fg-subtle truncate sm:hidden mt-0.5">
-          {row.date} {row.type ? `· ${row.type}` : ''}
+          {row.date ? fmtDate(row.date) : ''} {row.type ? `· ${row.type}` : ''}
         </div>
         <div className="text-[10px] text-fg-subtle truncate hidden sm:block mt-0.5" title={row.rawDescription}>
           {row.type ? `${row.type} · ` : ''}{row.rawDescription}

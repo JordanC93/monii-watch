@@ -5,8 +5,7 @@ import { useUI } from '../store/ui';
 import { computeMonthBudget } from '../domain/budget';
 import { computeGoalProjection, type GoalProjection } from '../domain/goalProjection';
 import { perPaycheckAmount, PAY_FREQUENCY_LABELS } from '../domain/paySchedule';
-import { useFormatMoney } from '../lib/format';
-import { formatDate } from '../domain/date';
+import { useFormatMoney, useFormatDate } from '../lib/format';
 import { CategoryAvatar } from '../components/ui/CategoryAvatar';
 import { CircularProgress } from '../components/ui/CircularProgress';
 import { Button } from '../components/ui/Button';
@@ -58,6 +57,7 @@ export function GoalsPage() {
   const month = useBudget((s) => s.selectedMonth);
   const openModal = useUI((s) => s.openModal);
   const fmt = useFormatMoney();
+  const formatDate = useFormatDate();
 
   const monthBudget = useMemo(
     () => computeMonthBudget(accounts, categories, txns, assignments, month),
@@ -191,6 +191,7 @@ function GoalTile({
   fmt: (cents: number) => string;
   onEdit: () => void;
 }) {
+  const formatDate = useFormatDate();
   const [expanded, setExpanded] = useState(false);
 
   const projection = useMemo(

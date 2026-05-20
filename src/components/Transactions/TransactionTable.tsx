@@ -9,8 +9,6 @@ import { HelpHint } from '../ui/HelpHint';
 import type { Transaction } from '../../domain/types';
 import { bulkCreateTransactions } from '../../db/repo';
 import { toast } from '../../lib/toast';
-import { formatDateShort } from '../../domain/date';
-
 type Props = {
   /** If set, scope transactions to this account. */
   accountId?: string;
@@ -87,6 +85,8 @@ export function TransactionTable({ accountId, filter, showAccount }: Props) {
     function onCopy(e: ClipboardEvent) {
       if (selectedIds.size === 0) return;
       if (isInField(e.target)) return;
+      // v0.7.30 — copy from the FULL filtered set, not just visible
+      // page. The user might have selected rows across pages.
       const sel = txns.filter((t) => selectedIds.has(t.id));
       if (sel.length === 0) return;
       const lines = ['Date\tPayee\tCategory\tMemo\tOutflow\tInflow'];
@@ -133,7 +133,27 @@ export function TransactionTable({ accountId, filter, showAccount }: Props) {
     };
   }, [txns, selectedIds, payees, categories, accountId]);
 
-  const visibleIds = useMemo(() => txns.map((t) => t.id), [txns]);
+  // v0.7.30 — pagination cap. Rendering 5,000+ TransactionRow nodes
+  // synchronously blows up React's diff cost and tanks scroll perf
+  // on lower-end iPhones. Cap to the first PAGE_SIZE rows by default;
+  // the user can opt into showing more in chunks via the "Show more"
+  // button below the list. Cheaper than full virtualization (no new
+  // dep, no row-height measurement, no risk of breaking drag/drop or
+  // inline edit) and pays off immediately for accounts with deep
+  // history.
+  const PAGE_SIZE = 250;
+  const [pageCount, setPageCount] = useState(1);
+  // Reset pagination whenever the underlying filter/search changes so
+  // a fresh query starts at the top instead of carrying over a
+  // previously-expanded page count.
+  useEffect(() => { setPageCount(1); }, [accountId, filter, search]);
+  const visibleTxns = useMemo(
+    () => (txns.length > pageCount * PAGE_SIZE ? txns.slice(0, pageCount * PAGE_SIZE) : txns),
+    [txns, pageCount],
+  );
+  const hiddenCount = txns.length - visibleTxns.length;
+
+  const visibleIds = useMemo(() => visibleTxns.map((t) => t.id), [visibleTxns]);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
   const someVisibleSelected = visibleIds.some((id) => selectedIds.has(id));
 
@@ -199,7 +219,7 @@ export function TransactionTable({ accountId, filter, showAccount }: Props) {
         {payees.map((p) => <option key={p.id} value={p.name} />)}
       </datalist>
       <div className="max-h-[60vh] sm:max-h-[calc(100vh-280px)] overflow-y-auto">
-        {txns.map((t) => (
+        {visibleTxns.map((t) => (
           <TransactionRow
             key={t.id}
             txn={t}
@@ -207,6 +227,30 @@ export function TransactionTable({ accountId, filter, showAccount }: Props) {
             runningBalance={runningBalances.get(t.id)}
           />
         ))}
+        {/* v0.7.30 — Show-more / show-all when paginated. The cap
+            keeps initial render cheap on large accounts; this
+            control lets the user expand on demand. Clicking "Show
+            all" jumps straight to the full list (one big render,
+            slow but visible). */}
+        {hiddenCount > 0 && (
+          <div className="border-t border-border px-3 py-2 flex items-center justify-between gap-2 bg-surface-2/30 text-[11.5px] text-fg-subtle">
+            <span>Showing {visibleTxns.length} of {txns.length} · {hiddenCount} more</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPageCount((n) => n + 1)}
+                className="text-accent hover:underline"
+              >
+                Show next {Math.min(PAGE_SIZE, hiddenCount)}
+              </button>
+              <button
+                onClick={() => setPageCount(Math.ceil(txns.length / PAGE_SIZE) || 1)}
+                className="text-accent hover:underline"
+              >
+                Show all
+              </button>
+            </div>
+          </div>
+        )}
         {txns.length === 0 && (
           <div className="px-4 py-10 text-center text-fg-subtle text-[13px]">
             No transactions yet. Use the row above to add one.

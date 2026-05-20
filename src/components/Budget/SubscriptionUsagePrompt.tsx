@@ -13,14 +13,15 @@ import { Bell, Check, ExternalLink, CalendarPlus } from 'lucide-react';
 import { useBudget } from '../../store/budget';
 import { detectSubscriptions } from '../../domain/subscriptions';
 import { recordSubscriptionUsageDecision } from '../../db/repo';
-import { useFormatMoney } from '../../lib/format';
-import { todayIso, formatDate } from '../../domain/date';
+import { useFormatMoney, useFormatDate } from '../../lib/format';
+import { todayIso } from '../../domain/date';
 import { downloadIcs } from '../../lib/icsCalendar';
 import { toast } from '../../lib/toast';
 
 const DAYS_AHEAD = 5;
 
 export function SubscriptionUsagePrompt() {
+  const formatDate = useFormatDate();
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
   const payees = useBudget((s) => s.payees);

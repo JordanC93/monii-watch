@@ -28,7 +28,7 @@ import { Money } from '../ui/Money';
 import { useBudget } from '../../store/budget';
 import { useUI } from '../../store/ui';
 import { updateTransaction, deleteTransaction, setCleared, unlinkTransaction, setReviewNeeded } from '../../db/repo';
-import { formatDate } from '../../domain/date';
+import { useFormatDate } from '../../lib/format';
 import { PayeeAutocomplete } from '../Transactions/PayeeAutocomplete';
 import { cn } from '../../lib/cn';
 import type { Transaction, FlagColor, ClearedState } from '../../domain/types';
@@ -49,6 +49,7 @@ type Props = {
 };
 
 export function EditTransactionModal({ open, onClose, transactionId }: Props) {
+  const formatDate = useFormatDate();
   const txn = useBudget((s) => s.transactions.find((t) => t.id === transactionId));
   const accounts = useBudget((s) => s.accounts);
   const categories = useBudget((s) => s.categories);

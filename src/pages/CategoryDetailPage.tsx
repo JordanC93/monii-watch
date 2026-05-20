@@ -12,8 +12,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, ArrowDown, ArrowUp, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { computeCategoryDetail, formatMonthShort } from '../domain/categoryDetail';
-import { todayIso, formatDate } from '../domain/date';
-import { useFormatMoney } from '../lib/format';
+import { todayIso } from '../domain/date';
+import { useFormatMoney, useFormatDate } from '../lib/format';
 import { CategoryAvatar } from '../components/ui/CategoryAvatar';
 import { MobilePageHeader } from '../components/Layout/MobilePageHeader';
 import { Button } from '../components/ui/Button';
@@ -28,6 +28,7 @@ export function CategoryDetailPage() {
   const txns = useBudget((s) => s.transactions);
   const payees = useBudget((s) => s.payees);
   const fmt = useFormatMoney();
+  const formatDate = useFormatDate();
   const nav = useNavigate();
 
   const category = categories.find((c) => c.id === categoryId);

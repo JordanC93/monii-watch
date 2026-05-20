@@ -20,9 +20,9 @@ import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { Money } from '../components/ui/Money';
 import { MobilePageHeader } from '../components/Layout/MobilePageHeader';
-import { useFormatMoney } from '../lib/format';
+import { useFormatMoney, useFormatDate } from '../lib/format';
 import { parseAmountToCents } from '../domain/calc';
-import { todayIso, formatDate } from '../domain/date';
+import { todayIso } from '../domain/date';
 import type { TripBudget } from '../domain/types';
 import { toast } from '../lib/toast';
 import { cn } from '../lib/cn';
@@ -31,6 +31,7 @@ export function TripsPage() {
   const trips = useBudget((s) => s.trips);
   const txns = useBudget((s) => s.transactions);
   const fmt = useFormatMoney();
+  const formatDate = useFormatDate();
   const nav = useNavigate();
   const [editing, setEditing] = useState<TripBudget | 'new' | null>(null);
 

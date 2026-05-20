@@ -225,6 +225,24 @@ export function extractInnerVendor(rawDescription: string): { vendor: string; is
     .replace(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g, ' ') // embedded dates
     .replace(/\b\d{8}\b/g, ' ')         // YYYYMMDD style
     .replace(/[#:*]+/g, ' ')
+    // v0.7.30 — drop leading icon-glyph garbage. iOS notification OCR
+    // captures the Chase app icon as characters like "& [=]" / "▷" /
+    // "⊞" / "|" / "□" — varied and impossible to enumerate. Strip ANY
+    // leading run of non-alphanumeric characters that's followed by
+    // whitespace. The trailing-whitespace guard preserves "7-Eleven"
+    // (digit + hyphen + letter, no space between) and "(Pet Care)"
+    // (paren + letter, no space at start). Run twice in case the
+    // garbage and a real prefix are stacked.
+    .replace(/^[^a-zA-Z0-9]+\s+/, '')
+    .replace(/^[^a-zA-Z0-9]+\s+/, '')
+    // Also strip a "digit(s) + non-alphanumeric-symbol(s) + whitespace"
+    // prefix — e.g. "8 [=] Dunkin'" → "Dunkin'". This catches the case
+    // where OCR captures the icon as a digit followed by symbols
+    // (whatever Tesseract decided that pixel block looked like).
+    // Preserves "7-Eleven" (digit + "-" + letter, no whitespace
+    // between) and "1000 Park Avenue" (digit + space + LETTER, where
+    // "P" isn't in the symbol set).
+    .replace(/^\d+\s+[^a-zA-Z0-9\s]+\s+/, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
   cleaned = stripTrailingNoise(cleaned);
@@ -263,7 +281,14 @@ function normalizeKnownTypos(s: string): string {
 function stripTrailingNoise(s: string): string {
   return s
     .replace(/\s+\d{2,}$/, '')         // trailing numbers
-    .replace(/\s+[A-Z]{2}\s*$/i, '')   // trailing 2-letter state code
+    // v0.7.30 — iOS notification screenshots append ", <City>, <ST>" to
+    // every merchant name (e.g. "Chipotle Mexican Grill, New York, NY",
+    // "Blank Street, New York, NY"). Strip the whole locality suffix in
+    // one pass so the vendor reads as just the brand. Allow multi-word
+    // cities ("San Francisco", "New York"); each word must start with a
+    // capital + be alphabetic. The state is the 2-letter trailing code.
+    .replace(/,\s*[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*,\s*[A-Z]{2}\s*$/, '')
+    .replace(/\s+[A-Z]{2}\s*$/i, '')   // trailing 2-letter state code (no city)
     .replace(/[\s.,;:]+$/g, '')
     .trim();
 }

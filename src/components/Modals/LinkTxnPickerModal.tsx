@@ -21,7 +21,7 @@ import { Button } from '../ui/Button';
 import { Money } from '../ui/Money';
 import { useBudget } from '../../store/budget';
 import { linkTransactions } from '../../db/repo';
-import { formatDate } from '../../domain/date';
+import { useFormatDate } from '../../lib/format';
 import { Search, Link as LinkIcon } from 'lucide-react';
 import { toast } from '../../lib/toast';
 
@@ -34,6 +34,7 @@ type Props = {
 };
 
 export function LinkTxnPickerModal({ open, onClose, fromTxnId }: Props) {
+  const formatDate = useFormatDate();
   const txns = useBudget((s) => s.transactions);
   const accounts = useBudget((s) => s.accounts);
   const payees = useBudget((s) => s.payees);

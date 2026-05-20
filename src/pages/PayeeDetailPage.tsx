@@ -27,8 +27,8 @@ import { ArrowLeft, ArrowDown, ArrowUp, ChevronRight, TrendingUp, TrendingDown, 
 import { useBudget } from '../store/budget';
 import { computePayeeDetail } from '../domain/payeeDetail';
 import { formatMonthShort } from '../domain/categoryDetail';
-import { todayIso, formatDate } from '../domain/date';
-import { useFormatMoney } from '../lib/format';
+import { todayIso } from '../domain/date';
+import { useFormatMoney, useFormatDate } from '../lib/format';
 import { MobilePageHeader } from '../components/Layout/MobilePageHeader';
 import { Button } from '../components/ui/Button';
 
@@ -37,6 +37,7 @@ import { Button } from '../components/ui/Button';
 const Chart = lazy(() => import('../components/Reports/CategoryDetailChart').then((m) => ({ default: m.CategoryDetailChart })));
 
 export function PayeeDetailPage() {
+  const formatDate = useFormatDate();
   const { payeeId } = useParams<{ payeeId: string }>();
   const accounts = useBudget((s) => s.accounts);
   const categories = useBudget((s) => s.categories);

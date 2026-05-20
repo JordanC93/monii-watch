@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import {
   Sparkles, ListChecks, Wallet, Cloud, ArrowLeft, ArrowRight, Check,
   ShieldCheck, MessageSquare, BarChart3, CreditCard, Plus, Rocket, Palette,
+  Calendar,
 } from 'lucide-react';
 // Note: every icon listed above appears in the STEPS body below; the linter
 // would warn on any unused imports.
@@ -19,7 +20,8 @@ import { LayoutGrid } from 'lucide-react';
 import { parseAmountToCents } from '../../domain/calc';
 import { useFormatMoney } from '../../lib/format';
 import { ACCOUNT_TYPE_META, type AccountType } from '../../domain/types';
-import { todayIso } from '../../domain/date';
+import { todayIso, DATE_FORMAT_OPTIONS } from '../../domain/date';
+import type { DateFormat } from '../../domain/types';
 import { cn } from '../../lib/cn';
 import { setTheme as applyTheme, THEMES } from '../../store/theme';
 import type { ThemeName } from '../../domain/types';
@@ -258,6 +260,60 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
       // No `onNext` override — uses the default `next()` which just
       // advances. Selecting a theme intentionally does NOT auto-advance;
       // user must hit the Next button.
+    },
+    /* v0.7.30 — date format. Asked BEFORE the budgeting / account /
+       transaction steps so the very first dates the user ever sees
+       in the app are already in their chosen format. Live-applies on
+       tap (same UX as theme). Default "us" mirrors the app's primary
+       US English copy; users in other regions can switch. The setting
+       is also reachable from Settings → Display anytime. */
+    {
+      icon: <Calendar size={28} className="text-accent" />,
+      title: 'Date format',
+      body: (
+        <>
+          <p>
+            How would you like dates to be shown? This applies everywhere
+            the app prints a date — transactions, schedule, imports,
+            reports.
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {DATE_FORMAT_OPTIONS.map((opt) => {
+              const isActive = (settings.dateFormat ?? 'us') === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setSettingsField('dateFormat', opt.id as DateFormat)}
+                  className={cn(
+                    'text-left rounded-xl border-2 p-3 transition active:scale-[0.98]',
+                    isActive
+                      ? 'border-accent ring-2 ring-accent/30'
+                      : 'border-border hover:border-border-strong',
+                  )}
+                  aria-pressed={isActive}
+                >
+                  <div className="text-[13px] font-medium">{opt.label}</div>
+                  <div className="text-[11.5px] text-fg-subtle tabular leading-tight mt-0.5">
+                    {opt.example}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-fg-subtle text-[11.5px] leading-snug">
+            Change anytime from <strong className="text-fg">Settings → Display</strong>.
+            The native date picker on transaction forms still follows your
+            device's regional setting.
+          </p>
+        </>
+      ),
+      // v0.7.30 — if the user hasn't ticked one, write the default 'us'
+      // on Next so a fresh install starts with a concrete choice rather
+      // than the legacy "long" form lurking as a hidden default.
+      onNext: () => {
+        if (!settings.dateFormat) setSettingsField('dateFormat', 'us');
+        next();
+      },
     },
     {
       icon: <ListChecks size={28} className="text-accent" />,
@@ -779,7 +835,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
       onNext: complete,
     },
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [incomeText, incomeCadence, acctName, acctType, acctBalance, accounts.length, fmt, settings.theme, presetPicked, presetExpanded, acctLast4]);
+  ], [incomeText, incomeCadence, acctName, acctType, acctBalance, accounts.length, fmt, settings.theme, settings.dateFormat, presetPicked, presetExpanded, acctLast4]);
 
   const cur = STEPS[step];
   const last = step === STEPS.length - 1;

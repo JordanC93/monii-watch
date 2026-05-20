@@ -12,9 +12,8 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useBudget } from '../../store/budget';
-import { useFormatMoney } from '../../lib/format';
+import { useFormatMoney, useFormatDate } from '../../lib/format';
 import { ACCOUNT_TYPE_META } from '../../domain/types';
-import { formatDate } from '../../domain/date';
 import { setCleared, setFlag, deleteTransaction, updateTransaction } from '../../db/repo';
 import { TagInput } from './TagInput';
 import { PayeeAutocomplete } from './PayeeAutocomplete';
@@ -26,6 +25,7 @@ import { ReceiptViewer } from './ReceiptViewer';
 type Props = { transactionId: string; onClose: () => void };
 
 export function TxnDetailPane({ transactionId, onClose }: Props) {
+  const formatDate = useFormatDate();
   const txn = useBudget((s) => s.transactions.find((t) => t.id === transactionId));
   const accounts = useBudget((s) => s.accounts);
   const categories = useBudget((s) => s.categories);

@@ -12,7 +12,7 @@
 import { Link } from 'react-router-dom';
 import {
   CalendarClock, CreditCard, Search as SearchIcon, Settings as SettingsIcon,
-  Cloud, Wallet, BarChart3, FileText, ChevronRight, HelpCircle, Wrench,
+  Cloud, Wallet, BarChart3, FileText, ChevronRight, HelpCircle,
   Plane, Calendar, TrendingUp, Wand2, Sparkles, Bookmark, Star, Tag, Image as ImageIcon,
   BookOpen, Trash2, Heart, LifeBuoy, ScrollText, ShieldCheck, Repeat, Eye,
 } from 'lucide-react';
@@ -92,9 +92,6 @@ export function MorePage() {
         <ButtonRow onClick={() => openModal({ type: 'welcome' })} icon={<HelpCircle size={16} />} label="Welcome tour" subtitle="Re-watch the onboarding walkthrough" />
         <ButtonRow onClick={() => openModal({ type: 'yearInReview' })} icon={<Sparkles size={16} />} label="Year-in-review" subtitle="See your spending year wrapped up" />
         <ButtonRow onClick={() => openModal({ type: 'debugLogs' })} icon={<FileText size={16} />} label="Debug logs" subtitle="In-app log viewer" />
-        {settings.maintainerMode && (
-          <Row to="/help-maint" icon={<Wrench size={16} />} label="Maintainer help" subtitle="iOS build · Drive setup · server · release" />
-        )}
       </Section>
 
       <Section title="Support the project">

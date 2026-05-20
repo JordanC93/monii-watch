@@ -69,7 +69,6 @@ const DEFAULT_SETTINGS: Settings = {
   payFrequency: 'unset',
   payAnchorDate: '',
   deductions: [],
-  maintainerMode: false,
   layoutPreference: 'auto',
   notificationsEnabled: false,
   notifyBillsDaysAhead: 3,
@@ -81,6 +80,16 @@ const DEFAULT_SETTINGS: Settings = {
   glassPalette: { id: 'aurora' },
   accentOverrides: {},
   moneyColorMode: 'default',
+  // v0.7.30 — date format preference. Undefined means "legacy default"
+  // (`long`, "May 9, 2026"). Onboarding asks new users to pick; existing
+  // users keep the legacy look until they touch Settings.
+  dateFormat: undefined,
+  // v0.7.30 — local LLM fallback for statement parsing. See
+  // Settings.llmStatementParsing in domain/types.ts.
+  llmStatementParsing: false,
+  // v0.7.30 — learned vendor-name corrections from past imports. See
+  // Settings.ocrCorrections in domain/types.ts.
+  ocrCorrections: [],
   monthlyReviews: [],
   monthlyReviewLastShown: '',
   savedPhrases: [],
@@ -171,6 +180,48 @@ export function getSettings(): Settings {
 
 export function setSettingsField<K extends keyof Settings>(key: K, value: Settings[K]): void {
   tx(() => settingsMap().set(key, value));
+}
+
+/**
+ * v0.7.30 — record a learned OCR/parser correction. Called when the
+ * user edits a vendor name in the statement-import review dialog
+ * before clicking Import. The pair is saved to `Settings.ocrCorrections`
+ * so future imports can replay the substitution automatically.
+ *
+ * - Duplicates merge (bumps `appliedCount` + `lastUsedAt` instead of
+ *   inserting a second row).
+ * - Identity edits (`from === to`) are ignored.
+ * - The list is LRU-trimmed at 200 entries to keep settings small.
+ */
+export function recordOcrCorrection(from: string, to: string): void {
+  const f = from.trim();
+  const t = to.trim();
+  if (!f || !t || f === t) return;
+  tx(() => {
+    const sm = settingsMap();
+    const existing: import('../domain/types').OcrCorrection[] =
+      (sm.get('ocrCorrections') as never) ?? [];
+    const now = Date.now();
+    const idx = existing.findIndex((c) => c.from === f);
+    let next: import('../domain/types').OcrCorrection[];
+    if (idx >= 0) {
+      next = existing.slice();
+      next[idx] = {
+        ...existing[idx],
+        to: t,
+        appliedCount: (existing[idx].appliedCount ?? 0) + 1,
+        lastUsedAt: now,
+      };
+    } else {
+      next = [...existing, { from: f, to: t, appliedCount: 1, lastUsedAt: now }];
+    }
+    // LRU trim — keep the 200 most-recent.
+    if (next.length > 200) {
+      next.sort((a, b) => b.lastUsedAt - a.lastUsedAt);
+      next = next.slice(0, 200);
+    }
+    sm.set('ocrCorrections', next);
+  });
 }
 
 /**

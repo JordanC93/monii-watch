@@ -16,8 +16,7 @@ import { Eye, Check, ChevronRight } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { useUI } from '../store/ui';
 import { setReviewNeeded } from '../db/repo';
-import { useFormatMoney } from '../lib/format';
-import { formatDate } from '../domain/date';
+import { useFormatMoney, useFormatDate } from '../lib/format';
 import { MobilePageHeader } from '../components/Layout/MobilePageHeader';
 import { Button } from '../components/ui/Button';
 import { Money } from '../components/ui/Money';
@@ -30,6 +29,7 @@ export function ReviewQueuePage() {
   const payees = useBudget((s) => s.payees);
   const openModal = useUI((s) => s.openModal);
   const fmt = useFormatMoney();
+  const formatDate = useFormatDate();
 
   const queued = useMemo(
     () => txns.filter((t) => t.reviewNeeded).sort((a, b) => (a.date < b.date ? 1 : -1)),

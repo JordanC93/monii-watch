@@ -10,10 +10,11 @@ import { Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import { useBudget } from '../../store/budget';
 import { useEffectiveScheduled } from '../../store/sandboxSelectors';
 import { computeSafeSpend } from '../../domain/safeSpend';
-import { todayIso, formatDate } from '../../domain/date';
-import { useFormatMoney } from '../../lib/format';
+import { todayIso } from '../../domain/date';
+import { useFormatMoney, useFormatDate } from '../../lib/format';
 
 export function SafeToSpendBanner() {
+  const formatDate = useFormatDate();
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
   const scheduled = useEffectiveScheduled();

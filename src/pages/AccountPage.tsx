@@ -110,13 +110,21 @@ export function AccountPage() {
             )}
           </div>
         </div>
-        <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
-          <Button size="sm" variant="secondary" onClick={() => openModal({ type: 'editAccount', accountId: account.id })}><Pencil size={13} /> Edit</Button>
-          <Button size="sm" variant="secondary" onClick={() => openModal({ type: 'reconcile', accountId: account.id })}><Scale size={13} /> Reconcile</Button>
-          <Button size="sm" variant="secondary" onClick={() => openModal({ type: 'importCsv', accountId: account.id })}><Upload size={13} /> Import CSV</Button>
-          <Button size="sm" variant="secondary" onClick={() => openModal({ type: 'bulkPaste', accountId: account.id })}><ClipboardPaste size={13} /> Paste txns</Button>
+        {/*
+          v0.7.30 — mobile uses a 2-column grid of equal-width pills so a 4-button
+          toolbar lays out as 2×2 instead of 3+1, matching the iOS-native card-
+          header pattern (Wallet / Health / Reminders). Desktop keeps the natural
+          flex-row sizing — pills hug their text and sit inline at the right edge
+          of the header. Per-button `w-full sm:w-auto` lets the pill fill its
+          grid cell on mobile and snap back to content-width on desktop.
+        */}
+        <div className="w-full grid grid-cols-2 gap-2 sm:w-auto sm:ml-auto sm:flex sm:flex-wrap sm:items-center">
+          <Button size="sm" variant="secondary" className="w-full sm:w-auto" onClick={() => openModal({ type: 'editAccount', accountId: account.id })}><Pencil size={13} /> Edit</Button>
+          <Button size="sm" variant="secondary" className="w-full sm:w-auto" onClick={() => openModal({ type: 'reconcile', accountId: account.id })}><Scale size={13} /> Reconcile</Button>
+          <Button size="sm" variant="secondary" className="w-full sm:w-auto" onClick={() => openModal({ type: 'importCsv', accountId: account.id })}><Upload size={13} /> Import CSV</Button>
+          <Button size="sm" variant="secondary" className="w-full sm:w-auto" onClick={() => openModal({ type: 'bulkPaste', accountId: account.id })}><ClipboardPaste size={13} /> Paste txns</Button>
           {account.closed && (
-            <Button size="sm" variant="secondary" onClick={() => reopenAccount(account.id)}><ArchiveRestore size={13} /> Reopen</Button>
+            <Button size="sm" variant="secondary" className="w-full sm:w-auto" onClick={() => reopenAccount(account.id)}><ArchiveRestore size={13} /> Reopen</Button>
           )}
         </div>
       </div>

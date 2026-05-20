@@ -176,9 +176,9 @@ export function SyncModal({ open, onClose }: { open: boolean; onClose: () => voi
         <PersonalBackupSection />
 
         {/*
-          Self-hosted realtime sync. v0.7.5: ungated from maintainerMode
-          so any user comfortable running a tiny binary on their own
-          server can use it. Distinct from Personal backup above:
+          Self-hosted realtime sync. Open to any user comfortable
+          running a tiny binary on their own server. Distinct from
+          Personal backup above:
           this one is realtime sync (websocket persistent connection),
           the other one is periodic encrypted snapshot upload. Same
           server binary, two independent features.

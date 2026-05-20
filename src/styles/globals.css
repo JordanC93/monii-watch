@@ -75,6 +75,16 @@ body {
 
 button { font-family: inherit; }
 
+/* v0.7.30 — app-wide default: buttons keep their label on a single
+ * line and the pill grows to fit. Without this rule, inline pill
+ * buttons (Receipt-match banner "Yes, assign / No, skip", saved-
+ * search chips, statement-import action row, etc.) wrap their text
+ * to a second line that gets clipped by the button's height. Any
+ * button that legitimately needs to wrap can opt back in with
+ * Tailwind's `whitespace-normal` utility (specificity wins over
+ * this base rule). */
+button { white-space: nowrap; }
+
 /* ============================================================
  * LIQUID GLASS THEME — macOS Sequoia / iOS 26 inspired
  * ============================================================

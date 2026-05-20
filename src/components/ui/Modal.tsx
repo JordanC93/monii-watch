@@ -165,7 +165,21 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: P
             <X size={16} />
           </button>
         </div>
-        <div className="p-5 overflow-y-auto flex-1">{children}</div>
+        {/*
+          v0.7.30 — `overflow-x-hidden` is critical. Per the CSS spec,
+          setting `overflow-y: auto` while `overflow-x` is `visible`
+          coerces overflow-x to `auto` (used value), which means any
+          oversized child (a long unbreakable string, a wide grid, an
+          off-screen icon) silently enables horizontal scrolling on the
+          whole modal. Pinning overflow-x to hidden forces content to
+          reshape to the modal width instead of letting the user pan
+          left/right to find the rest of the form.
+          v0.7.30 — also reduce padding on mobile from p-5 (20px) to
+          p-4 (16px). On a 360 px viewport that buys 8 px back per row
+          for the actual content — the difference between a row that
+          fits and one that crowds.
+        */}
+        <div className="p-4 sm:p-5 overflow-y-auto overflow-x-hidden flex-1">{children}</div>
         {footer ? <div className="px-5 py-3 border-t border-border bg-surface-2/40 flex-shrink-0">{footer}</div> : null}
       </div>
     </div>

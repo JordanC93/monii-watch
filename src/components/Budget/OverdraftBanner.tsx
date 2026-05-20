@@ -11,13 +11,14 @@ import { AlertTriangle, X } from 'lucide-react';
 import { useBudget } from '../../store/budget';
 import { useEffectiveScheduled, useEffectiveMonthlyIncome } from '../../store/sandboxSelectors';
 import { computeForecast } from '../../domain/forecast';
-import { useFormatMoney } from '../../lib/format';
-import { todayIso, formatDate } from '../../domain/date';
+import { useFormatMoney, useFormatDate } from '../../lib/format';
+import { todayIso } from '../../domain/date';
 import { setSettingsField } from '../../db/repo';
 
 const HORIZON_DAYS = 7;
 
 export function OverdraftBanner() {
+  const formatDate = useFormatDate();
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
   const scheduled = useEffectiveScheduled();

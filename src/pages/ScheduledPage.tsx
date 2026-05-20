@@ -5,10 +5,11 @@ import { Money } from '../components/ui/Money';
 import { Plus, CalendarClock, Pause, Play, ArrowLeftRight, Pencil } from 'lucide-react';
 import { setScheduledPaused } from '../db/repo';
 import { FREQUENCY_LABELS } from '../domain/recurrence';
-import { formatDate } from '../domain/date';
+import { useFormatDate } from '../lib/format';
 import { cn } from '../lib/cn';
 
 export function ScheduledPage() {
+  const formatDate = useFormatDate();
   const scheduled = useBudget((s) => s.scheduled);
   const accounts = useBudget((s) => s.accounts);
   const categories = useBudget((s) => s.categories);

@@ -25,8 +25,7 @@ import { Link } from 'react-router-dom';
 import { Repeat, TrendingUp, TrendingDown, AlertTriangle, ChevronRight } from 'lucide-react';
 import { useBudget } from '../store/budget';
 import { detectSubscriptions } from '../domain/subscriptions';
-import { useFormatMoney } from '../lib/format';
-import { formatDate } from '../domain/date';
+import { useFormatMoney, useFormatDate } from '../lib/format';
 import { MobilePageHeader } from '../components/Layout/MobilePageHeader';
 
 const PER_YEAR: Record<string, number> = {
@@ -41,6 +40,7 @@ export function SubscriptionsAuditPage() {
   const txns = useBudget((s) => s.transactions);
   const payees = useBudget((s) => s.payees);
   const fmt = useFormatMoney();
+  const formatDate = useFormatDate();
 
   const detected = useMemo(
     () => detectSubscriptions(txns, payees, accounts, { minOccurrences: 2 }),

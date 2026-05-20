@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { Flag, Trash2, ArrowLeftRight, Check, Circle, Paperclip, Hourglass, ExternalLink, Pencil } from 'lucide-react';
 import { ReceiptViewer } from './ReceiptViewer';
@@ -12,7 +12,7 @@ import { Money } from '../ui/Money';
 import { MoneyInput } from '../ui/MoneyInput';
 import { cn } from '../../lib/cn';
 import { updateTransaction, deleteTransaction, setCleared, setFlag } from '../../db/repo';
-import { formatDateShort } from '../../domain/date';
+import { useFormatDateShort } from '../../lib/format';
 import { useUI } from '../../store/ui';
 import { useEffectiveLayout } from '../../lib/layout';
 
@@ -43,7 +43,14 @@ const FLAG_COLORS: Array<{ id: FlagColor; cls: string }> = [
  *  - <md:  card layout: payee top-left, amount right; category + memo on a
  *          second line. Tap the row to open in edit mode.
  */
-export function TransactionRow({ txn, showAccount, runningBalance }: Props) {
+// v0.7.30 — wrapped in React.memo so a parent re-render (filter
+// typing, selection bulk toggle, page expansion) doesn't fan out to
+// all visible rows. Yjs creates a new Transaction object on every
+// edit so shallow equality is sufficient to detect real changes
+// per-row. Sister to the BudgetCategoryRow memoization (CLAUDE.md
+// foundation pass).
+export const TransactionRow = memo(function TransactionRow({ txn, showAccount, runningBalance }: Props) {
+  const formatDateShort = useFormatDateShort();
   const accounts = useBudget((s) => s.accounts);
   const categories = useBudget((s) => s.categories);
   const payees = useBudget((s) => s.payees);
@@ -608,7 +615,7 @@ export function TransactionRow({ txn, showAccount, runningBalance }: Props) {
       />
     </>
   );
-}
+});
 
 function nextClearedState(c: ClearedState): ClearedState {
   return c === 'uncleared' ? 'cleared' : c === 'cleared' ? 'reconciled' : 'uncleared';

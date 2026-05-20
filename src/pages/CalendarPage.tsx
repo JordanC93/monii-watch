@@ -20,17 +20,18 @@ import { Button } from '../components/ui/Button';
 import { Money } from '../components/ui/Money';
 import { MobilePageHeader } from '../components/Layout/MobilePageHeader';
 import {
-  parseMonth, monthIso, formatMonthLong, shiftMonth, formatDateShort,
+  parseMonth, monthIso, formatMonthLong, shiftMonth,
   thisMonthIso,
 } from '../domain/date';
 import { format, getDay, getDaysInMonth, isSameDay, parseISO } from 'date-fns';
 import { advanceDate } from '../domain/recurrence';
-import { useFormatMoney } from '../lib/format';
+import { useFormatMoney, useFormatDateShort } from '../lib/format';
 import { cn } from '../lib/cn';
 import type { Transaction } from '../domain/types';
 import { ACCOUNT_TYPE_META } from '../domain/types';
 
 export function CalendarPage() {
+  const formatDateShort = useFormatDateShort();
   const month = useBudget((s) => s.selectedMonth);
   const setMonth = useBudget((s) => s.setSelectedMonth);
   const txns = useBudget((s) => s.transactions);
@@ -260,6 +261,7 @@ function DayDrilldown({
   fmt: (cents: number) => string;
   onClose: () => void;
 }) {
+  const formatDateShort = useFormatDateShort();
   const total = txns.reduce((s, t) => s + (t.amount < 0 ? -t.amount : 0), 0);
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4 animate-fade-in" style={{

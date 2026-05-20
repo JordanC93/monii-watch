@@ -8,9 +8,9 @@ import { THEMES, setTheme } from '../store/theme';
 import { setSettingsField, exportSnapshot, importSnapshot, validateSnapshot, type Snapshot } from '../db/repo';
 import { SUPPORTED_CURRENCIES } from '../domain/money';
 import { parseAmountToCents } from '../domain/calc';
-import { useFormatMoney } from '../lib/format';
+import { useFormatMoney, useFormatDate } from '../lib/format';
 import { PAY_FREQUENCY_LABELS, perPaycheckAmount, nextPaycheck } from '../domain/paySchedule';
-import { todayIso, formatDate } from '../domain/date';
+import { todayIso, DATE_FORMAT_OPTIONS } from '../domain/date';
 import type { Settings as SettingsT } from '../domain/types';
 import { Download, Upload, Cloud, RefreshCw, AlertTriangle, Bug, Plus, Trash2, FileText, Lock } from 'lucide-react';
 import { US_STATES, getStateByCode } from '../domain/usaStateTax';
@@ -115,6 +115,7 @@ export function SettingsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const fmt = useFormatMoney();
+  const formatDate = useFormatDate();
   const [incomeDraft, setIncomeDraft] = useState<string>(
     settings.monthlyIncome ? (settings.monthlyIncome / 100).toString() : '',
   );
@@ -533,6 +534,7 @@ export function SettingsPage() {
         <GlassPalettePicker />
         <AccentColorPicker />
         <MoneyColorToggle />
+        <DateFormatPicker />
         <LayoutToggle />
       </Section>
 
@@ -550,6 +552,10 @@ export function SettingsPage() {
 
       <Section title="Household members" subtitle="Attribute transactions to members of a shared household. Solo users can leave this empty.">
         <HouseholdSettings />
+      </Section>
+
+      <Section title="On-device AI parsing" subtitle="Use a small local model to recover transactions when the regex parser misses some. Experimental.">
+        <LlmStatementParsingToggle />
       </Section>
       </SettingsTab>
 
@@ -626,35 +632,6 @@ export function SettingsPage() {
           </Button>
         </div>
       </Section>
-
-      {/* MAINTAINER MODE — pre-v1 only. REMOVE FOR v1 (this whole Section block). */}
-      <Section title="Advanced (maintainer)" subtitle="Only relevant if you're the project owner. Removed in v1.">
-        <label className="flex items-start gap-2 text-[13px] cursor-pointer">
-          <input
-            type="checkbox"
-            checked={settings.maintainerMode}
-            onChange={(e) => setSettingsField('maintainerMode', e.target.checked)}
-            className="accent-accent mt-0.5"
-          />
-          <div>
-            <div className="font-medium">Maintainer mode</div>
-            <div className="text-[11.5px] text-fg-subtle mt-0.5">
-              Surfaces an in-app reference for iOS build steps, Google Drive OAuth setup, self-hosted server config, and the release/sign workflow. Adds a "Maintainer help" entry in More and a route at <code>/help-maint</code>.
-            </div>
-            {settings.maintainerMode && (
-              <div className="mt-1.5">
-                <a
-                  href="/help-maint"
-                  className="inline-flex items-center gap-1 text-[12px] text-accent hover:underline"
-                >
-                  Open Maintainer Help →
-                </a>
-              </div>
-            )}
-          </div>
-        </label>
-      </Section>
-      {/* END MAINTAINER MODE */}
 
       <Section title="Notifications" subtitle="Local; runs on your device, no push server.">
         <NotificationsSettings />
@@ -1088,6 +1065,50 @@ function VacationModeSettings() {
  * uses arrows + sign instead. Synced via Yjs settings so the
  * preference applies on every device.
  */
+/**
+ * v0.7.30 — local LLM fallback for statement-screenshot parsing.
+ * Defaults OFF because the first use triggers a one-time ~500 MB
+ * model download. When ON, the parser falls back to the on-device
+ * LLM if the regex parser missed rows on a screenshot import.
+ *
+ * The model + inference run entirely in WebGPU on the device — no
+ * data leaves. Consistent with Iron Rule #10's local-LLM carve-out.
+ * Requires WebGPU; the toggle is harmless on devices that don't
+ * have it (the parser will just skip the fallback).
+ */
+function LlmStatementParsingToggle() {
+  const enabled = useBudget((s) => s.settings.llmStatementParsing ?? false);
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] font-medium">Use local AI when regex parsing falls short</div>
+          <div className="text-[11.5px] text-fg-subtle leading-snug mt-0.5">
+            Runs a small language model on your device (no cloud). First
+            use downloads a ~500 MB model file — about 2 minutes on WiFi.
+            Subsequent imports are instant.
+          </div>
+        </div>
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => setSettingsField('llmStatementParsing', e.target.checked)}
+          className="accent-accent h-5 w-5"
+          aria-label="Toggle local AI parsing"
+        />
+      </div>
+      {enabled && (
+        <div className="mt-2 text-[11px] text-fg-subtle leading-snug bg-surface-2/40 rounded p-2">
+          The model loads on the FIRST statement-import attempt after you
+          turn this on. Requires WebGPU — works on iPhone 15+, recent Macs,
+          and most Windows PCs with a discrete GPU. Older devices will
+          silently fall back to the regex parser.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MoneyColorToggle() {
   const mode = useBudget((s) => s.settings.moneyColorMode);
   return (
@@ -1108,6 +1129,45 @@ function MoneyColorToggle() {
             <div className="font-medium text-[12.5px] capitalize">{m}</div>
             <div className="text-[10.5px] text-fg-subtle leading-tight">
               {m === 'default' ? 'Green positive · red negative' : 'Arrows + sign, no color'}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * v0.7.30 — date display format. Drives every text-rendered date in the
+ * app (transaction lists, import preview, schedule list, reports, etc).
+ * The native `<input type="date">` keeps its OS-locale picker UI — only
+ * text displays follow this setting.
+ *
+ * Stored in synced settings (`Settings.dateFormat`) so the choice rides
+ * along with the user's other preferences. Undefined = `long` (legacy
+ * "May 9, 2026") so existing users don't see a sudden shift on update.
+ */
+function DateFormatPicker() {
+  const current = useBudget((s) => s.settings.dateFormat) ?? 'long';
+  return (
+    <div className="mt-4 border-t border-border pt-3">
+      <div className="text-[12px] font-medium mb-1">Date format</div>
+      <div className="text-[11.5px] text-fg-subtle mb-2 leading-snug">
+        How dates are shown across the app — transaction lists, imports,
+        schedules, reports. Today's date previews live in each option.
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {DATE_FORMAT_OPTIONS.map((opt) => (
+          <button
+            key={opt.id}
+            onClick={() => setSettingsField('dateFormat', opt.id)}
+            className={`text-left rounded-lg border-2 p-2 transition ${
+              current === opt.id ? 'border-accent' : 'border-border hover:border-border-strong'
+            }`}
+          >
+            <div className="font-medium text-[12.5px]">{opt.label}</div>
+            <div className="text-[10.5px] text-fg-subtle tabular leading-tight">
+              {opt.example}
             </div>
           </button>
         ))}

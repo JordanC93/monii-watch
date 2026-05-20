@@ -988,23 +988,6 @@ export type Settings = {
    *  when all four checklist items are satisfied. */
   setupChecklistDismissed: boolean;
   /**
-   * MAINTAINER MODE — pre-v1 only.
-   *
-   * Surfaces an in-app "Maintainer Help" page with the iOS build steps,
-   * Google Drive OAuth setup, self-hosted server config, and release
-   * workflow so the project owner can refer to them without opening the
-   * docs/ folder. Off by default; never shown to friends-and-family
-   * users.
-   *
-   * REMOVE FOR v1: search for `maintainerMode` and `MaintainerHelpPage`
-   * — there should be exactly one Settings → Advanced toggle, one
-   * sidebar/More-page entry, one route, and one page component.
-   * Removing them all leaves zero behavioral residue (the bool just
-   * becomes an unused settings field that gets pruned by the next
-   * Settings shape change).
-   */
-  maintainerMode: boolean;
-  /**
    * Local notification preferences. The browser permission state is
    * separate (read via `Notification.permission`); these flags decide
    * which categories of notifications fire IF permission is granted.
@@ -1070,6 +1053,53 @@ export type Settings = {
    * red feedback stressful; this option strips the color entirely.
    */
   moneyColorMode: 'default' | 'monochrome';
+  /**
+   * Date display format. Applies anywhere the app renders a date as text
+   * (transaction lists, import preview, schedule list, reports, etc).
+   *
+   *   - `iso`  → 2026-05-09 (ISO 8601, machine-friendly)
+   *   - `us`   → 05/09/2026 (US standard)
+   *   - `eu`   → 09/05/2026 (most of the world)
+   *   - `long` → May 9, 2026 (legacy default; verbose)
+   *
+   * Undefined / missing = `long` (the pre-v0.7.30 behavior, kept so existing
+   * users don't see a sudden visual shift). Onboarding asks new users to
+   * pick — the default offered there is `us`.
+   */
+  dateFormat?: DateFormat;
+  /**
+   * v0.7.30 — Local LLM fallback for statement-screenshot parsing.
+   *
+   * When enabled, after the regex parser runs on an OCR'd transaction
+   * list, if the row count came back materially below what the OCR
+   * text suggests (e.g. mangled amounts, never-before-seen bank UI),
+   * the parser falls back to a quantized small LLM running ON-DEVICE
+   * via WebLLM + WebGPU. The model file (~500 MB) is downloaded once
+   * per device and cached in IndexedDB; no data ever leaves the
+   * device, consistent with Iron Rule #10's local-LLM carve-out.
+   *
+   * Defaults OFF because:
+   *   - First-use requires a 500 MB model download over WiFi.
+   *   - WebGPU is unavailable on older iPhones / Windows GPUs, in
+   *     which case the toggle is a no-op.
+   * Once toggled on, the model loads on the FIRST statement-import
+   * attempt only — subsequent runs are instant (model cached).
+   */
+  llmStatementParsing?: boolean;
+  /**
+   * v0.7.30 — learned OCR / parser corrections. Each entry records a
+   * vendor-name substitution the user made during a previous
+   * statement-import review. On future imports, the parser scans the
+   * raw vendor it would have output and replaces it with the learned
+   * value when there's an exact match. Specific to the user's banks
+   * and OCR quirks — the substitutions never leave the device.
+   *
+   *   { from: "8 [=] Dunkin'", to: "Dunkin'" }
+   *   { from: "Capital Oly",   to: "Capital One" }
+   *
+   * Pruned automatically when count > 200 (LRU by lastUsedAt).
+   */
+  ocrCorrections?: OcrCorrection[];
   /**
    * Per-month review journal entries, indexed by month. The end-of-month
    * review modal writes here. Year-in-Review surfaces them as "what you
@@ -1426,6 +1456,25 @@ export type Settings = {
 };
 
 export type ThemeName = 'light' | 'dark' | 'oled' | 'glass' | 'auto';
+
+/**
+ * Date display format preference. See `Settings.dateFormat` for what each
+ * value renders as. Treated as `'long'` when undefined for backwards
+ * compatibility — existing users keep "May 9, 2026"-style dates until
+ * they explicitly change the setting.
+ */
+export type DateFormat = 'iso' | 'us' | 'eu' | 'long';
+
+/**
+ * v0.7.30 — one learned OCR/parser correction. See
+ * `Settings.ocrCorrections` for the rationale.
+ */
+export type OcrCorrection = {
+  from: string;
+  to: string;
+  appliedCount: number;
+  lastUsedAt: number;
+};
 
 /**
  * Tier 14 — one member of a household sharing this budget. Lives

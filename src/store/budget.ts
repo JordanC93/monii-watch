@@ -58,7 +58,6 @@ const initialSettings: Settings = {
   payFrequency: 'unset',
   payAnchorDate: '',
   deductions: [],
-  maintainerMode: false,
   layoutPreference: 'auto',
   notificationsEnabled: false,
   notifyBillsDaysAhead: 3,
@@ -70,6 +69,10 @@ const initialSettings: Settings = {
   glassPalette: { id: 'aurora' },
   accentOverrides: {},
   moneyColorMode: 'default',
+  // v0.7.30 — see Settings.dateFormat in domain/types.ts.
+  dateFormat: undefined,
+  llmStatementParsing: false,
+  ocrCorrections: [],
   monthlyReviews: [],
   monthlyReviewLastShown: '',
   savedPhrases: [],

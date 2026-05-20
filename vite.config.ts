@@ -38,6 +38,15 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: '/index.html',
+        // v0.7.30 — exclude the WebLLM chunk from precache (it's
+        // ~6 MB and only loads when the user opts into local-AI
+        // statement parsing). Workbox's default 2 MB precache
+        // ceiling rejects it otherwise; pushing the limit up just
+        // to accommodate it would bloat the offline install
+        // package for everyone, including users who never enable
+        // the feature.
+        globIgnores: ['**/web-llm*.js', '**/@mlc-ai*.js'],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MB
       },
       devOptions: { enabled: false },
     }),
@@ -55,6 +64,11 @@ export default defineConfig({
           recharts: ['recharts'],
           yjs: ['yjs', 'y-indexeddb', 'y-webrtc'],
           react: ['react', 'react-dom', 'react-router-dom'],
+          // v0.7.30 — WebLLM gets its own named chunk so the PWA
+          // service worker can exclude it from precache by filename
+          // glob. ~6 MB compressed; only fetched if the user opts in
+          // to local-AI statement parsing.
+          'web-llm': ['@mlc-ai/web-llm'],
         },
       },
     },

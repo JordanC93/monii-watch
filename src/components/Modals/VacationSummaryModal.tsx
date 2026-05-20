@@ -9,12 +9,12 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { useBudget } from '../../store/budget';
 import { vacationSummaryStats } from '../../domain/vacation';
-import { useFormatMoney } from '../../lib/format';
+import { useFormatMoney, useFormatDate } from '../../lib/format';
 import { setSettingsField } from '../../db/repo';
 import { Plane } from 'lucide-react';
-import { formatDate } from '../../domain/date';
 
 export function VacationSummaryModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const formatDate = useFormatDate();
   const settings = useBudget((s) => s.settings);
   const txns = useBudget((s) => s.transactions);
   const accounts = useBudget((s) => s.accounts);

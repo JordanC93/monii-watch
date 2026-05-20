@@ -60,7 +60,6 @@ export function TopBar({
   else if (location.pathname.startsWith('/search')) title = 'Search';
   else if (location.pathname.startsWith('/more')) title = isCompact ? '' : 'More';
   else if (location.pathname.startsWith('/settings')) title = 'Settings';
-  else if (location.pathname.startsWith('/help-maint')) title = 'Maintainer help';
 
   // On compact (mobile), there's NO bar. Page-body large titles
   // (MobilePageHeader) carry the heading; the back chevron + action

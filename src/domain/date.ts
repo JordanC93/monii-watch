@@ -1,6 +1,31 @@
 import { format, parseISO, addMonths, startOfMonth, endOfMonth, differenceInCalendarMonths } from 'date-fns';
+import type { DateFormat } from './types';
 
 export const DATE_FMT = 'yyyy-MM-dd';
+
+/**
+ * v0.7.30 — date-fns format strings per `DateFormat` preference. The
+ * SHORT variants drop the year; same overall style as the LONG.
+ *
+ *   iso  → 2026-05-09 / 05-09
+ *   us   → 05/09/2026 / 05/09
+ *   eu   → 09/05/2026 / 09/05
+ *   long → May 9, 2026 / May 9   (legacy default)
+ */
+const DATE_PATTERNS: Record<DateFormat, { long: string; short: string }> = {
+  iso:  { long: 'yyyy-MM-dd', short: 'MM-dd' },
+  us:   { long: 'MM/dd/yyyy', short: 'MM/dd' },
+  eu:   { long: 'dd/MM/yyyy', short: 'dd/MM' },
+  long: { long: 'MMM d, yyyy', short: 'MMM d' },
+};
+
+/** Human label shown next to each `DateFormat` in the picker / onboarding. */
+export const DATE_FORMAT_OPTIONS: Array<{ id: DateFormat; label: string; example: string }> = [
+  { id: 'us',   label: 'MM/DD/YYYY',   example: '05/09/2026' },
+  { id: 'eu',   label: 'DD/MM/YYYY',   example: '09/05/2026' },
+  { id: 'iso',  label: 'YYYY-MM-DD',   example: '2026-05-09' },
+  { id: 'long', label: 'MMM D, YYYY',  example: 'May 9, 2026' },
+];
 
 export function todayIso(): string {
   return format(new Date(), DATE_FMT);
@@ -44,11 +69,19 @@ export function formatMonthShort(month: string): string {
   return format(parseMonth(month), 'MMM yyyy');
 }
 
-export function formatDate(iso: string): string {
-  return format(parseISO(iso), 'MMM d, yyyy');
+/**
+ * v0.7.30 — both `formatDate` and `formatDateShort` accept an optional
+ * `DateFormat` argument. Omitted ⇒ `'long'` (the legacy `MMM d, yyyy`
+ * format), so every existing callsite keeps working without changes.
+ * Settings-aware UI should call the `useFormatDate` / `useFormatDateShort`
+ * hooks in `lib/format.ts` instead, which pull the user's preference
+ * from the store.
+ */
+export function formatDate(iso: string, fmt: DateFormat = 'long'): string {
+  return format(parseISO(iso), DATE_PATTERNS[fmt].long);
 }
-export function formatDateShort(iso: string): string {
-  return format(parseISO(iso), 'MMM d');
+export function formatDateShort(iso: string, fmt: DateFormat = 'long'): string {
+  return format(parseISO(iso), DATE_PATTERNS[fmt].short);
 }
 
 /** Add (or subtract) calendar days from an ISO date string. */

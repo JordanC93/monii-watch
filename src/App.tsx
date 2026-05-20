@@ -2,14 +2,21 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useEffect } from 'react';
 import { Layout } from './components/Layout/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
+// BudgetPage stays eager — it's the landing route on cold start, so
+// lazy-loading it would just show a loading spinner that flashes for
+// no reason. Everything else is one navigation away and can wait.
 import { BudgetPage } from './pages/BudgetPage';
-import { AccountPage } from './pages/AccountPage';
-import { AllAccountsPage } from './pages/AllAccountsPage';
-import { SearchPage } from './pages/SearchPage';
-import { ScheduledPage } from './pages/ScheduledPage';
-import { CreditCardsPage } from './pages/CreditCardsPage';
-import { GoalsPage } from './pages/GoalsPage';
-import { MorePage } from './pages/MorePage';
+// v0.7.30 #9 — pages converted from eager to lazy. Each one was
+// adding ~30-80 KB to the main bundle for users who never navigate
+// to them on cold start. Suspense fallback inherits the existing
+// `<Suspense fallback={…}>` wrapper down in the routes block.
+const AccountPage = lazy(() => import('./pages/AccountPage').then((m) => ({ default: m.AccountPage })));
+const AllAccountsPage = lazy(() => import('./pages/AllAccountsPage').then((m) => ({ default: m.AllAccountsPage })));
+const SearchPage = lazy(() => import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })));
+const ScheduledPage = lazy(() => import('./pages/ScheduledPage').then((m) => ({ default: m.ScheduledPage })));
+const CreditCardsPage = lazy(() => import('./pages/CreditCardsPage').then((m) => ({ default: m.CreditCardsPage })));
+const GoalsPage = lazy(() => import('./pages/GoalsPage').then((m) => ({ default: m.GoalsPage })));
+const MorePage = lazy(() => import('./pages/MorePage').then((m) => ({ default: m.MorePage })));
 import { useGlobalShortcuts } from './lib/shortcuts';
 import { CommandPalette } from './components/Modals/CommandPalette';
 import { KeyboardHintsOverlay } from './components/Modals/KeyboardHintsOverlay';
@@ -40,9 +47,6 @@ const TripsPage = lazy(() => import('./pages/TripsPage').then((m) => ({ default:
 const CalendarPage = lazy(() => import('./pages/CalendarPage').then((m) => ({ default: m.CalendarPage })));
 const InvestmentsPage = lazy(() => import('./pages/InvestmentsPage').then((m) => ({ default: m.InvestmentsPage })));
 const AutoRulesPage = lazy(() => import('./pages/AutoRulesPage').then((m) => ({ default: m.AutoRulesPage })));
-// Maintainer Help — pre-v1 only. Lazy so users who never enable
-// maintainer mode don't pay the bundle cost. REMOVE FOR v1.
-const MaintainerHelpPage = lazy(() => import('./pages/MaintainerHelpPage').then((m) => ({ default: m.MaintainerHelpPage })));
 // Read-only share viewer (Tier 3 #3). Lazy so cold start stays small.
 const SharePage = lazy(() => import('./pages/SharePage').then((m) => ({ default: m.SharePage })));
 // Receipt gallery (Tier 3 #5).
@@ -512,8 +516,6 @@ export default function App() {
               <Route path="/search" element={<SearchPage />} />
               <Route path="/more" element={<MorePage />} />
               <Route path="/settings" element={<SettingsPage />} />
-              {/* MAINTAINER MODE: REMOVE FOR v1 */}
-              <Route path="/help-maint" element={<MaintainerHelpPage />} />
               <Route path="/share" element={<SharePage />} />
               <Route path="/receipts" element={<ReceiptGalleryPage />} />
               <Route path="/payees" element={<PayeesPage />} />

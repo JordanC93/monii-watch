@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Wallet, BarChart3, Settings as SettingsIcon, Search, ListChecks, Plus, RefreshCw, RefreshCwOff, Loader2, CalendarClock, CreditCard, Trophy, Pin, Wrench, Plane, Calendar, TrendingUp, Wand2, Image as ImageIcon, ChevronDown, ChevronRight, BookOpen, Tag, LayoutDashboard, Flame, Briefcase } from 'lucide-react';
+import { Wallet, BarChart3, Settings as SettingsIcon, Search, ListChecks, Plus, RefreshCw, RefreshCwOff, Loader2, CalendarClock, CreditCard, Trophy, Pin, Plane, Calendar, TrendingUp, Wand2, Image as ImageIcon, ChevronDown, ChevronRight, BookOpen, Tag, LayoutDashboard, Flame, Briefcase } from 'lucide-react';
 import { useBudget } from '../../store/budget';
 import { setSettingsField } from '../../db/repo';
 import { useUI } from '../../store/ui';
@@ -119,10 +119,6 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             onClick={handleClick}
           />
         ))}
-        {/* MAINTAINER MODE — pre-v1 only. REMOVE FOR v1. */}
-        {settings.maintainerMode && (
-          <NavItem to="/help-maint" icon={<Wrench size={15} />} label="Maintainer help" onClick={handleClick} />
-        )}
         <button
           onClick={() => openModal({ type: 'sidebarCustomize' })}
           className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-fg-subtle hover:text-fg hover:bg-surface-2 text-[12px]"
