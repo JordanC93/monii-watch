@@ -220,6 +220,7 @@ const CREEP_THRESHOLD = 0.10;
 export function detectSubscriptionCreep(
   subs: DetectedSubscription[],
   txns: Transaction[],
+  accounts?: Account[],
 ): SubscriptionCreep[] {
   // Define windows: "current quarter" = last 90 days, "prev quarter" = 90-180 days ago.
   const today = new Date();
@@ -227,9 +228,17 @@ export function detectSubscriptionCreep(
   const cutoffPrevEnd = isoMinus(today, 90);
   const cutoffPrevStart = isoMinus(today, 180);
 
+  // Same on-budget filter `detectSubscriptions` applies — without it,
+  // tracking-account outflows at the same payee skew the quarter averages.
+  // Optional for backwards compat; pass `accounts` whenever available.
+  const onBudgetIds = accounts
+    ? new Set(accounts.filter((a) => ACCOUNT_TYPE_META[a.type].onBudget && !a.closed).map((a) => a.id))
+    : null;
+
   const byPayee = new Map<string, Transaction[]>();
   for (const t of txns) {
     if (!t.payeeId || t.transferAccountId || t.amount >= 0) continue;
+    if (onBudgetIds && !onBudgetIds.has(t.accountId)) continue;
     const list = byPayee.get(t.payeeId) ?? [];
     list.push(t);
     byPayee.set(t.payeeId, list);

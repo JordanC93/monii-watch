@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MessageSquare, Send, Sparkles, X, User as UserIcon, Bot, ImagePlus } from 'lucide-react';
+import { MessageSquare, Send, Sparkles, Star, X, User as UserIcon, Bot, ImagePlus } from 'lucide-react';
 import { useUI } from '../../store/ui';
 import { useBudget } from '../../store/budget';
 import { ALL_INTENTS, HINT_CHIPS, runConversation } from '../../conversation/intents';
@@ -306,11 +306,14 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
 /**
  * User-pinned saved phrases. Mirrors the HINT_CHIPS row above but
  * persists to `Settings.savedPhrases` and lets the user add / remove
- * via a tiny "+" button. The `★` prefix distinguishes user phrases
+ * via a tiny "+" button. The star prefix distinguishes user phrases
  * from the curated example chips.
  */
+const EMPTY_SAVED_PHRASES: string[] = [];
+
 function SavedPhrasesStrip({ onPick }: { onPick: (s: string) => void }) {
-  const phrases = useBudget((s) => s.settings.savedPhrases ?? []);
+  const phrasesRaw = useBudget((s) => s.settings.savedPhrases);
+  const phrases = phrasesRaw ?? EMPTY_SAVED_PHRASES;
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
 
@@ -336,16 +339,16 @@ function SavedPhrasesStrip({ onPick }: { onPick: (s: string) => void }) {
           <span key={p} className="group inline-flex items-center text-[11.5px] rounded-full border border-accent/40 bg-accent/10 text-accent">
             <button
               onClick={() => onPick(p)}
-              className="px-2.5 py-1 hover:bg-accent/15 rounded-l-full"
+              className="px-2.5 py-1 hover:bg-accent/15 rounded-l-full inline-flex items-center gap-1"
             >
-              ★ {p}
+              <Star size={11} className="shrink-0" /> {p}
             </button>
             <button
               onClick={() => remove(p)}
               className="px-1.5 text-fg-subtle hover:text-negative opacity-0 group-hover:opacity-100"
               aria-label={`Remove "${p}"`}
             >
-              ×
+              <X size={11} />
             </button>
           </span>
         ))}

@@ -14,12 +14,17 @@ import { Input } from '../ui/Input';
 import { useBudget } from '../../store/budget';
 import { setSettingsField } from '../../db/repo';
 import { newId } from '../../domain/id';
+import type { Settings } from '../../domain/types';
 import { useNavigate } from 'react-router-dom';
 import { Save, Trash2, BookmarkCheck } from 'lucide-react';
 import { toast } from '../../lib/toast';
 
+// Stable fallback — never inline `?? []` in a Zustand selector (Iron Rule #21).
+const EMPTY_LAYOUTS: Settings['savedLayouts'] = [];
+
 export function SavedLayoutsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const layouts = useBudget((s) => s.settings.savedLayouts ?? []);
+  const layoutsRaw = useBudget((s) => s.settings.savedLayouts);
+  const layouts = layoutsRaw ?? EMPTY_LAYOUTS;
   const [draftName, setDraftName] = useState('');
   const nav = useNavigate();
 

@@ -141,6 +141,7 @@ export async function initSync(): Promise<void> {
   if (!isSettingsLoaded()) {
     await new Promise((r) => setTimeout(r, 50));
   }
+  installRemoteMergeNotifier();
   const settings = getSettings();
   if (settings.syncEnabled && settings.syncRoom) {
     await connectWebrtc(settings.syncRoom);
@@ -148,6 +149,36 @@ export async function initSync(): Promise<void> {
       await connectWebsocket(settings.syncServerUrl, settings.syncRoom);
     }
   }
+}
+
+// -- Remote-merge visibility ----------------------------------------------
+//
+// Concurrent edits to the SAME record are whole-record last-write-wins
+// under our Y.Map layout — one side's field edit silently loses. We can't
+// cheaply surface per-field conflicts, but we CAN tell the user when
+// remote changes just merged in, so a "wait, where did my edit go?"
+// moment has an explanation. Debounced so a sync burst (e.g. a device
+// coming back online after a week) collapses into one toast.
+
+let mergeNotifierInstalled = false;
+let mergeToastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function installRemoteMergeNotifier(): void {
+  if (mergeNotifierInstalled) return;
+  mergeNotifierInstalled = true;
+  getDoc().on('update', (_update: Uint8Array, origin: unknown) => {
+    // Only peer transports count: local edits have origin null and the
+    // boot-time IndexedDB load has the persistence instance as origin.
+    if (origin !== webrtc && origin !== websocket) return;
+    if (!webrtc && !websocket) return;
+    if (mergeToastTimer) clearTimeout(mergeToastTimer);
+    mergeToastTimer = setTimeout(() => {
+      mergeToastTimer = null;
+      void import('../lib/toast')
+        .then((m) => m.toast.info('Synced changes from another device'))
+        .catch(() => {});
+    }, 4000);
+  });
 }
 
 // -- WebRTC transport ----------------------------------------------------

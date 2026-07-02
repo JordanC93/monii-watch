@@ -25,12 +25,19 @@ import { setSettingsField } from '../../db/repo';
 import { format } from 'date-fns';
 import { ScrollText, Trash2, MessageSquare, Wrench } from 'lucide-react';
 import { cn } from '../../lib/cn';
+import type { Settings } from '../../domain/types';
 
 type FilterMode = 'all' | 'chat' | 'direct';
 
+// Stable fallbacks — never inline `?? []` in a Zustand selector (Iron Rule #21).
+const EMPTY_CHAT_LOG: Settings['chatAuditLog'] = [];
+const EMPTY_DIRECT_LOG: Settings['auditLog'] = [];
+
 export function AuditLogModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const chatLog = useBudget((s) => s.settings.chatAuditLog ?? []);
-  const directLog = useBudget((s) => s.settings.auditLog ?? []);
+  const chatLogRaw = useBudget((s) => s.settings.chatAuditLog);
+  const chatLog = chatLogRaw ?? EMPTY_CHAT_LOG;
+  const directLogRaw = useBudget((s) => s.settings.auditLog);
+  const directLog = directLogRaw ?? EMPTY_DIRECT_LOG;
   const [mode, setMode] = useState<FilterMode>('all');
   const [kind, setKind] = useState<string>('all');
 

@@ -4,7 +4,7 @@ import { useUI } from '../../store/ui';
 import { TransactionRow } from './TransactionRow';
 import { QuickAdd } from './QuickAdd';
 import { BulkActionsBar } from './BulkActionsBar';
-import { Filter } from 'lucide-react';
+import { Check, Circle, Filter } from 'lucide-react';
 import { HelpHint } from '../ui/HelpHint';
 import type { Transaction } from '../../domain/types';
 import { bulkCreateTransactions } from '../../db/repo';
@@ -206,9 +206,9 @@ export function TransactionTable({ accountId, filter, showAccount }: Props) {
           <HelpHint title="Cleared state" side="bottom">
             Click the circle on a row to cycle:
             <ul className="mt-1 space-y-0.5">
-              <li>○ <strong>Uncleared</strong>: pending, not yet at the bank.</li>
-              <li>✓ <strong>Cleared</strong>: matches your bank statement.</li>
-              <li>✓ <strong>Reconciled</strong> (filled green): frozen as part of a bank reconciliation.</li>
+              <li className="flex items-start gap-1"><Circle size={11} className="mt-0.5 shrink-0" /> <span><strong>Uncleared</strong>: pending, not yet at the bank.</span></li>
+              <li className="flex items-start gap-1"><Check size={11} className="mt-0.5 shrink-0" /> <span><strong>Cleared</strong>: matches your bank statement.</span></li>
+              <li className="flex items-start gap-1"><Check size={11} className="mt-0.5 shrink-0" /> <span><strong>Reconciled</strong> (filled green): frozen as part of a bank reconciliation.</span></li>
             </ul>
             Use Reconcile (top of the account page) when your statement arrives.
           </HelpHint>

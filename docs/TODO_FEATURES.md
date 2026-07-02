@@ -59,6 +59,25 @@ When working from this list:
 - Returning from vacation: a "Vacation summary" modal totals what was spent +
   what auto-cover did
 
+### #6 Backup encryption (promoted from Tier 3 #2 — v0.7.31 audit)
+- One checkbox in Settings → Backup & Import → Export JSON
+- Reuses existing `encryptBytes()` (XChaCha20-Poly1305 + Argon2id from
+  `src/sync/crypto.ts`); writes a `.cb-backup` file with a magic header
+- Import auto-detects the magic header + prompts for passphrase
+- WHY PROMOTED: plaintext JSON backups land in Downloads / email /
+  bug reports with the user's full financial history. v0.7.31 already
+  strips credentials from exports; encrypting the rest is the natural
+  completion and directly serves the privacy-first positioning.
+
+### #7 Drive OAuth: implicit grant → authorization code + PKCE (v0.7.31 audit)
+- Google has deprecated the implicit flow; functionally it means a
+  1-hour token, recurring re-auth popups, and background pushes dying
+  overnight
+- User supplies their own client ID, so a Desktop-type client works:
+  loopback redirect on Tauri, popup-code flow on web; store the refresh
+  token device-locally (NOT in synced settings)
+- Do before promoting Drive sync to friends and family
+
 ---
 
 ## Tier 2 — Bigger lifts, real differentiation (1-2 days each)
@@ -98,11 +117,7 @@ When working from this list:
 - Extend `domain/calc.ts` parser to accept `+N%` syntax
 - `45.00 +18%` → `53.10`. Works in any amount input
 
-### #2 Backup encryption
-- One checkbox in Settings → Backup & Import → Export JSON
-- Reuses existing `encryptBytes()` (XChaCha20-Poly1305 + Argon2id from
-  `src/sync/crypto.ts`); writes a `.cb-backup` file with a magic header
-- Import auto-detects the magic header + prompts for passphrase
+### #2 Backup encryption — PROMOTED to Tier 1 #6 (v0.7.31 audit). See there.
 
 ### #3 Read-only share link
 - Generate a time-limited (max 7-day) URL that decrypts client-side to show
@@ -111,6 +126,11 @@ When working from this list:
   full sync access
 - URL format: `https://app.url/share/<base64>` where the base64 is an
   encrypted snapshot
+- GATED (v0.7.31 audit): as spec'd this creates a second, weaker
+  credential — exactly what Iron Rule #14 warns against. Do NOT build
+  until the design derives the share key from the pairing phrase (or a
+  second full-strength phrase) and the phrase-entropy upgrade has
+  shipped on all devices.
 
 ### #4 Seasonal budget hints
 - "December was 32% higher than your average in your history. Bump categories

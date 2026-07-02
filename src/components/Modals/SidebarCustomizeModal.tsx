@@ -30,8 +30,12 @@ const DEFAULT_ENTRIES = [
   { key: 'settings', label: 'Settings' },
 ];
 
+// Stable fallback — never inline `?? []` in a Zustand selector (Iron Rule #21).
+const EMPTY_SIDEBAR_ORDER: Array<{ key: string; order: number; hidden: boolean }> = [];
+
 export function SidebarCustomizeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const stored = useBudget((s) => s.settings.sidebarOrder ?? []);
+  const storedRaw = useBudget((s) => s.settings.sidebarOrder);
+  const stored = storedRaw ?? EMPTY_SIDEBAR_ORDER;
   const [entries, setEntries] = useState(() => buildInitial(stored));
   const [dragId, setDragId] = useState<string | null>(null);
 

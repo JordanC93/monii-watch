@@ -25,6 +25,7 @@ import {
   createAccount, createScheduled, materializeDueScheduled,
   exportSnapshot, importSnapshot, validateSnapshot, listTransactions,
   setSettingsField, deleteCategory, createGroup, createCategory,
+  applyEscalation, updateScheduled, getScheduled, repairDanglingReferences,
 } from './repo';
 
 describe('materializeDueScheduled', () => {
@@ -146,6 +147,76 @@ describe('deleteCategory cascade', () => {
     const schedAfter = getDoc().getMap('scheduled').get(sched.id) as { categoryId: string | null };
     expect(schedAfter.categoryId).toBeNull();
     expect(rules.has('rule-1')).toBe(false);
+  });
+});
+
+describe('escalation anchor (v0.7.31)', () => {
+  it('re-anchors compounding after a manual amount edit', () => {
+    const acct = createAccount({ name: 'Escalate Checking', type: 'checking', openingBalance: 0 });
+    const sched = createScheduled({
+      accountId: acct.id,
+      payee: 'Retirement Fund',
+      categoryId: null,
+      amount: -100000,
+      frequency: 'monthly',
+      startDate: '2024-01-15',
+      escalationPctPerYear: 0.10,
+    });
+    // Two anniversaries elapsed from startDate → ×1.21.
+    expect(applyEscalation(sched, '2026-02-01')).toBe(-121000);
+    // User manually sets the amount to the current escalated value.
+    updateScheduled(sched.id, { amount: -121000 });
+    const updated = getScheduled(sched.id)!;
+    expect(updated.escalationAnchorDate).toBeDefined();
+    // Pre-fix: the new base got escalated AGAIN from 2024 (×1.21 on
+    // top of ×1.21). Post-fix: no anniversary has passed since the
+    // edit, so the amount is exactly what the user set.
+    expect(applyEscalation(updated, '2026-08-01')).toBe(-121000);
+  });
+});
+
+describe('repairDanglingReferences (v0.7.31)', () => {
+  it('orphan-converts one-sided transfers and clears dangling links', () => {
+    const acct = createAccount({ name: 'Repair Checking', type: 'checking', openingBalance: 0 });
+    const txns = getDoc().getMap('txns');
+    const now = Date.now();
+    const base = {
+      accountId: acct.id, date: '2026-06-01', payeeId: null, categoryId: null,
+      amount: -5000, memo: '', cleared: 'uncleared', flag: null, splits: [],
+      createdAt: now, updatedAt: now,
+    };
+    // A CRDT edit-vs-delete merge can leave a transfer half whose
+    // partner is tombstoned — simulate the surviving half directly.
+    txns.set('repair-a', {
+      ...base, id: 'repair-a',
+      transferAccountId: 'gone-acct', transferTransactionId: 'gone-txn',
+      linkedTxnId: 'gone-link',
+    });
+    const repaired = repairDanglingReferences();
+    expect(repaired).toBeGreaterThanOrEqual(1);
+    const fixed = txns.get('repair-a') as { transferTransactionId: string | null; transferAccountId: string | null; linkedTxnId?: string };
+    expect(fixed.transferTransactionId).toBeNull();
+    expect(fixed.transferAccountId).toBeNull();
+    expect(fixed.linkedTxnId).toBeUndefined();
+  });
+
+  it('pauses scheduled templates pointing at a deleted account', () => {
+    const sm = getDoc().getMap('scheduled');
+    const now = Date.now();
+    sm.set('repair-sched', {
+      id: 'repair-sched', accountId: 'deleted-acct', payeeId: null,
+      categoryId: null, transferAccountId: null, amount: -1000, memo: '',
+      flag: null, frequency: 'monthly', startDate: '2026-01-01',
+      nextDate: '2026-01-01', endDate: null, lastRunAt: null, paused: false,
+      createdAt: now, updatedAt: now,
+    });
+    repairDanglingReferences();
+    const fixed = sm.get('repair-sched') as { paused: boolean };
+    expect(fixed.paused).toBe(true);
+    // And the (paused) template must not materialize ghost transactions.
+    materializeDueScheduled('2026-06-01');
+    const ghosts = listTransactions().filter((t) => t.accountId === 'deleted-acct');
+    expect(ghosts.length).toBe(0);
   });
 });
 

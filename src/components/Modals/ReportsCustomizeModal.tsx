@@ -30,8 +30,12 @@ const DEFAULT_REPORT_CARDS = [
   { key: 'tax-calc', label: 'Tax Estimator' },
 ];
 
+// Stable fallback — never inline `?? []` in a Zustand selector (Iron Rule #21).
+const EMPTY_REPORTS_ORDER: Array<{ key: string; order: number; hidden: boolean }> = [];
+
 export function ReportsCustomizeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const stored = useBudget((s) => s.settings.reportsOrder ?? []);
+  const storedRaw = useBudget((s) => s.settings.reportsOrder);
+  const stored = storedRaw ?? EMPTY_REPORTS_ORDER;
   const [entries, setEntries] = useState(() => buildInitial(stored));
   const [dragId, setDragId] = useState<string | null>(null);
 

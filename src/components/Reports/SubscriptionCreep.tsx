@@ -21,7 +21,7 @@ export function SubscriptionCreep() {
 
   const creeps = useMemo(() => {
     const subs = detectSubscriptions(txns, payees, accounts);
-    return detectSubscriptionCreep(subs, txns);
+    return detectSubscriptionCreep(subs, txns, accounts);
   }, [txns, payees, accounts]);
 
   if (creeps.length === 0) {

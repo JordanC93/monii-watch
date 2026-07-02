@@ -100,12 +100,12 @@ const ISSUER_PATTERNS: Array<{ name: string; re: RegExp }> = [
   { name: 'Chase',         re: /\bchase\b/i },
   { name: 'American Express', re: /\bamerican\s+express\b|\bamex\b/i },
   // v0.7.23 — relaxed pattern for OCR-broken renditions of "Capital
-  // One" (the maintainer's Tesseract output produced "Capital Oly"
-  // from the logo). The /\bcapital\s+\w{2,5}\b/ fallback catches
-  // "Capital One", "Capital Oly", "Capital Onee", etc., which is the
-  // realistic OCR error space without colliding with other "Capital"
-  // brand prefixes (we don't have any others on file).
-  { name: 'Capital One',   re: /\bcapital\s+(?:one|o[a-z]{1,4})\b/i },
+  // One" (Tesseract reads the logo as "Capital Oly", "Capital 0ne",
+  // etc.). The token must start with o/0 plus 1-3 more chars — the
+  // realistic OCR error space for "One" — and must NOT be a common
+  // English word ("Capital of Texas CU" is not Capital One). The
+  // stopword lookahead is what keeps the garble tolerance safe.
+  { name: 'Capital One',   re: /\bcapital\s+(?!(?:of|on|or|our|out)\b)[o0][a-z0-9]{1,3}\b/i },
   { name: 'Discover',      re: /\bdiscover\s+(?:card|it)\b/i },
   { name: 'Bank of America', re: /\bbank\s+of\s+america\b|\bbofa\b/i },
   { name: 'Citi',          re: /\bciti(?:bank)?\b/i },

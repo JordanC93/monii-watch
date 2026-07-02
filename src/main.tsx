@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './styles/globals.css';
 import { initTheme } from './store/theme';
-import { initDb, materializeDueScheduled, ensureCreditCardPaymentCategoriesExist, getSettings, autoPurgeOldTrash } from './db/repo';
+import { initDb, materializeDueScheduled, ensureCreditCardPaymentCategoriesExist, getSettings, autoPurgeOldTrash, repairDanglingReferences } from './db/repo';
 import { initPersistence, initSync } from './sync/provider';
 import { wireStoreToYjs } from './store/budget';
 import { installLogCapture } from './lib/logs';
@@ -54,6 +54,16 @@ async function bootstrap() {
   await initPersistence();
   await initDb();
   wireStoreToYjs();
+  // Referential-integrity repair BEFORE the materializer: pauses
+  // scheduled templates pointing at deleted accounts (so no ghost
+  // transactions get created below) and cleans dangling transfer /
+  // link references left by CRDT edit-vs-delete merges.
+  try {
+    const repaired = repairDanglingReferences();
+    if (repaired > 0) console.info(`[repair] fixed ${repaired} dangling reference(s)`);
+  } catch (err) {
+    console.warn('[repair] integrity pass failed', err);
+  }
   // Catch up any scheduled transactions that came due while the app was closed.
   // Idempotent — safe to run on every boot.
   try {

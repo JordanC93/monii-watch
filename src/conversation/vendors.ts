@@ -197,7 +197,11 @@ export function extractInnerVendor(rawDescription: string): { vendor: string; is
   // / to / from) so we don't fire on "VENMO BIZ PURCHASE X" which is a
   // merchant wrapper (handled by the platformMatch below). Without this
   // guard we'd extract "Biz" as the recipient.
-  const zelleMatch = s.match(/\b(?:zelle|venmo|cash\s*app|cashapp)\s+(?:payment|transfer|to|from)\s*(?:to|from)?\s*([a-z][a-z0-9 .'\-]{1,40}?)(?:\s+(?:on|conf|ref|id|#|\d{4,}|\b)|$)/i);
+  // The terminator must be a REAL boundary token (on/conf/ref/ID, a "#",
+  // a ≥4-digit reference run, or end of string) — a bare `\b` alternative
+  // would let the lazy capture stop at the first space and truncate
+  // multi-word recipients ("JANE DOE" → "Jane").
+  const zelleMatch = s.match(/\b(?:zelle|venmo|cash\s*app|cashapp)\s+(?:payment|transfer|to|from)\s*(?:to|from)?\s*([a-z][a-z0-9 .'\-]{1,40}?)(?:\s+(?:on|conf|ref|id)\b|\s+#|\s+\d{4,}|\s*$)/i);
   if (zelleMatch) {
     const recipient = titleCaseClean(zelleMatch[1]);
     if (recipient) return { vendor: recipient, isPeerPayment: true };

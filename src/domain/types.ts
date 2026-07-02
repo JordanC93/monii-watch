@@ -575,6 +575,16 @@ export type ScheduledTransaction = {
    */
   escalationPctPerYear?: number;
   /**
+   * v0.7.31 — escalation re-anchor. Stamped (todayIso) whenever the
+   * user MANUALLY edits `amount` on an escalating schedule; escalation
+   * then compounds from this date instead of `startDate`. Without it,
+   * updating the amount to the current escalated value (natural after
+   * a real rent increase) double-compounded: the already-escalated
+   * base got escalated again from the original startDate.
+   * Optional; unset = anniversary from `startDate` (legacy behavior).
+   */
+  escalationAnchorDate?: string;
+  /**
    * Tier 10 #11 — goal contribution auto-deposit. When set, every
    * materialization of this scheduled transaction ALSO bumps the
    * monthly assignment for `autoAssignCategoryId` by `|amount|`.

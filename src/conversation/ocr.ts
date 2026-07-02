@@ -62,9 +62,10 @@ export async function recognizeReceipt(
 /**
  * v0.7.30 — image pre-processing for OCR. Steps:
  *   1. Decode the image into a canvas.
- *   2. Sample the corners to estimate background brightness. If the
- *      background is dark, INVERT the image so Tesseract sees the
- *      black-on-white layout it's trained on.
+ *   2. Sample edge AND center brightness (`shouldInvertForOcr`). Only a
+ *      true dark-mode screenshot (dark in both zones) gets INVERTED so
+ *      Tesseract sees the black-on-white layout it's trained on — a
+ *      white receipt on a dark table must NOT be inverted.
  *   3. Convert to grayscale via the YIQ luma formula (more accurate
  *      than averaging R/G/B because green contributes most to perceived
  *      brightness — which matters for green-amount columns).
@@ -111,29 +112,8 @@ async function preprocessForOcr(file: File | Blob): Promise<Blob> {
   const imageData = ctx.getImageData(0, 0, w, h);
   const data = imageData.data;
 
-  // Step 1: estimate background brightness from a strip of edge pixels.
-  // Corners and edges are almost always background; sampling there
-  // avoids the bias content (logos, big text blocks) would introduce.
-  let edgeLumaTotal = 0;
-  let edgeSamples = 0;
-  const stepX = Math.max(1, Math.floor(w / 100));
-  const stepY = Math.max(1, Math.floor(h / 100));
-  for (let x = 0; x < w; x += stepX) {
-    for (const y of [0, h - 1]) {
-      const i = (y * w + x) * 4;
-      edgeLumaTotal += data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
-      edgeSamples++;
-    }
-  }
-  for (let y = 0; y < h; y += stepY) {
-    for (const x of [0, w - 1]) {
-      const i = (y * w + x) * 4;
-      edgeLumaTotal += data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
-      edgeSamples++;
-    }
-  }
-  const bgLuma = edgeLumaTotal / Math.max(1, edgeSamples);
-  const invert = bgLuma < 128;
+  // Step 1: decide whether the image needs inversion (dark-mode screenshot).
+  const invert = shouldInvertForOcr(data, w, h);
 
   // Step 2/3: grayscale + invert + contrast boost. Contrast formula is
   // a linear stretch around midpoint (`adjusted = (luma - 128) * k + 128`)
@@ -212,6 +192,65 @@ async function preprocessForOcr(file: File | Blob): Promise<Blob> {
       else reject(new Error('toBlob failed'));
     }, 'image/png');
   });
+}
+
+/**
+ * Decide whether the image is light-on-dark and needs inverting before
+ * Tesseract (which is trained on black-on-white).
+ *
+ * Samples TWO regions:
+ *   - an edge strip (corners/edges are almost always background), and
+ *   - the CENTER box (middle ~50% in both dimensions).
+ *
+ * Only invert when BOTH read dark — that's a true dark-mode screenshot.
+ * Edges alone misclassify a white receipt photographed centered on a
+ * dark table: the edges (table) read dark, the invert flips the actual
+ * text region to white-on-black, and OCR craters. Dark edges + bright
+ * center = paper on a dark surface → leave it alone.
+ *
+ * Exported for unit tests (pure pixel math over RGBA bytes, no DOM).
+ */
+export function shouldInvertForOcr(data: Uint8ClampedArray, w: number, h: number): boolean {
+  const lumaAt = (x: number, y: number) => {
+    const i = (y * w + x) * 4;
+    return data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+  };
+
+  let edgeLumaTotal = 0;
+  let edgeSamples = 0;
+  const stepX = Math.max(1, Math.floor(w / 100));
+  const stepY = Math.max(1, Math.floor(h / 100));
+  for (let x = 0; x < w; x += stepX) {
+    for (const y of [0, h - 1]) {
+      edgeLumaTotal += lumaAt(x, y);
+      edgeSamples++;
+    }
+  }
+  for (let y = 0; y < h; y += stepY) {
+    for (const x of [0, w - 1]) {
+      edgeLumaTotal += lumaAt(x, y);
+      edgeSamples++;
+    }
+  }
+  const edgeLuma = edgeLumaTotal / Math.max(1, edgeSamples);
+  if (edgeLuma >= 128) return false;
+
+  const x0 = Math.floor(w / 4);
+  const x1 = Math.max(x0 + 1, Math.ceil((3 * w) / 4));
+  const y0 = Math.floor(h / 4);
+  const y1 = Math.max(y0 + 1, Math.ceil((3 * h) / 4));
+  const cStepX = Math.max(1, Math.floor((x1 - x0) / 50));
+  const cStepY = Math.max(1, Math.floor((y1 - y0) / 50));
+  let centerLumaTotal = 0;
+  let centerSamples = 0;
+  for (let y = y0; y < y1; y += cStepY) {
+    for (let x = x0; x < x1; x += cStepX) {
+      centerLumaTotal += lumaAt(x, y);
+      centerSamples++;
+    }
+  }
+  const centerLuma = centerLumaTotal / Math.max(1, centerSamples);
+  return centerLuma < 128;
 }
 
 /**

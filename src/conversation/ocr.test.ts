@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseReceiptText, denoise3x3Median } from './ocr';
+import { parseReceiptText, denoise3x3Median, shouldInvertForOcr } from './ocr';
 
 describe('parseReceiptText — amounts with thousand separators', () => {
   it('parses a four-digit TOTAL with a US thousands comma', () => {
@@ -29,6 +29,44 @@ describe('parseReceiptText — amounts with thousand separators', () => {
   it('plain dot-decimal totals unchanged', () => {
     const r = parseReceiptText('CORNER DELI\nTOTAL $8.50');
     expect(r.amount).toBe(850);
+  });
+});
+
+describe('shouldInvertForOcr — dark-background detection', () => {
+  /** Build a w×h RGBA buffer where each pixel's gray value comes from fn(x, y). */
+  function makeImage(w: number, h: number, fn: (x: number, y: number) => number): Uint8ClampedArray {
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const v = fn(x, y);
+        data[i] = data[i + 1] = data[i + 2] = v;
+        data[i + 3] = 255;
+      }
+    }
+    return data;
+  }
+
+  it('inverts a true dark-mode screenshot (dark edges AND dark center)', () => {
+    // Dark background everywhere with sparse light "text" pixels in the middle.
+    const w = 40, h = 40;
+    const data = makeImage(w, h, (x, y) => (x % 7 === 0 && y % 7 === 0 && x > 10 && x < 30 ? 230 : 20));
+    expect(shouldInvertForOcr(data, w, h)).toBe(true);
+  });
+
+  it('does NOT invert a white receipt centered on a dark table', () => {
+    // Dark border (table), bright middle 50% (the receipt itself).
+    const w = 40, h = 40;
+    const data = makeImage(w, h, (x, y) =>
+      x >= w / 4 && x < (3 * w) / 4 && y >= h / 4 && y < (3 * h) / 4 ? 240 : 15,
+    );
+    expect(shouldInvertForOcr(data, w, h)).toBe(false);
+  });
+
+  it('does NOT invert a normal light image', () => {
+    const w = 40, h = 40;
+    const data = makeImage(w, h, () => 245);
+    expect(shouldInvertForOcr(data, w, h)).toBe(false);
   });
 });
 

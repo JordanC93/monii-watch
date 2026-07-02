@@ -169,7 +169,7 @@ export function SettingsPage() {
     // doesn't nag a user who's actively keeping their own backups.
     setSettingsField('lastManualExportAt', Date.now());
     setSettingsField('exportReminderShownAt', Date.now());
-    setImportMsg('Backup verified ✓ and downloaded.');
+    setImportMsg('Backup verified and downloaded.');
   }
 
   /**
@@ -1479,7 +1479,7 @@ function ICloudSettings() {
       const m = await import('../sync/icloudProvider');
       const r = await m.probeFolder(folder);
       if (r.ok) {
-        toast.success('Folder is reachable + writable ✓');
+        toast.success('Folder is reachable and writable.');
       } else {
         toast.error(r.error ?? 'Verify failed.');
       }
@@ -1821,10 +1821,14 @@ function AppLockSettings() {
  * (off / 7 / 14 / 30 days) and shows the most recent five backups.
  * The actual download happens on app boot via `lib/autoBackup.ts`.
  */
+// Stable fallback — never inline `?? []` in a Zustand selector (Iron Rule #21).
+const EMPTY_BACKUP_HISTORY: Array<{ at: number; filename: string }> = [];
+
 function AutoBackupSettings() {
   const days = useBudget((s) => s.settings.autoBackupDays ?? 0);
   const lastAt = useBudget((s) => s.settings.lastAutoBackupAt ?? 0);
-  const history = useBudget((s) => s.settings.autoBackupHistory ?? []);
+  const historyRaw = useBudget((s) => s.settings.autoBackupHistory);
+  const history = historyRaw ?? EMPTY_BACKUP_HISTORY;
 
   const options: Array<{ days: number; label: string }> = [
     { days: 0, label: 'Off' },

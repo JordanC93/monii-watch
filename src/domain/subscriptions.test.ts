@@ -128,4 +128,33 @@ describe('detectSubscriptionCreep', () => {
     expect(creep).toHaveLength(1);
     expect(creep[0].pctChange).toBeGreaterThanOrEqual(0.10);
   });
+
+  it('ignores tracking-account outflows when accounts are provided', () => {
+    const brokerage: Account = {
+      id: 'a2', name: 'Brokerage', type: 'investment', closed: false, order: 1, createdAt: 0,
+    };
+    const today = new Date();
+    const recent = (offsetDays: number) => {
+      const d = new Date(today); d.setDate(d.getDate() - offsetDays);
+      return d.toISOString().slice(0, 10);
+    };
+    // On-budget charges hold steady at $10; a same-payee tracking-account
+    // outflow in the current quarter would fake a >10% "increase".
+    const txns = [
+      txn({ date: recent(150), amount: -1000 }),
+      txn({ date: recent(120), amount: -1000 }),
+      txn({ date: recent(60),  amount: -1000 }),
+      txn({ date: recent(30),  amount: -1000 }),
+      txn({ date: recent(20),  amount: -50000, accountId: 'a2' }),
+    ];
+    const sub = {
+      payeeId: 'p1', payeeName: 'Netflix', accountId: 'a1', accountName: '', categoryId: null,
+      averageAmount: 1000, cadence: 'monthly' as const, occurrences: 4,
+      firstDate: '', lastDate: '', predictedNext: '', transactionIds: [],
+    };
+    // Without the account filter the tracking outflow skews the quarter avg.
+    expect(detectSubscriptionCreep([sub], txns)).toHaveLength(1);
+    // With it, the price is flat — no creep.
+    expect(detectSubscriptionCreep([sub], txns, [checking, brokerage])).toHaveLength(0);
+  });
 });

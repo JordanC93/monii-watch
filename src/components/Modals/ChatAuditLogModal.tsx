@@ -12,9 +12,14 @@ import { useBudget } from '../../store/budget';
 import { setSettingsField } from '../../db/repo';
 import { format } from 'date-fns';
 import { ScrollText, Trash2 } from 'lucide-react';
+import type { Settings } from '../../domain/types';
+
+// Stable fallback — never inline `?? []` in a Zustand selector (Iron Rule #21).
+const EMPTY_CHAT_LOG: Settings['chatAuditLog'] = [];
 
 export function ChatAuditLogModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const log = useBudget((s) => s.settings.chatAuditLog ?? []);
+  const logRaw = useBudget((s) => s.settings.chatAuditLog);
+  const log = logRaw ?? EMPTY_CHAT_LOG;
   const sorted = [...log].sort((a, b) => b.at - a.at);
 
   function clearLog() {

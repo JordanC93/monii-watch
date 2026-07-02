@@ -154,6 +154,19 @@ export function computePayeeDetail(
     if (firstSeen === null || t.date < firstSeen) firstSeen = t.date;
     if (lastSeen === null || t.date > lastSeen) lastSeen = t.date;
 
+    // Recent transactions include inflows — a refund at this payee belongs
+    // in its history even though the spend aggregates below exclude it.
+    if (recent.length < 30) {
+      recent.push({
+        id: t.id,
+        accountId: t.accountId,
+        date: t.date,
+        categoryId: t.categoryId ?? null,
+        amount: t.amount,
+        memo: t.memo,
+      });
+    }
+
     // Only outflows (negative amounts) count for the spend chart and
     // monthly stats. A refund / inflow at a payee shouldn't pad the
     // "monthly spend" bar.
@@ -189,17 +202,6 @@ export function computePayeeDetail(
       // 3 categories should show count=1 for each, not 3 each.
       c.count += 1;
       catTotals.set(key, c);
-    }
-
-    if (recent.length < 30) {
-      recent.push({
-        id: t.id,
-        accountId: t.accountId,
-        date: t.date,
-        categoryId: t.categoryId ?? null,
-        amount: t.amount,
-        memo: t.memo,
-      });
     }
   }
 

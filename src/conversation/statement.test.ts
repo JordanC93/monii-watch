@@ -407,16 +407,19 @@ Jan Deposit from Simply Checking SE CER
     // between two transfer rows dated on the 1st of consecutive
     // months — so the interest belongs to the LAST day of the
     // earlier month.
-    const apr30Interest = parsed.rows.find((r) => r.date === '2026-04-30');
+    // Month-day assertions only — the fixture carries no year, so the
+    // resolved year tracks the CURRENT year and exact-date equality
+    // would make this suite start failing every January.
+    const apr30Interest = parsed.rows.find((r) => r.date.endsWith('-04-30'));
     expect(apr30Interest).toBeDefined();
     expect(apr30Interest!.amount).toBe(396);
-    const mar31Interest = parsed.rows.find((r) => r.date === '2026-03-31');
+    const mar31Interest = parsed.rows.find((r) => r.date.endsWith('-03-31'));
     expect(mar31Interest).toBeDefined();
     expect(mar31Interest!.amount).toBe(394);
-    const feb28Interest = parsed.rows.find((r) => r.date === '2026-02-28');
+    const feb28Interest = parsed.rows.find((r) => r.date.endsWith('-02-28'));
     expect(feb28Interest).toBeDefined();
     expect(feb28Interest!.amount).toBe(342);
-    const jan31Interest = parsed.rows.find((r) => r.date === '2026-01-31');
+    const jan31Interest = parsed.rows.find((r) => r.date.endsWith('-01-31'));
     expect(jan31Interest).toBeDefined();
     expect(jan31Interest!.amount).toBe(358);
   });
@@ -512,7 +515,7 @@ REYES DELI GROCERY null Zelle Money Sent -$650.00 $1,788.79
     const apr05 = parsed.rows.find((r) => r.date.endsWith('-04-05'));
     expect(apr05?.amount).toBe(2300);
     const irs = parsed.rows.find((r) => r.amount === 484600);
-    expect(irs?.date).toBe('2026-03-31');
+    expect(irs?.date.endsWith('-03-31')).toBe(true);
     const reyes = parsed.rows.find((r) => /reyes/i.test(r.vendor));
     expect(reyes?.amount).toBe(-65000);
   });

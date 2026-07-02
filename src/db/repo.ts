@@ -154,6 +154,18 @@ export async function initDb(): Promise<void> {
   // name, theme, Drive file id, audit logs). The sync room is generated
   // lazily by the sync flow the first time it's actually needed.
   const sm = settingsMap();
+  // Schema-version tripwire. Stamp our version when the doc has none or
+  // an older one; flag when the doc was written by a NEWER app so the
+  // UI can tell the user to update this device. (Writing this single
+  // key on a fresh doc is pairing-safe: a concurrent LWW between two
+  // devices stamping the same number is a no-op.)
+  const docVersion = Number(sm.get('schemaVersion')) || 0;
+  if (docVersion > DOC_SCHEMA_VERSION) {
+    _docSchemaNewer = true;
+    console.warn(`[schema] doc is v${docVersion}, this app understands v${DOC_SCHEMA_VERSION} — update this device`);
+  } else if (docVersion < DOC_SCHEMA_VERSION) {
+    tx(() => sm.set('schemaVersion', DOC_SCHEMA_VERSION));
+  }
   // Apply persisted theme to <html> immediately.
   const theme = (sm.get('theme') as ThemeName) ?? 'dark';
   document.documentElement.setAttribute('data-theme', theme);
@@ -165,6 +177,85 @@ export async function initDb(): Promise<void> {
  *  short-circuits when any user-shaped data exists. */
 export async function loadSampleData(): Promise<void> {
   await seedIfEmpty();
+  // The seed creates a credit account by writing maps directly (it can't
+  // call back into repo without an import cycle), so backfill its
+  // payment category NOW instead of waiting for the next boot.
+  ensureCreditCardPaymentCategoriesExist();
+}
+
+/**
+ * Doc schema version. Bump when a change to record SHAPES (not merely
+ * added optional fields) would corrupt data if an older app version
+ * wrote to the doc. Older apps ignore unknown settings keys, so the
+ * marker itself is backward-compatible.
+ *
+ *   2 = v0.7.31 (first stamped version)
+ */
+export const DOC_SCHEMA_VERSION = 2;
+
+let _docSchemaNewer = false;
+
+/** True when this doc was written by a NEWER app version than this one
+ *  understands. The UI shows an "update this device" banner; mutations
+ *  are not blocked (CRDT merge keeps unknown fields intact on
+ *  whole-record spreads), but the user should update promptly. */
+export function isDocFromNewerApp(): boolean { return _docSchemaNewer; }
+
+/**
+ * v0.7.31 — boot-time referential-integrity repair. CRDT merges of
+ * concurrent edit+delete can resurrect one half of a transfer pair or
+ * leave links pointing at tombstoned records, and data created before
+ * the v0.7.31 delete-cascades carries dangling scheduled/auto-rule
+ * references. Idempotent; returns the number of repairs for logging.
+ */
+export function repairDanglingReferences(): number {
+  let repairs = 0;
+  tx(() => {
+    // One-sided transfers: partner deleted → convert the survivor to a
+    // regular transaction (same convention as the deleteAccount cascade).
+    txnsMap().forEach((t, tid) => {
+      let next = t;
+      let changed = false;
+      if (t.transferTransactionId && !txnsMap().has(t.transferTransactionId)) {
+        next = { ...next, transferAccountId: null, transferTransactionId: null };
+        changed = true;
+      }
+      if (t.linkedTxnId && !txnsMap().has(t.linkedTxnId)) {
+        next = { ...next, linkedTxnId: undefined };
+        changed = true;
+      }
+      if (changed) {
+        txnsMap().set(tid, { ...next, updatedAt: Date.now() });
+        repairs++;
+      }
+    });
+    // Scheduled templates pointing at deleted accounts: pause them
+    // (preserves the user's data) so the materializer stops creating
+    // ghost transactions in nonexistent accounts.
+    scheduledMap().forEach((s, sid) => {
+      const accountGone = !accountsMap().has(s.accountId);
+      const transferGone = !!s.transferAccountId && !accountsMap().has(s.transferAccountId);
+      const catGone = !!s.categoryId && !categoriesMap().has(s.categoryId);
+      const autoGone = !!s.autoAssignCategoryId && !categoriesMap().has(s.autoAssignCategoryId);
+      if (!accountGone && !transferGone && !catGone && !autoGone) return;
+      scheduledMap().set(sid, {
+        ...s,
+        paused: s.paused || accountGone || transferGone,
+        categoryId: catGone ? null : s.categoryId,
+        autoAssignCategoryId: autoGone ? undefined : s.autoAssignCategoryId,
+        updatedAt: Date.now(),
+      });
+      repairs++;
+    });
+    // Auto-rules targeting deleted categories keep firing forever.
+    autoRulesMap().forEach((r, rid) => {
+      if (!categoriesMap().has(r.categoryId)) {
+        autoRulesMap().delete(rid);
+        repairs++;
+      }
+    });
+  });
+  return repairs;
 }
 
 // -- Settings -------------------------------------------------------------
@@ -241,17 +332,22 @@ export function appendAudit(
   kind: 'create' | 'update' | 'delete' | 'import' | 'export' | 'other' = 'update',
   entityId?: string,
 ): void {
-  const sm = settingsMap();
-  const existing = (sm.get('auditLog') as Settings['auditLog'] | undefined) ?? [];
-  const next = [...existing, {
-    id: newId(),
-    at: Date.now(),
-    description: description.slice(0, 240),
-    kind,
-    entityId,
-  }];
-  while (next.length > 500) next.shift();
-  sm.set('auditLog', next);
+  // tx() so callers outside a transaction (e.g. investment mutations)
+  // still get an atomic write; nested doc.transact calls flatten, so
+  // callers already inside tx() are unaffected.
+  tx(() => {
+    const sm = settingsMap();
+    const existing = (sm.get('auditLog') as Settings['auditLog'] | undefined) ?? [];
+    const next = [...existing, {
+      id: newId(),
+      at: Date.now(),
+      description: description.slice(0, 240),
+      kind,
+      entityId,
+    }];
+    while (next.length > 500) next.shift();
+    sm.set('auditLog', next);
+  });
 }
 
 // -- Accounts -------------------------------------------------------------
@@ -583,20 +679,24 @@ export function setDealFeedsLastPolledAt(at: number): void {
 export function registerTags(tags: string[]): void {
   if (tags.length === 0) return;
   const cur = (settingsMap().get('knownTags') as string[] | undefined) ?? [];
-  const known = new Set(cur);
+  // Copy before mutating — `cur` is the array object stored INSIDE the
+  // Yjs map; pushing onto it in place changes state observers can see
+  // without a notification.
+  const next = cur.slice();
+  const known = new Set(next);
   let changed = false;
   for (const raw of tags) {
     const t = raw.trim().toLowerCase();
     if (!t || known.has(t)) continue;
     known.add(t);
-    cur.push(t);
+    next.push(t);
     changed = true;
   }
   if (!changed) return;
   // Cap at 200 known tags — the autocomplete drops the oldest if a
   // user goes wild. Heuristic; real users plateau around ~10-30.
-  while (cur.length > 200) cur.shift();
-  tx(() => settingsMap().set('knownTags', cur));
+  const trimmed = next.length > 200 ? next.slice(next.length - 200) : next;
+  tx(() => settingsMap().set('knownTags', trimmed));
 }
 
 /**
@@ -870,7 +970,7 @@ export type TxnInput = {
   tags?: string[];
 };
 
-export function createTransaction(input: TxnInput): Transaction {
+export function createTransaction(input: TxnInput, opts?: { noAutoTransferRules?: boolean }): Transaction {
   const id = newId();
   let payeeId: string | null = null;
   if (input.payee && input.payee.trim()) payeeId = ensurePayee(input.payee).id;
@@ -878,7 +978,7 @@ export function createTransaction(input: TxnInput): Transaction {
   // before doing anything else. Only fires when the caller did NOT already
   // specify a transfer destination (we don't second-guess explicit choices).
   let effectiveTransferAccountId = input.transferAccountId ?? null;
-  if (input.payee && input.payee.trim() && !effectiveTransferAccountId) {
+  if (input.payee && input.payee.trim() && !effectiveTransferAccountId && !opts?.noAutoTransferRules) {
     const transferTo = lookupTransferRule(input.payee, input.accountId);
     if (transferTo) effectiveTransferAccountId = transferTo;
   }
@@ -1144,7 +1244,11 @@ export function bulkCreateTransactions(inputs: TxnInput[]): { created: number; i
     for (const input of inputs) {
       // Skip empty-amount rows defensively.
       if (!input.amount || !input.accountId || !input.date) continue;
-      const t = createTransaction(input);
+      // Suppress transfer auto-rules: a statement row whose payee matches
+      // a transfer rule would otherwise silently create a counterpart in
+      // the other account — and importing THAT account's statement later
+      // duplicates the movement. Statement rows are always one-sided.
+      const t = createTransaction(input, { noAutoTransferRules: true });
       created.push(t.id);
     }
     if (created.length > 0) {
@@ -1635,6 +1739,17 @@ export function updateScheduled(
       if (k === 'payee') continue;
       (next as any)[k] = v;
     }
+    // Manual amount edit on an escalating schedule re-anchors the
+    // escalation clock — otherwise the already-escalated base would be
+    // escalated AGAIN from the original startDate (double compounding).
+    if (
+      patch.amount !== undefined
+      && patch.amount !== cur.amount
+      && (next.escalationPctPerYear ?? 0) !== 0
+      && patch.escalationAnchorDate === undefined
+    ) {
+      next.escalationAnchorDate = todayIso();
+    }
     if (next.transferAccountId) next.categoryId = null;
     scheduledMap().set(id, next);
   });
@@ -1794,8 +1909,11 @@ function materializeOne(sched: ScheduledTransaction, date: string): boolean {
  */
 export function applyEscalation(sched: ScheduledTransaction, date: string): Money {
   if (!sched.escalationPctPerYear || sched.escalationPctPerYear === 0) return sched.amount;
-  if (!sched.startDate || date <= sched.startDate) return sched.amount;
-  const start = new Date(sched.startDate + 'T00:00:00');
+  // Anniversary anchor: the last manual amount edit (if any) wins over
+  // startDate, so escalation compounds from the value the user set.
+  const anchor = sched.escalationAnchorDate ?? sched.startDate;
+  if (!anchor || date <= anchor) return sched.amount;
+  const start = new Date(anchor + 'T00:00:00');
   const cur = new Date(date + 'T00:00:00');
   // Whole years elapsed since startDate (anniversary-based).
   let years = cur.getFullYear() - start.getFullYear();

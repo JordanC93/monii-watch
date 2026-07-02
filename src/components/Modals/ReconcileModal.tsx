@@ -8,6 +8,7 @@ import { reconcileAccount } from '../../db/repo';
 import { computeAccountBalances } from '../../domain/budget';
 import { useFormatMoney } from '../../lib/format';
 import { parseAmountToCents } from '../../domain/calc';
+import { toast } from '../../lib/toast';
 
 export function ReconcileModal({ open, onClose, accountId }: { open: boolean; onClose: () => void; accountId: string }) {
   const accounts = useBudget((s) => s.accounts);
@@ -24,9 +25,7 @@ export function ReconcileModal({ open, onClose, accountId }: { open: boolean; on
     if (v === null) return;
     const { adjustment } = reconcileAccount(accountId, v);
     onClose();
-    setTimeout(() => {
-      if (adjustment !== 0) alert(`Reconciled. Adjustment of ${fmt(adjustment)} recorded.`);
-    }, 50);
+    if (adjustment !== 0) toast.success(`Reconciled. Adjustment of ${fmt(adjustment)} recorded.`);
   }
 
   return (

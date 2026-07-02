@@ -99,6 +99,9 @@ const CARD_TABS: Record<string, ReportsTab[]> = {
 
 const TAB_LS_KEY = 'monii:reports-active-tab';
 
+// Stable fallback — never inline `?? []` in a Zustand selector (Iron Rule #21).
+const EMPTY_REPORTS_ORDER: Array<{ key: string; order: number; hidden: boolean }> = [];
+
 function isCardInTab(cardKey: string, tab: ReportsTab): boolean {
   if (tab === 'all') return true;
   const tags = CARD_TABS[cardKey];
@@ -123,7 +126,8 @@ export function ReportsPage() {
 
   const txns = useBudget((s) => s.transactions);
   const ious = useBudget((s) => s.settings.iouLedger);
-  const reportsOrder = useBudget((s) => s.settings.reportsOrder ?? []);
+  const reportsOrderRaw = useBudget((s) => s.settings.reportsOrder);
+  const reportsOrder = reportsOrderRaw ?? EMPTY_REPORTS_ORDER;
   const openModal = useUI((s) => s.openModal);
   const hasPendingRefunds = txns.some((t) => t.expectedRefund && !t.expectedRefund.received);
   const hasIous = ious.length > 0;

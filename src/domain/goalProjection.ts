@@ -111,7 +111,9 @@ export function computeGoalProjection(
   const target = goal.amount;
   const current = Math.max(0, available);
   const remaining = Math.max(0, target - current);
-  const ratio = target > 0 ? available / target : 0;
+  // Ratio from the CLAMPED current amount — raw `available` can be negative
+  // (overspent envelope) and a negative ratio leaks into UI consumers.
+  const ratio = target > 0 ? current / target : 0;
   // Tier 6 #16 — annual goals project against the next occurrence of the
   // recurring date. Treat them like a targetByDate where the deadline is
   // the next yearly hit of (annualMonth, annualDay).

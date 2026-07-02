@@ -40,6 +40,9 @@
  *                     endpoint. When set, clients must include
  *                     `?token=<token>` on the ws URL (the app supports
  *                     pasting the server URL with `?token=...`).
+ *   MONII_MAX_WORKSPACES Cap on distinct backup workspaces (default 50)
+ *                     — bounds total disk use since retention is
+ *                     per-workspace.
  *   MONII_ALLOWED_ORIGINS Comma-separated origin allowlist for CORS on
  *                     the /backup routes. When unset, cross-origin
  *                     access is allowed only when MONII_BACKUP_TOKEN
@@ -177,6 +180,9 @@ if (backupEnabled) {
 
 const WORKSPACE_RE = /^[a-z0-9][a-z0-9_-]{0,47}$/i;
 const SNAPSHOT_NAME_RE = /^[0-9]{1,16}\.bin$/;
+// Disk-fill guard: per-workspace retention doesn't bound TOTAL disk when
+// arbitrary new workspace names can be minted. Generous for a household.
+const MAX_WORKSPACES = parseInt(process.env.MONII_MAX_WORKSPACES || '50', 10);
 
 /** Constant-time token comparison — `===` leaks match length/prefix timing. */
 function tokenMatches(candidate, expected) {
@@ -290,6 +296,17 @@ async function handleBackupRoute(req, res, urlPath) {
 
   // PUT /backup/<ws>/snapshot.bin — upload latest
   if (req.method === 'PUT' && sub === 'snapshot.bin') {
+    // Cap total workspaces. Retention (BACKUP_KEEP) is per-workspace, so
+    // without this an attacker who reaches the port could mint unlimited
+    // workspace names and fill the disk 64 MiB at a time.
+    if (!fs.existsSync(wsDir)) {
+      const existing = fs.readdirSync(BACKUP_DIR, { withFileTypes: true })
+        .filter((d) => d.isDirectory()).length;
+      if (existing >= MAX_WORKSPACES) {
+        plainResponse(req, res, 507, `Workspace limit (${MAX_WORKSPACES}) reached\n`);
+        return;
+      }
+    }
     fs.mkdirSync(path.join(wsDir, 'snapshots'), { recursive: true });
     const chunks = [];
     let total = 0;

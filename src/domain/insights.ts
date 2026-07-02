@@ -14,7 +14,7 @@ export type CategoryInsight = {
   thisMonth: Money;
   /** Trailing average (excluding the current month). */
   trailingAvg: Money;
-  /** Months counted in the trailing average. */
+  /** Months in the trailing window since the category's first activity (capped at the lookback). */
   monthsCounted: number;
   /** Pct change vs trailing avg, signed. e.g. +38 means 38% above; -22 means 22% below. */
   deltaPct: number;
@@ -56,7 +56,13 @@ export function computeCategoryInsight(
     }
   }
 
-  const monthsCounted = trailingTotalsByMonth.size;
+  // Average over the FULL window since the category's first activity, not
+  // just months with nonzero spend — a category hit in 2 of 6 months would
+  // otherwise show an inflated average and a misleading "+X% vs avg" badge.
+  const earliestSpendMonth = [...trailingTotalsByMonth.keys()].sort()[0];
+  const monthsCounted = earliestSpendMonth
+    ? monthsBack.filter((m) => m >= earliestSpendMonth).length
+    : 0;
   const trailingTotal = [...trailingTotalsByMonth.values()].reduce((a, b) => a + b, 0);
   const trailingAvg = monthsCounted > 0 ? Math.round(trailingTotal / monthsCounted) : 0;
 

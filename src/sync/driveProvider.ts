@@ -24,8 +24,12 @@
  *   2. The Yjs document is encoded with `Y.encodeStateAsUpdate(doc)`
  *      and **encrypted** with `encryptBytes()` (AES-GCM, key derived
  *      from the pairing phrase via PBKDF2 — see `crypto.ts`). The
- *      result is uploaded as `monii-watch-snapshot.bin` in a Drive folder
- *      called `Monii Watch (E2E encrypted)`.
+ *      result is uploaded in a Drive folder called
+ *      `Monii Watch (E2E encrypted)`. The filename is scoped to the
+ *      active local workspace (`monii-watch-snapshot.bin` for the
+ *      default workspace, `monii-watch-snapshot-<id>.bin` otherwise)
+ *      so two workspaces never overwrite each other's snapshot — see
+ *      `snapshotFilename()`.
  *
  *      Google holds the bytes; Google can't read the contents.
  *
@@ -43,10 +47,11 @@ import { getDoc } from './doc';
 import { getSettings, setSettingsField } from '../db/repo';
 import { encryptBytes, decryptBytes } from './crypto';
 import { setLastSyncedAt } from './syncMeta';
+import { getActiveWorkspaceId } from '../lib/workspaces';
 import * as Y from 'yjs';
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
-const SNAPSHOT_FILENAME = 'monii-watch-snapshot.bin';
+const LEGACY_SNAPSHOT_FILENAME = 'monii-watch-snapshot.bin';
 const FOLDER_NAME = 'Monii Watch (E2E encrypted)';
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
@@ -85,6 +90,40 @@ function setStatus(s: DriveStatus) {
 }
 
 export function getDriveStatus(): DriveStatus { return status; }
+
+/**
+ * Snapshot filename, scoped to the ACTIVE LOCAL WORKSPACE.
+ *
+ * Why: the folder + filename used to be fixed constants, so a user who
+ * enabled Drive sync in a second workspace silently overwrote the first
+ * workspace's snapshot. The first workspace's next pull then failed
+ * decryption forever (different pairing phrase). Each workspace must
+ * own its own file.
+ *
+ * The workspace id is read from localStorage (`lib/workspaces.ts`) —
+ * device-local by design, NEVER from synced Settings (Iron Rule #22).
+ * The app hard-reloads on workspace switch, so this value is stable
+ * for the lifetime of the module.
+ *
+ * Back-compat: the DEFAULT workspace keeps the legacy fixed filename so
+ * existing users' Drive snapshots keep working. Non-default workspaces
+ * get `monii-watch-snapshot-<workspaceId>.bin`.
+ *
+ * Note on `googleDriveFileId` caching: that field lives in synced
+ * Settings, and Settings live inside the workspace's OWN Yjs doc (each
+ * workspace is a separate IndexedDB database). A workspace switch loads
+ * a different doc, so workspace A's cached fileId is never visible from
+ * workspace B — the per-doc cache is safe as-is.
+ */
+function snapshotFilename(): string {
+  const ws = getActiveWorkspaceId();
+  if (ws === 'default') return LEGACY_SNAPSHOT_FILENAME;
+  // Workspace ids are slugs ([a-z0-9-]) already; sanitize defensively so
+  // the name is safe inside the Drive query's single-quoted string.
+  const safe = ws.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').slice(0, 48);
+  if (!safe) return LEGACY_SNAPSHOT_FILENAME;
+  return `monii-watch-snapshot-${safe}.bin`;
+}
 
 // -- OAuth ---------------------------------------------------------------
 
@@ -233,7 +272,7 @@ async function ensureFolder(token: string): Promise<string> {
 
 async function findSnapshotFile(token: string, folderId: string): Promise<string | null> {
   const q = encodeURIComponent(
-    `name='${SNAPSHOT_FILENAME}' and '${folderId}' in parents and trashed=false`,
+    `name='${snapshotFilename()}' and '${folderId}' in parents and trashed=false`,
   );
   const r = await driveFetch(
     `${DRIVE_API}/files?q=${q}&fields=files(id,name,modifiedTime)&spaces=drive`,
@@ -258,7 +297,7 @@ async function uploadSnapshot(
   // Multipart upload: metadata + media in one request. Per Google's
   // multipart upload spec — boundary delimits the two parts.
   const boundary = 'monii-' + Math.random().toString(36).slice(2);
-  const meta: Record<string, any> = { name: SNAPSHOT_FILENAME };
+  const meta: Record<string, any> = { name: snapshotFilename() };
   if (!fileId) meta.parents = [folderId];
 
   const body = buildMultipart(boundary, JSON.stringify(meta), bytes);

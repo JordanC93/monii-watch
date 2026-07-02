@@ -80,6 +80,11 @@ const RecoverPage = lazy(() => import('./pages/RecoverPage').then((m) => ({ defa
 // Privacy + data-deletion explainer (Tier 13 #2 / App Store).
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then((m) => ({ default: m.PrivacyPage })));
 
+// Stable fallback for optional settings arrays. Never inline `?? []`
+// inside a Zustand selector (Iron Rule #21) — the fresh array reference
+// each render can trigger useSyncExternalStore re-render loops.
+const EMPTY_CELEBRATED_GOALS: string[] = [];
+
 function PageFallback() {
   return (
     <div className="p-8 text-fg-subtle text-[12.5px] flex items-center gap-2">
@@ -374,7 +379,8 @@ export default function App() {
   const txnsForGoal = useBudget((s) => s.transactions);
   const assignmentsForGoal = useBudget((s) => s.assignments);
   const month = useBudget((s) => s.selectedMonth);
-  const celebratedGoals = useBudget((s) => s.settings.celebratedGoals ?? []);
+  const celebratedGoalsRaw = useBudget((s) => s.settings.celebratedGoals);
+  const celebratedGoals = celebratedGoalsRaw ?? EMPTY_CELEBRATED_GOALS;
   useEffect(() => {
     if (!onboardingCompleted || currentModal !== null) return;
     const monthBudget = computeMonthBudgetCached(accounts, categories, txnsForGoal, assignmentsForGoal, month);
