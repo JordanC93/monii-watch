@@ -9,6 +9,7 @@ import { initPersistence, initSync } from './sync/provider';
 import { wireStoreToYjs } from './store/budget';
 import { installLogCapture } from './lib/logs';
 import { applyHostAttributes } from './lib/device';
+import { hasDriveToken } from './sync/localSecrets';
 
 async function bootstrap() {
   // Install log capture FIRST so boot-time errors land in the in-app viewer.
@@ -117,8 +118,11 @@ async function bootstrap() {
   initSync().catch((err) => console.warn('[sync] failed to start', err));
 
   // Optional Google Drive sync — lazy-imported so it never enters the
-  // cold-start bundle for users who haven't opted in.
-  if (getSettings().googleDriveEnabled && getSettings().googleAccessToken) {
+  // cold-start bundle for users who haven't opted in. The token is
+  // device-local (localSecrets, plain sync localStorage read); the
+  // legacy synced-settings check keeps pre-migration docs booting —
+  // startDriveSync migrates the token on first run.
+  if (getSettings().googleDriveEnabled && (hasDriveToken() || !!getSettings().googleAccessToken)) {
     import('./sync/driveProvider')
       .then((m) => m.startDriveSync())
       .catch((err) => console.warn('[drive] failed to start', err));

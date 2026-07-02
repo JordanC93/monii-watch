@@ -101,33 +101,52 @@ export function createWorkspace(label: string): Workspace {
   return ws;
 }
 
+export type DeleteWorkspaceResult =
+  | { ok: true }
+  | { ok: false; reason: 'blocked' | 'timeout' | 'error' };
+
 /**
- * Remove a workspace from the registry AND delete its IndexedDB
- * database. Cannot remove the default workspace. If the user is
- * currently on the workspace they're removing, switch to default
- * first (via reload).
+ * Delete a workspace's IndexedDB database, then remove it from the
+ * registry. Cannot remove the default workspace.
+ *
+ * Ordering matters: the DATABASE deletion must succeed BEFORE the
+ * registry entry is removed. `deleteDatabase` fires `blocked` when
+ * the workspace is open in another tab/window; the old code removed
+ * the registry entry up-front and resolved on a timeout regardless,
+ * which orphaned the (still fully populated) database on disk forever
+ * — no registry entry means nothing would ever retry the delete. On
+ * failure we now keep the registry entry and report why, so the
+ * caller can tell the user to close the other tabs and try again.
  */
-export async function deleteWorkspace(workspaceId: string): Promise<void> {
-  if (workspaceId === 'default') return;
+export async function deleteWorkspace(workspaceId: string): Promise<DeleteWorkspaceResult> {
+  if (workspaceId === 'default') return { ok: false, reason: 'error' };
   const cur = listWorkspaces();
   const ws = cur.find((w) => w.id === workspaceId);
-  if (!ws) return;
+  // Already gone from the registry — nothing to do.
+  if (!ws) return { ok: true };
+  // Delete the IndexedDB database FIRST. Only a confirmed deletion
+  // may remove the registry entry.
+  const result = await new Promise<DeleteWorkspaceResult>((resolve) => {
+    let done = false;
+    const finish = (r: DeleteWorkspaceResult) => { if (!done) { done = true; resolve(r); } };
+    try {
+      const req = indexedDB.deleteDatabase(ws.dbName);
+      req.onsuccess = () => finish({ ok: true });
+      req.onerror = () => finish({ ok: false, reason: 'error' });
+      // Another tab/window holds the database open. Give it a short
+      // grace period in case the connection closes (some browsers
+      // fire `blocked` and then complete anyway); otherwise fail so
+      // the caller keeps the registry entry and can retry later.
+      req.onblocked = () => setTimeout(() => finish({ ok: false, reason: 'blocked' }), 1500);
+      // Safety net — some engines never fire ANY event in edge cases.
+      setTimeout(() => finish({ ok: false, reason: 'timeout' }), 5000);
+    } catch { finish({ ok: false, reason: 'error' }); }
+  });
+  if (!result.ok) return result;
+  // Data is confirmed gone — now it's safe to drop the registry entry.
   try {
     localStorage.setItem(REGISTRY_KEY, JSON.stringify(cur.filter((w) => w.id !== workspaceId)));
   } catch {}
-  // Delete the IndexedDB database. Awaiting completion so the caller
-  // knows the data is gone.
-  await new Promise<void>((resolve) => {
-    let done = false;
-    const finish = () => { if (!done) { done = true; resolve(); } };
-    try {
-      const req = indexedDB.deleteDatabase(ws.dbName);
-      req.onsuccess = finish;
-      req.onerror = finish;
-      req.onblocked = () => setTimeout(finish, 1500);
-      setTimeout(finish, 3000);
-    } catch { finish(); }
-  });
   // Clear any cached cross-workspace summary so the widget doesn't
   // show stale data for a workspace that no longer exists.
   clearWorkspaceSummary(workspaceId);
@@ -135,6 +154,7 @@ export async function deleteWorkspace(workspaceId: string): Promise<void> {
   if (getActiveWorkspaceId() === workspaceId) {
     switchWorkspace('default');
   }
+  return { ok: true };
 }
 
 function ensureUniqueSlug(base: string): string {

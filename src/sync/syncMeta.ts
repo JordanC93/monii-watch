@@ -61,3 +61,35 @@ export function subscribeSyncMeta(cb: Listener): () => void {
   listeners.add(cb);
   return () => { listeners.delete(cb); };
 }
+
+// -- Remote snapshot stamp (optimistic concurrency) ------------------------
+//
+// The HTTP-date `Last-Modified` value the server reported for the remote
+// snapshot the last time THIS device pulled or pushed it. The
+// personal-server provider sends it back as `If-Unmodified-Since` on push
+// so the server can 412 when another device pushed in between (instead of
+// silently overwriting its snapshot). Per-device state, same rationale as
+// the last-synced timestamps above.
+
+const STAMP_KEY_PREFIX = 'monii:last-remote-stamp:';
+
+function stampKeyFor(transport: SyncMetaTransport): string {
+  return `${STAMP_KEY_PREFIX}${transport}`;
+}
+
+/** Last-seen remote `Last-Modified` (HTTP-date string), or '' if unknown. */
+export function getLastRemoteStamp(transport: SyncMetaTransport): string {
+  try {
+    return localStorage.getItem(stampKeyFor(transport)) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/** Record (or clear, with '') the last-seen remote Last-Modified value. */
+export function setLastRemoteStamp(transport: SyncMetaTransport, value: string): void {
+  try {
+    if (value) localStorage.setItem(stampKeyFor(transport), value);
+    else localStorage.removeItem(stampKeyFor(transport));
+  } catch { /* private mode / quota — non-fatal, push degrades to unconditional */ }
+}

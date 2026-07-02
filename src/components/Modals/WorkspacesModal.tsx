@@ -41,8 +41,19 @@ export function WorkspacesModal({ open, onClose }: { open: boolean; onClose: () 
   async function remove(id: string) {
     const ws = workspaces.find((w) => w.id === id);
     if (!ws || id === 'default') return;
+    // Deleting the ACTIVE workspace can't work from inside it — this
+    // tab's own persistence connection holds the database open, so the
+    // delete would always come back blocked. Tell the user the fix.
+    if (id === activeId) {
+      toast.error('Switch to another workspace first, then delete this one.');
+      return;
+    }
     if (!confirm(`Delete workspace "${ws.label}" and ALL its data?\n\nThis cannot be undone. Export a backup first if you need it.`)) return;
-    await deleteWorkspace(id);
+    const result = await deleteWorkspace(id);
+    if (!result.ok) {
+      toast.error(`Couldn't delete "${ws.label}" — close this budget's other tabs/windows first, then try again.`);
+      return;
+    }
     toast.success(`Deleted "${ws.label}"`);
     bump();
   }

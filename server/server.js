@@ -4,11 +4,19 @@
  * Runs on your Plex box / NAS / Raspberry Pi / cloud VM. Two services
  * on the same port:
  *
- *   1. WebSocket sync at every URL path (handled by y-websocket).
- *      Native apps and the web UI alike connect to
+ *   1. WebSocket sync at every URL path except /signaling (handled by
+ *      y-websocket). Native apps and the web UI alike connect to
  *      `ws://<host>:<port>/<doc-name>` to sync.
  *
- *   2. HTTP static file server at `/`. When a `public/` directory
+ *   2. y-webrtc signaling at `ws://<host>:<port>/signaling`. Point the
+ *      app's "Signaling server" field (Settings → Sync → self-hosted
+ *      section) here to replace the public signaling.yjs.dev dependency.
+ *      Peers then discover each other through YOUR box. The signaling
+ *      server only relays discovery messages — the WebRTC data stream
+ *      itself stays peer-to-peer and phrase-encrypted. Honors
+ *      MONII_SYNC_TOKEN exactly like the sync path.
+ *
+ *   3. HTTP static file server at `/`. When a `public/` directory
  *      exists alongside this script, every browser GET serves the
  *      pre-built Monii Watch SPA from there. That gives any device on
  *      the network access to the full app via a URL — no native install
@@ -37,9 +45,10 @@
  *   MONII_BACKUP_KEEP Number of historical snapshots to retain per
  *                     workspace (default 10). Older snapshots roll off.
  *   MONII_SYNC_TOKEN  Optional bearer token for the WebSocket sync
- *                     endpoint. When set, clients must include
- *                     `?token=<token>` on the ws URL (the app supports
- *                     pasting the server URL with `?token=...`).
+ *                     endpoint AND the /signaling endpoint. When set,
+ *                     clients must include `?token=<token>` on the ws
+ *                     URL (the app supports pasting the server URL
+ *                     with `?token=...`).
  *   MONII_MAX_WORKSPACES Cap on distinct backup workspaces (default 50)
  *                     — bounds total disk use since retention is
  *                     per-workspace.
@@ -64,7 +73,11 @@ import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { WebSocketServer } from 'ws';
-import { setupWSConnection, setPersistence } from 'y-websocket/bin/utils.js';
+// y-websocket is pinned to 1.5.x: the 2.x/3.x releases dropped the bundled
+// server utils (`bin/utils`) entirely, so a fresh install against ^3.0.0
+// couldn't boot. 1.5.x exposes the module via its exports map as
+// 'y-websocket/bin/utils' (no .js suffix).
+import { setupWSConnection, setPersistence } from 'y-websocket/bin/utils';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -206,8 +219,11 @@ function backupAuthOk(req) {
  */
 function corsHeaders(req) {
   const base = {
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, If-Unmodified-Since',
     'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+    // The app reads Last-Modified to implement optimistic concurrency on
+    // snapshot pushes — without exposing it, browser fetch() hides it.
+    'Access-Control-Expose-Headers': 'Last-Modified',
   };
   if (ALLOWED_ORIGINS.length > 0) {
     const origin = req.headers.origin || '';
@@ -328,6 +344,30 @@ async function handleBackupRoute(req, res, urlPath) {
       const stamp = Date.now();
       const versioned = path.join(wsDir, 'snapshots', `${stamp}.bin`);
       const latest = path.join(wsDir, 'snapshot.bin');
+      // Optimistic concurrency: when the client sends If-Unmodified-Since
+      // (the Last-Modified it saw on its last pull/push), refuse the write
+      // with 412 if the stored snapshot is NEWER — another device pushed
+      // in between, and overwriting would silently drop its changes. The
+      // client reacts by pulling (merging the newer state) and pushing
+      // again. HTTP-dates have second precision, so compare at seconds.
+      const precondition = req.headers['if-unmodified-since'];
+      if (precondition) {
+        const since = Date.parse(String(precondition));
+        if (!Number.isNaN(since)) {
+          try {
+            const existing = fs.statSync(latest);
+            if (Math.floor(existing.mtimeMs / 1000) > Math.floor(since / 1000)) {
+              res.writeHead(412, {
+                'Content-Type': 'text/plain; charset=utf-8',
+                'Last-Modified': existing.mtime.toUTCString(),
+                ...corsHeaders(req),
+              });
+              res.end('Snapshot changed since your last pull\n');
+              return;
+            }
+          } catch {} // no existing snapshot — nothing to conflict with
+        }
+      }
       try {
         fs.writeFileSync(versioned, body);
         fs.writeFileSync(latest, body);
@@ -339,7 +379,15 @@ async function handleBackupRoute(req, res, urlPath) {
         for (const name of all.slice(BACKUP_KEEP)) {
           try { fs.unlinkSync(path.join(wsDir, 'snapshots', name)); } catch {}
         }
-        jsonResponse(req, res, 200, { ok: true, size: body.length, stamp });
+        // Last-Modified of the file just written — the client records it
+        // and sends it back as If-Unmodified-Since on its next push.
+        const written = fs.statSync(latest);
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Last-Modified': written.mtime.toUTCString(),
+          ...corsHeaders(req),
+        });
+        res.end(JSON.stringify({ ok: true, size: body.length, stamp }));
       } catch (e) {
         plainResponse(req, res, 500, `Write failed: ${e?.message ?? e}\n`);
       }
@@ -514,21 +562,134 @@ function serveStatic(req, res) {
 }
 
 // -----------------------------------------------------------------------
+// y-webrtc signaling (path /signaling).
+//
+// A minimal publish/subscribe relay compatible with y-webrtc's signaling
+// protocol (modeled on y-webrtc's reference bin/server.js). Messages are
+// JSON over ws:
+//
+//   { type: 'subscribe',   topics: string[] }  join each topic
+//   { type: 'unsubscribe', topics: string[] }  leave each topic
+//   { type: 'publish',     topic, ... }        relayed verbatim to every
+//                                              OTHER subscriber of topic
+//   { type: 'ping' }                        →  { type: 'pong' }
+//
+// The relay never sees budget data — y-webrtc encrypts its payloads with
+// the pairing-phrase-derived password before they reach signaling, and
+// the actual document sync flows peer-to-peer once discovery completes.
+// -----------------------------------------------------------------------
+const SIGNALING_PING_INTERVAL_MS = 30_000;
+const MAX_TOPICS_PER_CONN = 64;    // one client should never need more
+const MAX_TOPICS_TOTAL = 10_000;   // bound server memory against abuse
+const WS_OPEN = 1;
+
+/** topic name -> Set of subscribed ws connections */
+const signalingTopics = new Map();
+
+function setupSignalingConnection(ws) {
+  const subscribed = new Set();
+  let alive = true;
+
+  const pingTimer = setInterval(() => {
+    if (!alive) {
+      ws.terminate();
+      return;
+    }
+    alive = false;
+    try { ws.ping(); } catch { ws.terminate(); }
+  }, SIGNALING_PING_INTERVAL_MS);
+
+  ws.on('pong', () => { alive = true; });
+
+  ws.on('close', () => {
+    clearInterval(pingTimer);
+    for (const topic of subscribed) {
+      const subs = signalingTopics.get(topic);
+      if (subs) {
+        subs.delete(ws);
+        if (subs.size === 0) signalingTopics.delete(topic);
+      }
+    }
+    subscribed.clear();
+  });
+
+  ws.on('error', () => { try { ws.terminate(); } catch {} });
+
+  ws.on('message', (data) => {
+    let msg;
+    try { msg = JSON.parse(data.toString()); } catch { return; }
+    if (!msg || typeof msg.type !== 'string') return;
+
+    switch (msg.type) {
+      case 'subscribe': {
+        const topics = Array.isArray(msg.topics) ? msg.topics : [];
+        for (const topic of topics) {
+          if (typeof topic !== 'string' || topic.length === 0 || topic.length > 512) continue;
+          if (subscribed.has(topic)) continue;
+          if (subscribed.size >= MAX_TOPICS_PER_CONN) break;
+          let subs = signalingTopics.get(topic);
+          if (!subs) {
+            if (signalingTopics.size >= MAX_TOPICS_TOTAL) continue;
+            subs = new Set();
+            signalingTopics.set(topic, subs);
+          }
+          subs.add(ws);
+          subscribed.add(topic);
+        }
+        break;
+      }
+      case 'unsubscribe': {
+        const topics = Array.isArray(msg.topics) ? msg.topics : [];
+        for (const topic of topics) {
+          if (typeof topic !== 'string') continue;
+          const subs = signalingTopics.get(topic);
+          if (subs) {
+            subs.delete(ws);
+            if (subs.size === 0) signalingTopics.delete(topic);
+          }
+          subscribed.delete(topic);
+        }
+        break;
+      }
+      case 'publish': {
+        if (typeof msg.topic !== 'string') return;
+        const subs = signalingTopics.get(msg.topic);
+        if (!subs) return;
+        const out = JSON.stringify(msg);
+        for (const peer of subs) {
+          if (peer === ws) continue; // relay to every OTHER subscriber
+          if (peer.readyState !== WS_OPEN) continue;
+          try { peer.send(out); } catch {}
+        }
+        break;
+      }
+      case 'ping': {
+        try { ws.send(JSON.stringify({ type: 'pong' })); } catch {}
+        break;
+      }
+    }
+  });
+}
+
+// -----------------------------------------------------------------------
 // HTTP + WebSocket server on one port.
 // -----------------------------------------------------------------------
 const server = http.createServer(serveStatic);
 const wss = new WebSocketServer({ noServer: true });
 
 server.on('upgrade', (request, socket, head) => {
-  // Any WebSocket upgrade request becomes a y-websocket sync session.
-  // The URL path is the doc name (a SHA-256 derivation of the pairing
-  // phrase as of v0.7.31 — the raw phrase no longer travels the wire).
+  // WebSocket upgrades are routed by path:
+  //   /signaling        → the y-webrtc signaling relay above
+  //   everything else   → a y-websocket sync session, where the URL path
+  //                       is the doc name (a SHA-256 derivation of the
+  //                       pairing phrase as of v0.7.31 — the raw phrase
+  //                       no longer travels the wire).
   // Browsers GET'ing the same paths get the static file handler instead,
   // because GET is HTTP and doesn't include `Upgrade: websocket`.
   //
   // Optional auth: when MONII_SYNC_TOKEN is set, the client must pass
   // `?token=<token>` on the ws URL (the app forwards it from a server
-  // URL entered as `wss://host?token=...`).
+  // URL entered as `wss://host?token=...`). Applies to BOTH paths.
   if (SYNC_TOKEN) {
     let ok = false;
     try {
@@ -540,6 +701,16 @@ server.on('upgrade', (request, socket, head) => {
       socket.destroy();
       return;
     }
+  }
+  let pathname = '/';
+  try {
+    pathname = new URL(request.url, 'http://localhost').pathname;
+  } catch {}
+  if (pathname === '/signaling' || pathname === '/signaling/') {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      setupSignalingConnection(ws);
+    });
+    return;
   }
   wss.handleUpgrade(request, socket, head, (ws) => {
     setupWSConnection(ws, request, { gc: true });
@@ -553,6 +724,7 @@ server.listen(PORT, HOST, () => {
     console.log(`[monii-sync] web UI:  http://${displayHost}:${PORT}/`);
   }
   console.log(`[monii-sync] sync ws: ws://${displayHost}:${PORT}/`);
+  console.log(`[monii-sync] webrtc signaling: ws://${displayHost}:${PORT}/signaling`);
   if (backupEnabled) {
     console.log(`[monii-sync] backup:  http://${displayHost}:${PORT}/backup/<workspace>/snapshot.bin`);
   }

@@ -43,6 +43,7 @@ const initialSettings: Settings = {
   googleClientId: '',
   googleAccessToken: '',
   googleAccessTokenExpiresAt: 0,
+  syncSignalingUrl: '',
   googleDriveFileId: '',
   googleDriveLastSyncedAt: 0,
   personalBackupEnabled: false,
@@ -289,16 +290,33 @@ export function wireStoreToYjs() {
         m.applyAccentForContext(concreteForAccent, settings.glassPalette, settings.accentOverrides ?? {}));
     }
   });
-  doc.getMap(MAPS.accounts).observeDeep(refreshAccounts);
-  doc.getMap(MAPS.groups).observeDeep(refreshGroups);
-  doc.getMap(MAPS.categories).observeDeep(refreshCategories);
-  doc.getMap(MAPS.payees).observeDeep(refreshPayees);
-  doc.getMap(MAPS.txns).observeDeep(refreshTransactions);
-  doc.getMap(MAPS.assignments).observeDeep(refreshAssignments);
-  doc.getMap(MAPS.scheduled).observeDeep(refreshScheduled);
-  doc.getMap(MAPS.trips).observeDeep(refreshTrips);
-  doc.getMap(MAPS.autoRules).observeDeep(refreshAutoRules);
-  doc.getMap(MAPS.budgetTemplates).observeDeep(refreshBudgetTemplates);
-  doc.getMap(MAPS.savedSearches).observeDeep(refreshSavedSearches);
-  doc.getMap(MAPS.nwSnapshots).observeDeep(refreshNwSnapshots);
+  // Coalesce refreshes to one per microtask. Yjs fires observeDeep once
+  // per TRANSACTION, so a burst of transactions in one tick (a sync
+  // catch-up applying many remote updates, a bulk import loop) would
+  // otherwise re-materialize + re-sort the full array N times — at
+  // 10-20k transactions that's an O(n log n) sort per event. Every
+  // in-repo reader consults the Yjs maps directly (never the store),
+  // and the store's own getState() consumers all read BEFORE mutating,
+  // so a one-microtask delay is unobservable to them; React subscribers
+  // re-render on the next tick either way.
+  function coalesced(fn: () => void): () => void {
+    let scheduled = false;
+    return () => {
+      if (scheduled) return;
+      scheduled = true;
+      queueMicrotask(() => { scheduled = false; fn(); });
+    };
+  }
+  doc.getMap(MAPS.accounts).observeDeep(coalesced(refreshAccounts));
+  doc.getMap(MAPS.groups).observeDeep(coalesced(refreshGroups));
+  doc.getMap(MAPS.categories).observeDeep(coalesced(refreshCategories));
+  doc.getMap(MAPS.payees).observeDeep(coalesced(refreshPayees));
+  doc.getMap(MAPS.txns).observeDeep(coalesced(refreshTransactions));
+  doc.getMap(MAPS.assignments).observeDeep(coalesced(refreshAssignments));
+  doc.getMap(MAPS.scheduled).observeDeep(coalesced(refreshScheduled));
+  doc.getMap(MAPS.trips).observeDeep(coalesced(refreshTrips));
+  doc.getMap(MAPS.autoRules).observeDeep(coalesced(refreshAutoRules));
+  doc.getMap(MAPS.budgetTemplates).observeDeep(coalesced(refreshBudgetTemplates));
+  doc.getMap(MAPS.savedSearches).observeDeep(coalesced(refreshSavedSearches));
+  doc.getMap(MAPS.nwSnapshots).observeDeep(coalesced(refreshNwSnapshots));
 }

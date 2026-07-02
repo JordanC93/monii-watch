@@ -54,6 +54,7 @@ const DEFAULT_SETTINGS: Settings = {
   googleClientId: '',
   googleAccessToken: '',
   googleAccessTokenExpiresAt: 0,
+  syncSignalingUrl: '',
   googleDriveFileId: '',
   googleDriveLastSyncedAt: 0,
   personalBackupEnabled: false,

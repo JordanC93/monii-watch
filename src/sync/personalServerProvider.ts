@@ -29,7 +29,7 @@
 import { getDoc, tx, MAPS } from './doc';
 import { getSettings } from '../db/repo';
 import { encryptBytes, decryptBytes } from './crypto';
-import { setLastSyncedAt } from './syncMeta';
+import { setLastSyncedAt, getLastRemoteStamp, setLastRemoteStamp } from './syncMeta';
 import { getActiveWorkspaceId } from '../lib/workspaces';
 import * as Y from 'yjs';
 
@@ -138,7 +138,9 @@ async function pull(): Promise<void> {
   try {
     const r = await fetch(url, { method: 'GET', headers: authHeaders() });
     if (r.status === 404) {
-      // No snapshot yet — first device. Push our current state.
+      // No snapshot yet — first device. Clear any stale stamp (the
+      // remote we last saw is gone) and push our current state.
+      setLastRemoteStamp('personal-server', '');
       await push();
       return;
     }
@@ -147,6 +149,9 @@ async function pull(): Promise<void> {
     const phrase = getSettings().syncRoom;
     const update = await decryptBytes(blob, phrase);
     Y.transact(getDoc(), () => Y.applyUpdate(getDoc(), update), ORIGIN_REMOTE_PULL);
+    // Remember the snapshot's Last-Modified so the next push can prove it
+    // saw the latest remote state (If-Unmodified-Since precondition).
+    setLastRemoteStamp('personal-server', r.headers.get('Last-Modified') ?? '');
     // Device-local, NOT settings — a settings write is a doc update and
     // would re-fire the push observer forever. See syncMeta.ts.
     setLastSyncedAt('personal-server', Date.now());
@@ -157,20 +162,48 @@ async function pull(): Promise<void> {
   }
 }
 
+/**
+ * One PUT attempt, carrying the last-seen remote Last-Modified as an
+ * If-Unmodified-Since precondition. A server that supports it responds
+ * 412 when another device pushed a newer snapshot since our last pull —
+ * older servers ignore the header and never 412, which degrades
+ * gracefully to the previous unconditional-overwrite behavior.
+ */
+async function pushOnce(url: string): Promise<Response> {
+  const phrase = getSettings().syncRoom;
+  const update = Y.encodeStateAsUpdate(getDoc());
+  const blob = await encryptBytes(update, phrase);
+  const stamp = getLastRemoteStamp('personal-server');
+  return fetch(url, {
+    method: 'PUT',
+    headers: {
+      ...authHeaders(),
+      'Content-Type': 'application/octet-stream',
+      ...(stamp ? { 'If-Unmodified-Since': stamp } : {}),
+    },
+    body: new Blob([blob.buffer.slice(blob.byteOffset, blob.byteOffset + blob.byteLength) as ArrayBuffer]),
+  });
+}
+
 async function push(): Promise<void> {
   const url = endpointFor('snapshot');
   if (!url) return;
   setStatus({ kind: 'syncing', direction: 'push' });
   try {
-    const phrase = getSettings().syncRoom;
-    const update = Y.encodeStateAsUpdate(getDoc());
-    const blob = await encryptBytes(update, phrase);
-    const r = await fetch(url, {
-      method: 'PUT',
-      headers: { ...authHeaders(), 'Content-Type': 'application/octet-stream' },
-      body: new Blob([blob.buffer.slice(blob.byteOffset, blob.byteOffset + blob.byteLength) as ArrayBuffer]),
-    });
+    let r = await pushOnce(url);
+    if (r.status === 412) {
+      // Another device pushed since our last pull. Record the newer
+      // snapshot's stamp, pull it (Yjs merges it into the live doc), then
+      // retry the push ONCE with the merged state.
+      setLastRemoteStamp('personal-server', r.headers.get('Last-Modified') ?? '');
+      await pull();
+      setStatus({ kind: 'syncing', direction: 'push' });
+      r = await pushOnce(url);
+    }
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    // The PUT response's Last-Modified is the file we just wrote — record
+    // it so our own next push passes the precondition without a pull.
+    setLastRemoteStamp('personal-server', r.headers.get('Last-Modified') ?? '');
     // Device-local — see comment in pull().
     setLastSyncedAt('personal-server', Date.now());
     setStatus({ kind: 'connected' });

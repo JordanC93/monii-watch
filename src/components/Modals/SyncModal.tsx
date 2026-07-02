@@ -6,10 +6,13 @@ import { Button } from '../ui/Button';
 import { useBudget } from '../../store/budget';
 import {
   connectWebrtc, getSyncDetail, onSyncDetail, peerCount, setSyncEnabled,
-  setSyncRoom, setSyncServerUrl, type SyncDetail,
+  setSyncRoom, setSyncServerUrl, setSyncSignalingUrl, type SyncDetail,
 } from '../../sync/provider';
 import { setSettingsField } from '../../db/repo';
 import { getLastSyncedAt, subscribeSyncMeta } from '../../sync/syncMeta';
+import {
+  getGoogleAccessToken, getGoogleAccessTokenExpiresAt, setGoogleAccessToken, subscribeLocalSecrets,
+} from '../../sync/localSecrets';
 import { newSyncRoom } from '../../domain/id';
 import { Cloud, CloudOff, Loader2, RefreshCw, Copy, Check, ShieldCheck, Server, Wifi, AlertTriangle, HardDrive } from 'lucide-react';
 import { toast } from '../../lib/toast';
@@ -36,14 +39,17 @@ export function SyncModal({ open, onClose }: { open: boolean; onClose: () => voi
   const settings = useBudget((s) => s.settings);
   const [room, setRoom] = useState(settings.syncRoom);
   const [serverUrl, setServerUrl] = useState(settings.syncServerUrl ?? '');
-  const [showAdvanced, setShowAdvanced] = useState(!!settings.syncServerUrl);
+  const [signalingUrl, setSignalingUrl] = useState(settings.syncSignalingUrl ?? '');
+  const [showAdvanced, setShowAdvanced] = useState(!!settings.syncServerUrl || !!settings.syncSignalingUrl);
   const [detail, setDetail] = useState<SyncDetail>(getSyncDetail());
   const [copied, setCopied] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [signalingSavedFlash, setSignalingSavedFlash] = useState(false);
 
   useEffect(() => onSyncDetail(setDetail), []);
   useEffect(() => { setRoom(settings.syncRoom); }, [settings.syncRoom]);
   useEffect(() => { setServerUrl(settings.syncServerUrl ?? ''); }, [settings.syncServerUrl]);
+  useEffect(() => { setSignalingUrl(settings.syncSignalingUrl ?? ''); }, [settings.syncSignalingUrl]);
 
   function toggle() { setSyncEnabled(!settings.syncEnabled); }
 
@@ -67,6 +73,14 @@ export function SyncModal({ open, onClose }: { open: boolean; onClose: () => voi
     setSyncServerUrl(v);
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 1500);
+  }
+
+  function applySignaling() {
+    const v = signalingUrl.trim();
+    if (v === (settings.syncSignalingUrl ?? '')) return;
+    setSyncSignalingUrl(v);
+    setSignalingSavedFlash(true);
+    setTimeout(() => setSignalingSavedFlash(false), 1500);
   }
 
   const status = detail.status;
@@ -225,6 +239,24 @@ export function SyncModal({ open, onClose }: { open: boolean; onClose: () => voi
                     {savedFlash ? <><Check size={13} /> Saved</> : 'Save'}
                   </Button>
                 </div>
+                <div>
+                  <label className="text-[11px] text-fg-subtle">Signaling server (optional)</label>
+                  <div className="flex gap-2 mt-0.5">
+                    <Input
+                      value={signalingUrl}
+                      onChange={(e) => setSignalingUrl(e.target.value)}
+                      onBlur={applySignaling}
+                      className="flex-1 font-mono text-[12px]"
+                      placeholder="wss://sync.myhouse.com/signaling"
+                    />
+                    <Button variant={signalingSavedFlash ? 'primary' : 'secondary'} onClick={applySignaling}>
+                      {signalingSavedFlash ? <><Check size={13} /> Saved</> : 'Save'}
+                    </Button>
+                  </div>
+                  <div className="text-[10.5px] text-fg-subtle mt-1 leading-snug">
+                    Where peer-to-peer devices find each other. Leave empty to use the public default; a self-hosted server exposes wss://host:port/signaling.
+                  </div>
+                </div>
                 <div className="flex items-center gap-3 text-[11px] text-fg-subtle">
                   <div className="flex items-center gap-1">
                     <Wifi size={11} className={detail.webrtcActive ? 'text-positive' : 'text-fg-subtle'} />
@@ -338,8 +370,9 @@ function DriveSection() {
       setSettingsField('googleClientId', clientId.trim());
       const m = await import('../../sync/driveProvider');
       const { token, expiresAt } = await m.authorize(clientId.trim());
-      setSettingsField('googleAccessToken', token);
-      setSettingsField('googleAccessTokenExpiresAt', expiresAt);
+      // Device-local (localSecrets), NOT synced settings — the token is a
+      // bearer credential and must never replicate to paired devices.
+      setGoogleAccessToken(token, expiresAt);
       setSettingsField('googleDriveEnabled', true);
       await m.startDriveSync();
       toast.success('Connected to Google Drive');
@@ -380,8 +413,15 @@ function DriveSection() {
   // Device-local timestamp (syncMeta), NOT the legacy synced settings
   // field — writing it into settings caused an infinite push loop.
   const lastSyncedAt = useSyncExternalStore(subscribeSyncMeta, () => getLastSyncedAt('drive'));
-  const tokenExpired = enabled && (!settings.googleAccessToken
-    || (settings.googleAccessTokenExpiresAt && settings.googleAccessTokenExpiresAt < Date.now()));
+  // Token is device-local (localSecrets), not synced settings. The
+  // settings fallback covers pre-migration docs whose token hasn't been
+  // moved yet (startDriveSync migrates it on first run).
+  const localToken = useSyncExternalStore(subscribeLocalSecrets, getGoogleAccessToken);
+  const localTokenExp = useSyncExternalStore(subscribeLocalSecrets, getGoogleAccessTokenExpiresAt);
+  const effectiveToken = localToken || settings.googleAccessToken;
+  const effectiveExp = localToken ? localTokenExp : settings.googleAccessTokenExpiresAt;
+  const tokenExpired = enabled && (!effectiveToken
+    || (effectiveExp && effectiveExp < Date.now()));
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">

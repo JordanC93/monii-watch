@@ -941,6 +941,15 @@ export type Settings = {
    */
   syncServerUrl: string;
   /**
+   * v0.7.31 — optional custom WebRTC signaling server URL (wss://...).
+   * When set, it REPLACES the public default (`signaling.yjs.dev`) so
+   * peer discovery stays entirely self-hosted — the last third-party
+   * dependency in the sync path. The self-hosted server exposes a
+   * compatible endpoint at `/signaling` (see server/server.js).
+   * Empty = public default.
+   */
+  syncSignalingUrl?: string;
+  /**
    * Optional **end-to-end-encrypted Google Drive sync**. When enabled,
    * a debounced upload of the Yjs state lands in the user's own Drive
    * (in a `Monii Watch` folder) as an opaque AES-GCM-encrypted blob. The

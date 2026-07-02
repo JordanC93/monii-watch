@@ -21,6 +21,7 @@ import { findFuzzyPayeeMatch, type PayeeMatchResult } from '../../conversation/p
 import { detectTransferFromText, type TransferMatchResult } from '../../conversation/transferDetect';
 import { todayIso } from '../../domain/date';
 import { parseAmountToCents } from '../../domain/calc';
+import { deriveDisplayAmountCents, formatAmountText } from '../../domain/statementImport';
 import { useFormatMoney, useFormatDate } from '../../lib/format';
 import { cn } from '../../lib/cn';
 import { toast } from '../../lib/toast';
@@ -1496,9 +1497,9 @@ function statementRowToDraft(r: ParsedStatementRow, categories: any[]): Statemen
     vendor: r.vendor,
     // v0.7.30 — always 2-decimal format. `.toString()` would emit
     // "-3" for $-3.00 (trailing zeros stripped) and produce a mixed
-    // table like "-3 / -14.1 / -11.92". `.toFixed(2)` keeps every row
-    // visually aligned and looks right against the tabular font.
-    amountText: (r.amount / 100).toFixed(2),
+    // table like "-3 / -14.1 / -11.92". formatAmountText keeps every
+    // row visually aligned and looks right against the tabular font.
+    amountText: formatAmountText(r.amount),
     categoryId,
     isIncome: r.isIncome,
     rawDescription: r.rawDescription,
@@ -1517,6 +1518,7 @@ function statementRowToDraft(r: ParsedStatementRow, categories: any[]): Statemen
  * sign that'll be saved, so the user reviews the post-flip number
  * instead of the parser's raw output.
  *
+ * Sign rules live in domain/statementImport.ts (Iron Rule #28):
  *  - 'credit-card' + isCardPayment → display +abs (inflow on the card)
  *  - 'bank' / 'other' + isCardPayment → display the parser's original
  *    sign (preserve as printed; on a checking statement that's
@@ -1528,10 +1530,10 @@ function applyKindToRows<T extends StatementRowDraft>(rows: T[], kind: 'credit-c
     if (!r.isCardPayment) return r;
     // Never clobber a manual correction — re-deriving from
     // originalAmount would silently revert the user's edit every time
-    // they touched the kind selector.
+    // they touched the kind selector. (UI state, so the skip stays here
+    // rather than in the domain function.)
     if (r.amountEdited) return r;
-    const target = kind === 'credit-card' ? Math.abs(r.originalAmount) : r.originalAmount;
-    return { ...r, amountText: (target / 100).toFixed(2) };
+    return { ...r, amountText: formatAmountText(deriveDisplayAmountCents(kind, r)) };
   });
 }
 

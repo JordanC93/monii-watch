@@ -47,6 +47,10 @@ import { getDoc } from './doc';
 import { getSettings, setSettingsField } from '../db/repo';
 import { encryptBytes, decryptBytes } from './crypto';
 import { setLastSyncedAt } from './syncMeta';
+import {
+  getGoogleAccessToken, getGoogleAccessTokenExpiresAt, setGoogleAccessToken,
+  clearGoogleAccessToken, getDriveLastSeenModifiedTime, setDriveLastSeenModifiedTime,
+} from './localSecrets';
 import { getActiveWorkspaceId } from '../lib/workspaces';
 import * as Y from 'yjs';
 
@@ -221,12 +225,32 @@ export function handleOAuthCallbackIfPresent(): boolean {
   return true;
 }
 
-/** Drop the token from settings; the user has to re-authorize. */
+/** Drop the device-local token; the user has to re-authorize. Also
+ *  blanks any legacy token still sitting in the synced settings fields
+ *  (pre-migration docs) so it stops replicating to paired devices. */
 export function signOut() {
+  clearGoogleAccessToken();
   setSettingsField('googleAccessToken', '');
   setSettingsField('googleAccessTokenExpiresAt', 0);
   setSettingsField('googleDriveFileId', '');
   setStatus({ kind: 'idle' });
+}
+
+/**
+ * One-time (per device) migration: the OAuth token used to live in the
+ * SYNCED settings map, which replicated it to every paired device.
+ * Move a legacy token into device-local storage and blank the synced
+ * fields. After this, each device holds its own token — paired devices
+ * that were (incorrectly) receiving the token via sync must
+ * re-authorize once.
+ */
+function migrateLegacyToken(): void {
+  if (getGoogleAccessToken()) return;
+  const s = getSettings();
+  if (!s.googleAccessToken) return;
+  setGoogleAccessToken(s.googleAccessToken, s.googleAccessTokenExpiresAt || 0);
+  setSettingsField('googleAccessToken', '');
+  setSettingsField('googleAccessTokenExpiresAt', 0);
 }
 
 // -- Drive REST helpers --------------------------------------------------
@@ -245,17 +269,24 @@ async function driveFetch(path: string, init: RequestInit = {}, token: string): 
 }
 
 async function ensureFolder(token: string): Promise<string> {
-  // Look for an existing folder we created.
+  // Oldest first — two devices doing a concurrent first-run can both
+  // pass the "no folder yet" check and each create one; ordering by
+  // createdTime asc makes every device converge on the SAME (oldest)
+  // folder on subsequent calls.
   const q = encodeURIComponent(
     `name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
   );
-  const r = await driveFetch(
-    `${DRIVE_API}/files?q=${q}&fields=files(id,name)&spaces=drive`,
-    {},
-    token,
-  );
-  const data = await r.json();
-  if (data.files && data.files.length > 0) return data.files[0].id as string;
+  const listFolders = async (): Promise<Array<{ id: string }>> => {
+    const r = await driveFetch(
+      `${DRIVE_API}/files?q=${q}&fields=files(id,name,createdTime)&orderBy=createdTime&spaces=drive`,
+      {},
+      token,
+    );
+    const data = await r.json();
+    return data.files ?? [];
+  };
+  let files = await listFolders();
+  if (files.length > 0) return files[0].id;
   // Create.
   const create = await driveFetch(
     `${DRIVE_API}/files`,
@@ -267,20 +298,40 @@ async function ensureFolder(token: string): Promise<string> {
     token,
   );
   const folder = await create.json();
-  return folder.id as string;
+  // Re-query: if a concurrent first-run created a folder between our
+  // find and our create, prefer the oldest so both devices converge.
+  files = await listFolders();
+  if (files.length > 1) {
+    console.warn(`[drive] ${files.length} app folders named "${FOLDER_NAME}" exist; using the oldest`);
+  }
+  return files[0]?.id ?? (folder.id as string);
 }
 
 async function findSnapshotFile(token: string, folderId: string): Promise<string | null> {
   const q = encodeURIComponent(
     `name='${snapshotFilename()}' and '${folderId}' in parents and trashed=false`,
   );
+  // Newest first — if concurrent first-runs left duplicate snapshot
+  // files behind, the most recently modified one carries the latest
+  // state and every subsequent push keeps updating that same file.
   const r = await driveFetch(
-    `${DRIVE_API}/files?q=${q}&fields=files(id,name,modifiedTime)&spaces=drive`,
+    `${DRIVE_API}/files?q=${q}&fields=files(id,name,modifiedTime)&orderBy=${encodeURIComponent('modifiedTime desc')}&spaces=drive`,
     {},
     token,
   );
   const data = await r.json();
-  return data.files?.[0]?.id ?? null;
+  const files: Array<{ id: string }> = data.files ?? [];
+  if (files.length > 1) {
+    console.warn(`[drive] ${files.length} snapshot files named "${snapshotFilename()}" exist; using the most recently modified`);
+  }
+  return files[0]?.id ?? null;
+}
+
+/** Fetch the remote snapshot's modifiedTime (RFC 3339). */
+async function getRemoteModifiedTime(token: string, fileId: string): Promise<string | null> {
+  const r = await driveFetch(`${DRIVE_API}/files/${fileId}?fields=modifiedTime`, {}, token);
+  const data = await r.json();
+  return (data.modifiedTime as string | undefined) ?? null;
 }
 
 async function downloadSnapshot(token: string, fileId: string): Promise<Uint8Array> {
@@ -293,7 +344,7 @@ async function uploadSnapshot(
   folderId: string,
   fileId: string | null,
   bytes: Uint8Array,
-): Promise<string> {
+): Promise<{ id: string; modifiedTime: string }> {
   // Multipart upload: metadata + media in one request. Per Google's
   // multipart upload spec — boundary delimits the two parts.
   const boundary = 'monii-' + Math.random().toString(36).slice(2);
@@ -301,9 +352,12 @@ async function uploadSnapshot(
   if (!fileId) meta.parents = [folderId];
 
   const body = buildMultipart(boundary, JSON.stringify(meta), bytes);
+  // `fields=id,modifiedTime` so the response tells us the new
+  // modifiedTime — recorded as "last seen" for the pre-push clobber
+  // guard without a second metadata round-trip.
   const url = fileId
-    ? `${DRIVE_UPLOAD_API}/files/${fileId}?uploadType=multipart`
-    : `${DRIVE_UPLOAD_API}/files?uploadType=multipart`;
+    ? `${DRIVE_UPLOAD_API}/files/${fileId}?uploadType=multipart&fields=${encodeURIComponent('id,modifiedTime')}`
+    : `${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=${encodeURIComponent('id,modifiedTime')}`;
   // Wrap in Blob so the body type satisfies the strict BodyInit on
   // TS 5.7+. Same bytes on the wire — fetch internally treats both the
   // Blob and the raw Uint8Array identically for a binary upload.
@@ -319,7 +373,7 @@ async function uploadSnapshot(
     token,
   );
   const data = await r.json();
-  return data.id as string;
+  return { id: data.id as string, modifiedTime: (data.modifiedTime as string) ?? '' };
 }
 
 function buildMultipart(boundary: string, metaJson: string, bytes: Uint8Array): Uint8Array {
@@ -356,11 +410,16 @@ async function pull(token: string): Promise<void> {
     await push(token);
     return;
   }
+  // Read modifiedTime BEFORE the download: if another device uploads
+  // between the two requests we record a time OLDER than the bytes we
+  // got, which just makes the next push re-pull — the safe direction.
+  const remoteModified = await getRemoteModifiedTime(token, fileId);
   const blob = await downloadSnapshot(token, fileId);
   const phrase = getSettings().syncRoom;
   const update = await decryptBytes(blob, phrase);
   // Apply with a tagged origin so our own observer skips the rebound.
   Y.transact(getDoc(), () => Y.applyUpdate(getDoc(), update), ORIGIN_REMOTE_PULL);
+  if (remoteModified) setDriveLastSeenModifiedTime(getActiveWorkspaceId(), remoteModified);
   // Device-local, NOT settings: writing the timestamp into the synced
   // settings map used to re-trigger the push observer forever (and
   // trigger peers' observers). See syncMeta.ts.
@@ -376,11 +435,26 @@ async function push(token: string): Promise<void> {
   if (!fileId) {
     fileId = (await findSnapshotFile(token, folderId)) ?? null as any;
   }
+  // Clobber guard. Drive v3 has no If-Match / precondition support on
+  // media uploads, so a true atomic compare-and-swap isn't possible —
+  // this check only SHRINKS the race window from "always" to the few
+  // seconds between the metadata read and the upload. If the remote
+  // snapshot changed since this device last pulled/pushed, merge it in
+  // first (Yjs merges are lossless), then upload the merged state.
+  if (fileId) {
+    const remote = await getRemoteModifiedTime(token, fileId);
+    const lastSeen = getDriveLastSeenModifiedTime(getActiveWorkspaceId());
+    if (remote && (!lastSeen || Date.parse(remote) > Date.parse(lastSeen))) {
+      await pull(token);
+      setStatus({ kind: 'syncing', direction: 'push' });
+    }
+  }
   const phrase = getSettings().syncRoom;
   const update = Y.encodeStateAsUpdate(getDoc());
   const blob = await encryptBytes(update, phrase);
-  const newFileId = await uploadSnapshot(token, folderId, fileId || null, blob);
-  if (newFileId !== fileId) setSettingsField('googleDriveFileId', newFileId);
+  const uploaded = await uploadSnapshot(token, folderId, fileId || null, blob);
+  if (uploaded.id !== fileId) setSettingsField('googleDriveFileId', uploaded.id);
+  if (uploaded.modifiedTime) setDriveLastSeenModifiedTime(getActiveWorkspaceId(), uploaded.modifiedTime);
   // Device-local — a settings write here would re-fire our own push
   // observer and loop forever. See syncMeta.ts.
   setLastSyncedAt('drive', Date.now());
@@ -390,9 +464,11 @@ async function push(token: string): Promise<void> {
 /** Wrap a sync op with token-expiry handling — on 401, surface to the UI
  *  so the user can re-authorize without losing their settings. */
 async function withToken<T>(fn: (token: string) => Promise<T>): Promise<T | null> {
-  const settings = getSettings();
-  const token = settings.googleAccessToken;
-  const exp = settings.googleAccessTokenExpiresAt;
+  // Device-local token (localSecrets), never the synced settings map.
+  // The migration is a no-op after its first run.
+  migrateLegacyToken();
+  const token = getGoogleAccessToken();
+  const exp = getGoogleAccessTokenExpiresAt();
   if (!token || (exp && exp < Date.now())) {
     setStatus({ kind: 'token-expired' });
     return null;
@@ -401,7 +477,7 @@ async function withToken<T>(fn: (token: string) => Promise<T>): Promise<T | null
     return await fn(token);
   } catch (err: any) {
     if (err?.message === 'TOKEN_EXPIRED') {
-      setSettingsField('googleAccessToken', '');
+      clearGoogleAccessToken();
       setStatus({ kind: 'token-expired' });
       return null;
     }
@@ -413,6 +489,9 @@ async function withToken<T>(fn: (token: string) => Promise<T>): Promise<T | null
 
 /** Bootstrap: pull once, then start the push observer + poll loop. */
 export async function startDriveSync(): Promise<void> {
+  // Move a legacy synced-settings token to device-local storage first
+  // (one-time per device) so the pull below finds it.
+  migrateLegacyToken();
   await withToken(pull);
   // Start watching for local changes — debounced upload after each.
   if (!docObserver) {

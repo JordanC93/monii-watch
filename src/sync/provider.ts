@@ -138,8 +138,14 @@ export async function initPersistence(): Promise<void> {
  * in parallel — they're independent transports.
  */
 export async function initSync(): Promise<void> {
-  if (!isSettingsLoaded()) {
+  // Poll briefly for the settings map to hydrate instead of a single
+  // 50 ms guess — slow devices (old iPhones, cold IndexedDB) can take
+  // longer, and starting with defaults would silently skip sync.
+  for (let i = 0; i < 20 && !isSettingsLoaded(); i++) {
     await new Promise((r) => setTimeout(r, 50));
+  }
+  if (!isSettingsLoaded()) {
+    console.warn('[sync] settings not loaded after 1s; proceeding with defaults');
   }
   installRemoteMergeNotifier();
   const settings = getSettings();
@@ -189,6 +195,24 @@ function installRemoteMergeNotifier(): void {
 let webrtcSeq = 0;
 let websocketSeq = 0;
 
+const DEFAULT_SIGNALING = ['wss://signaling.yjs.dev'];
+
+/**
+ * Resolve the y-webrtc signaling server list. A non-empty
+ * `Settings.syncSignalingUrl` replaces the public default entirely
+ * (self-hosting exists to remove the third-party dependency, not to add
+ * a fallback that still leaks room names to it). Accepts http(s):// and
+ * normalizes to ws(s):// like connectWebsocket does.
+ */
+function resolveSignalingUrls(): string[] {
+  const custom = (getSettings().syncSignalingUrl ?? '').trim();
+  if (!custom) return DEFAULT_SIGNALING;
+  let url = custom.replace(/\/+$/, '');
+  if (url.startsWith('https://')) url = 'wss://' + url.slice(8);
+  else if (url.startsWith('http://')) url = 'ws://' + url.slice(7);
+  return [url];
+}
+
 /**
  * COMPATIBILITY NOTE (see roomDerivation.ts): as of this change, the
  * room name sent to signaling servers and the y-webrtc password are
@@ -209,11 +233,13 @@ export async function connectWebrtc(room: string): Promise<void> {
     if (seq !== webrtcSeq) return; // superseded while deriving
     const doc = getDoc();
     webrtc = new WebrtcProvider(roomName, doc, {
-      // Default y-webrtc signaling server is public — fine for v1, but the
-      // user can host their own later (Plex box, etc.) and we'll point here.
+      // Default y-webrtc signaling server is public. When the user sets
+      // `Settings.syncSignalingUrl` (self-hosted server's /signaling
+      // endpoint), it REPLACES the public default — the whole point of
+      // self-hosting is dropping the third-party dependency.
       // (The old second entry, y-webrtc-signaling-eu.herokuapp.com, died
       // with Heroku's free tier in Nov 2022 and was removed.)
-      signaling: ['wss://signaling.yjs.dev'],
+      signaling: resolveSignalingUrls(),
       password,
       maxConns: 8,
       filterBcConns: true,
@@ -360,6 +386,20 @@ export function setSyncServerUrl(url: string) {
   if (!settings.syncEnabled) return;
   if (trimmed) void connectWebsocket(trimmed, settings.syncRoom);
   else disconnectWebsocket();
+}
+
+/**
+ * Set or clear the custom y-webrtc signaling URL. Non-empty REPLACES the
+ * public default (see resolveSignalingUrls); empty restores it. Reconnects
+ * WebRTC so the change takes effect immediately — connectWebrtc reads the
+ * setting through resolveSignalingUrls at connect time.
+ */
+export function setSyncSignalingUrl(url: string) {
+  const trimmed = url.trim();
+  setSettingsField('syncSignalingUrl', trimmed);
+  const settings = getSettings();
+  if (!settings.syncEnabled || !settings.syncRoom) return;
+  void connectWebrtc(settings.syncRoom);
 }
 
 /** Number of peers currently connected via WebRTC. */

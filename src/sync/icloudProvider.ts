@@ -38,9 +38,31 @@ import * as Y from 'yjs';
 import { getDoc } from './doc';
 import { getSettings, setSettingsField } from '../db/repo';
 import { encryptBytes, decryptBytes } from './crypto';
+import { getActiveWorkspaceId } from '../lib/workspaces';
 
-const SNAPSHOT_FILENAME = 'monii-watch-snapshot.bin';
-const PREVIOUS_FILENAME = 'monii-watch-snapshot.bin.previous';
+const LEGACY_SNAPSHOT_FILENAME = 'monii-watch-snapshot.bin';
+
+/**
+ * Snapshot filenames, scoped to the ACTIVE LOCAL WORKSPACE — mirrors
+ * driveProvider.ts's snapshotFilename(). Two workspaces pointed at the
+ * same cloud folder must never overwrite each other's snapshot (the
+ * other workspace's next pull would fail decryption forever — different
+ * pairing phrase). The DEFAULT workspace keeps the legacy fixed names
+ * so existing users' snapshots keep working; non-default workspaces get
+ * a `-<workspace-id>` suffix. The workspace id is read from
+ * localStorage (lib/workspaces.ts) — device-local by design, NEVER from
+ * synced Settings (Iron Rule #22). The app hard-reloads on workspace
+ * switch, so the value is stable for the lifetime of the module.
+ */
+function snapshotNames(): { current: string; previous: string } {
+  const ws = getActiveWorkspaceId();
+  let current = LEGACY_SNAPSHOT_FILENAME;
+  if (ws !== 'default') {
+    const safe = ws.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').slice(0, 48);
+    if (safe) current = `monii-watch-snapshot-${safe}.bin`;
+  }
+  return { current, previous: `${current}.previous` };
+}
 const POLL_INTERVAL_MS = 30_000;
 const DEBOUNCE_MS = 5_000;
 const ACTIVITY_LS_KEY = 'monii:cloud-sync-activity';
@@ -319,8 +341,8 @@ async function pushNow(folderPath: string, passphrase: string): Promise<void> {
       // Don't update the digest yet — only after the write succeeds.
       // If the write fails, we want the next push to retry.
       const cipher = await encryptBytes(update, passphrase);
-      const target = `${folderPath}/${SNAPSHOT_FILENAME}`;
-      const previous = `${folderPath}/${PREVIOUS_FILENAME}`;
+      const target = `${folderPath}/${snapshotNames().current}`;
+      const previous = `${folderPath}/${snapshotNames().previous}`;
       // Rotate: if the current snapshot exists, copy it to .previous
       // before overwriting.
       try {
@@ -350,8 +372,8 @@ async function pushNow(folderPath: string, passphrase: string): Promise<void> {
     // Original path retained as a fallback in case the digest path
     // bombs out for any reason.
     const cipher = await encryptBytes(update, passphrase);
-    const target = `${folderPath}/${SNAPSHOT_FILENAME}`;
-    const previous = `${folderPath}/${PREVIOUS_FILENAME}`;
+    const target = `${folderPath}/${snapshotNames().current}`;
+    const previous = `${folderPath}/${snapshotNames().previous}`;
     // Rotate: if the current snapshot exists, copy it to .previous
     // before overwriting. A copy (rather than a rename) keeps the
     // operation safe across cloud-sync metadata that some services
@@ -391,7 +413,7 @@ async function pullNow(folderPath: string, passphrase: string): Promise<void> {
   if (!isAvailable() || !passphrase) return;
   try {
     const fs = await import('@tauri-apps/plugin-fs');
-    const file = `${folderPath}/${SNAPSHOT_FILENAME}`;
+    const file = `${folderPath}/${snapshotNames().current}`;
     const exists = await fs.exists(file);
     if (!exists) return;
     const cipher = await fs.readFile(file);
@@ -550,7 +572,7 @@ export async function probeFolder(folderPath: string): Promise<FolderProbeResult
     }
     // If a snapshot already exists, peek at its size.
     let existingSnapshotBytes: number | undefined;
-    const file = `${folderPath}/${SNAPSHOT_FILENAME}`;
+    const file = `${folderPath}/${snapshotNames().current}`;
     if (await fs.exists(file)) {
       try {
         const buf = await fs.readFile(file);
@@ -582,8 +604,8 @@ export async function moveSnapshot(fromPath: string, toPath: string): Promise<{ 
   if (!fromPath || !toPath || fromPath === toPath) return { moved: false, reason: 'no-op' };
   try {
     const fs = await import('@tauri-apps/plugin-fs');
-    const src = `${fromPath}/${SNAPSHOT_FILENAME}`;
-    const dst = `${toPath}/${SNAPSHOT_FILENAME}`;
+    const src = `${fromPath}/${snapshotNames().current}`;
+    const dst = `${toPath}/${snapshotNames().current}`;
     if (!(await fs.exists(src))) {
       return { moved: false, reason: 'no source snapshot' };
     }
@@ -606,10 +628,10 @@ export async function moveSnapshot(fromPath: string, toPath: string): Promise<{ 
     // Don't fail the operation if this part fails; the next push
     // will re-establish a `.previous` via rotation.
     try {
-      const srcPrev = `${fromPath}/${PREVIOUS_FILENAME}`;
+      const srcPrev = `${fromPath}/${snapshotNames().previous}`;
       if (await fs.exists(srcPrev)) {
         const prevData = await fs.readFile(srcPrev);
-        await fs.writeFile(`${toPath}/${PREVIOUS_FILENAME}`, prevData);
+        await fs.writeFile(`${toPath}/${snapshotNames().previous}`, prevData);
         await fs.remove(srcPrev);
       }
     } catch { /* non-fatal */ }
@@ -631,7 +653,7 @@ export async function hasPreviousSnapshot(folderPath: string): Promise<boolean> 
   if (!isAvailable() || !folderPath) return false;
   try {
     const fs = await import('@tauri-apps/plugin-fs');
-    return fs.exists(`${folderPath}/${PREVIOUS_FILENAME}`);
+    return fs.exists(`${folderPath}/${snapshotNames().previous}`);
   } catch {
     return false;
   }
@@ -660,7 +682,7 @@ export async function restorePreviousSnapshot(): Promise<{ ok: boolean; error?: 
   if (!folder || !pass) return { ok: false, error: 'sync not configured' };
   try {
     const fs = await import('@tauri-apps/plugin-fs');
-    const previous = `${folder}/${PREVIOUS_FILENAME}`;
+    const previous = `${folder}/${snapshotNames().previous}`;
     if (!(await fs.exists(previous))) {
       return { ok: false, error: 'No previous snapshot to restore from.' };
     }
@@ -696,7 +718,8 @@ export async function removeCloudSnapshot(folderPath: string): Promise<void> {
     const fs = await import('@tauri-apps/plugin-fs');
     // Remove both the current snapshot AND the rotated previous
     // copy. A clean uninstall shouldn't leave either behind.
-    for (const name of [SNAPSHOT_FILENAME, PREVIOUS_FILENAME]) {
+    const names = snapshotNames();
+    for (const name of [names.current, names.previous]) {
       const file = `${folderPath}/${name}`;
       if (await fs.exists(file)) {
         await fs.remove(file);
