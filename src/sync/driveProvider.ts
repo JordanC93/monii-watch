@@ -47,6 +47,7 @@ import { getDoc } from './doc';
 import { getSettings, setSettingsField } from '../db/repo';
 import { encryptBytes, decryptBytes } from './crypto';
 import { setLastSyncedAt } from './syncMeta';
+import { registerRemoteOrigin } from './lwwRepair';
 import {
   getGoogleAccessToken, getGoogleAccessTokenExpiresAt, setGoogleAccessToken,
   clearGoogleAccessToken, getDriveLastSeenModifiedTime, setDriveLastSeenModifiedTime,
@@ -79,8 +80,11 @@ let docObserver: ((update: Uint8Array, origin: any) => void) | null = null;
 const listeners = new Set<Listener>();
 /** Tag set on Yjs `transact()` calls that originate from a remote pull —
  *  prevents the push observer from immediately re-uploading what we
- *  just downloaded. */
+ *  just downloaded. Registered with the LWW repair so a pulled snapshot
+ *  that regresses a record's updatedAt gets the newer local copy
+ *  re-asserted (newest-edit-wins). */
 const ORIGIN_REMOTE_PULL = Symbol('monii-drive-remote-pull');
+registerRemoteOrigin(ORIGIN_REMOTE_PULL);
 
 export function onDriveStatus(cb: Listener): () => void {
   listeners.add(cb);

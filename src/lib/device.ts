@@ -76,4 +76,32 @@ export function applyHostAttributes(): void {
   else if (typeof navigator !== 'undefined' && /Linux/.test(navigator.platform)) os = 'linux';
   if (os) document.documentElement.setAttribute('data-host-os', os);
   if (isTauri()) document.documentElement.setAttribute('data-host-tauri', '1');
+  applyIOSViewportGuard();
+}
+
+/**
+ * v0.7.31 — iOS input focus-zoom guard.
+ *
+ * iOS auto-zooms the page when a focused input's font-size is below
+ * 16px, and this app's compact typography (14px base, many 11.5-12.5px
+ * inputs) trips it on every field. The classic remedy — bumping every
+ * input to 16px — would visibly enlarge the whole compact UI, so
+ * instead we add `maximum-scale=1` to the viewport meta, ON iOS ONLY:
+ *
+ *   - Safari / PWA (iOS ≥ 10): deliberately IGNORES maximum-scale for
+ *     pinch gestures (accessibility override) but still honors it to
+ *     suppress the focus auto-zoom. Best of both.
+ *   - WKWebView (Capacitor build): honors maximum-scale fully, so
+ *     in-app pinch zoom is disabled — matching the app's pre-v0.7.31
+ *     behavior there. System accessibility zoom (Settings →
+ *     Accessibility → Zoom) still works at the OS layer.
+ *   - Every other platform keeps the unrestricted viewport from
+ *     index.html (WCAG 1.4.4).
+ */
+function applyIOSViewportGuard(): void {
+  if (!isIOS()) return;
+  const meta = document.querySelector('meta[name="viewport"]');
+  const content = meta?.getAttribute('content');
+  if (!meta || !content || /maximum-scale/.test(content)) return;
+  meta.setAttribute('content', `${content}, maximum-scale=1.0`);
 }

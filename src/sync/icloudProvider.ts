@@ -39,6 +39,7 @@ import { getDoc } from './doc';
 import { getSettings, setSettingsField } from '../db/repo';
 import { encryptBytes, decryptBytes } from './crypto';
 import { getActiveWorkspaceId } from '../lib/workspaces';
+import { registerRemoteOrigin } from './lwwRepair';
 
 const LEGACY_SNAPSHOT_FILENAME = 'monii-watch-snapshot.bin';
 
@@ -71,7 +72,10 @@ const ACTIVITY_MAX = 100;
 let pushTimer: number | null = null;
 let pollHandle: number | null = null;
 let yjsObserver: ((update: Uint8Array, origin: unknown) => void) | null = null;
+// Registered with the LWW repair (newest-edit-wins) like every other
+// remote transport origin.
 const ORIGIN_REMOTE_PULL = Symbol('icloud-pull');
+registerRemoteOrigin(ORIGIN_REMOTE_PULL);
 
 /**
  * Skip-when-equal optimization. Tier 14 perf — every push currently

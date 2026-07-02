@@ -70,7 +70,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     writeGroupCollapsed(next);
   }
 
-  const accountsWithBal = computeAccountBalances(accounts.filter((a) => !a.closed), txns);
+  const accountsWithBal = computeAccountBalances(accounts.filter((a) => !a.closed), txns, settings.currency, settings.fxSnapshots ?? []);
   // Pin sort: pinned accounts surface to the top of each group, then by user-set order.
   // Stable when no accounts are pinned — matches v0.1 behavior exactly.
   const pinSort = (a: typeof accountsWithBal[number], b: typeof accountsWithBal[number]) => {

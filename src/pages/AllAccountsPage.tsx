@@ -13,10 +13,11 @@ import { useFormatMoney } from '../lib/format';
 export function AllAccountsPage() {
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
+  const settings = useBudget((s) => s.settings);
   const openModal = useUI((s) => s.openModal);
   const fmt = useFormatMoney();
 
-  const withBalances = computeAccountBalances(accounts, txns);
+  const withBalances = computeAccountBalances(accounts, txns, settings.currency, settings.fxSnapshots ?? []);
   const onBudget = withBalances.filter((a) => ACCOUNT_TYPE_META[a.type].onBudget && !a.closed);
   const tracking = withBalances.filter((a) => !ACCOUNT_TYPE_META[a.type].onBudget && !a.closed);
   const closed = withBalances.filter((a) => a.closed);

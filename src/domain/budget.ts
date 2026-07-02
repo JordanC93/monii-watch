@@ -12,7 +12,7 @@
 
 import type { Account, Category, FxSnapshot, MonthAssignment, Transaction, Money } from './types';
 import { ACCOUNT_TYPE_META, categoriesTouched } from './types';
-import { DATE_FMT, isoAddDays, isoIsInMonth, parseMonth, shiftMonth } from './date';
+import { DATE_FMT, isoAddDays, isoIsInMonth, parseMonth, shiftMonth, thisMonthIso } from './date';
 import { format, parseISO } from 'date-fns';
 import { lookupRate } from './fx';
 
@@ -34,8 +34,21 @@ export type AccountWithBalance = Account & {
  *  market value (sum of shares × lastPrice across positions) is added
  *  to the cash-flow-derived balance. So a "balance" on an investment
  *  account = cash sitting in the account + value of holdings. Cost
- *  basis is informational; the gain/loss math lives in InvestmentsPage. */
-export function computeAccountBalances(accounts: Account[], txns: Transaction[]): AccountWithBalance[] {
+ *  basis is informational; the gain/loss math lives in InvestmentsPage.
+ *
+ *  Multi-currency: when the caller supplies `budgetCurrency`, foreign-
+ *  currency balances convert via the same resolver as the envelope math
+ *  (`lookupRate`): a per-month snapshot from `fxSnapshots` wins, then
+ *  the account's `fxRate`. `month` defaults to the current month since
+ *  balances are "as of now". Without `budgetCurrency` the legacy
+ *  account-fxRate-only behavior is preserved. */
+export function computeAccountBalances(
+  accounts: Account[],
+  txns: Transaction[],
+  budgetCurrency?: string,
+  fxSnapshots: FxSnapshot[] = [],
+  month: string = thisMonthIso(),
+): AccountWithBalance[] {
   const byAcct = new Map<string, { balance: Money; clearedBalance: Money }>();
   for (const a of accounts) byAcct.set(a.id, { balance: 0, clearedBalance: 0 });
   for (const t of txns) {
@@ -45,8 +58,10 @@ export function computeAccountBalances(accounts: Account[], txns: Transaction[])
     if (t.cleared !== 'uncleared') e.clearedBalance += t.amount;
   }
   return accounts.map((a) => {
+    const rate = budgetCurrency !== undefined
+      ? lookupRate(a, budgetCurrency, month, fxSnapshots)
+      : (a.fxRate && a.fxRate > 0 ? a.fxRate : 1);
     const e = byAcct.get(a.id) ?? { balance: 0, clearedBalance: 0 };
-    const rate = a.fxRate && a.fxRate > 0 ? a.fxRate : 1;
     let balance = e.balance;
     let clearedBalance = e.clearedBalance;
     // Add live market value of investment positions (if any).

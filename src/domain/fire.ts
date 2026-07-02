@@ -116,7 +116,10 @@ export function projectDeterministic(input: FireInputs): Projection {
       if (input.socialSecurityStartAge && input.socialSecurityMonthly && age >= input.socialSecurityStartAge) {
         withdrawal -= input.socialSecurityMonthly * 12;
       }
-      nw -= Math.max(0, withdrawal);
+      // When SS income exceeds spending, withdrawal goes negative and the
+      // surplus accretes to net worth (it compounds with next year's
+      // returns like any other savings).
+      nw -= withdrawal;
       if (nw < 0) {
         if (!ranOut) {
           ranOut = true;
@@ -180,7 +183,9 @@ export function monteCarloSimulate(input: FireInputs, trials: number = 500): Mon
         if (input.socialSecurityStartAge && input.socialSecurityMonthly && age >= input.socialSecurityStartAge) {
           withdrawal -= input.socialSecurityMonthly * 12;
         }
-        nw -= Math.max(0, withdrawal);
+        // Negative withdrawal = SS surplus accreting, same as the
+        // deterministic path.
+        nw -= withdrawal;
         if (nw < 0) {
           survived = false;
           nw = 0;

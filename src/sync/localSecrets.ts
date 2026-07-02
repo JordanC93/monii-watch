@@ -24,6 +24,7 @@
 const KEY_GOOGLE_TOKEN = 'monii:secret:google-access-token';
 const KEY_GOOGLE_TOKEN_EXPIRES = 'monii:secret:google-access-token-expires-at';
 const KEY_DRIVE_LAST_MODIFIED_PREFIX = 'monii:secret:drive-last-modified:';
+const KEY_PERSONAL_BACKUP_TOKEN = 'monii:secret:personal-backup-token';
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -73,6 +74,21 @@ export function clearGoogleAccessToken(): void {
 /** Plain synchronous read used by the Drive boot gate in main.tsx. */
 export function hasDriveToken(): boolean {
   return !!getGoogleAccessToken();
+}
+
+/** The personal backup server's bearer token for THIS device, or ''. */
+export function getPersonalBackupToken(): string {
+  return readString(KEY_PERSONAL_BACKUP_TOKEN);
+}
+
+/** Store (or with '' clear) the token. Notifies subscribers. */
+export function setPersonalBackupToken(token: string): void {
+  writeString(KEY_PERSONAL_BACKUP_TOKEN, token);
+  notify();
+}
+
+export function clearPersonalBackupToken(): void {
+  setPersonalBackupToken('');
 }
 
 /**

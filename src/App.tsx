@@ -339,9 +339,10 @@ export default function App() {
   const accountsForNw = useBudget((s) => s.accounts);
   const txnsForNw = useBudget((s) => s.transactions);
   const currencyForNw = useBudget((s) => s.settings.currency);
+  const fxSnapshotsForNw = useBudget((s) => s.settings.fxSnapshots);
   useEffect(() => {
     try {
-      const balances = computeAccountBalances(accountsForNw.filter((a) => !a.closed), txnsForNw);
+      const balances = computeAccountBalances(accountsForNw.filter((a) => !a.closed), txnsForNw, currencyForNw || 'USD', fxSnapshotsForNw ?? []);
       const nw = computeNetWorth(balances);
       const wsId = getActiveWorkspaceId();
       writeWorkspaceSummary(wsId, {
@@ -352,7 +353,7 @@ export default function App() {
     } catch (err) {
       console.warn('[workspace-summary] write failed', err);
     }
-  }, [accountsForNw, txnsForNw, currencyForNw]);
+  }, [accountsForNw, txnsForNw, currencyForNw, fxSnapshotsForNw]);
   const yearInReviewShownFor = useBudget((s) => s.settings.yearInReviewShownFor);
   const monthlyReviewLastShown = useBudget((s) => s.settings.monthlyReviewLastShown);
   const vacationMode = useBudget((s) => s.settings.vacationMode);

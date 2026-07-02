@@ -27,9 +27,11 @@
  */
 
 import { getDoc, tx, MAPS } from './doc';
-import { getSettings } from '../db/repo';
+import { getSettings, setSettingsField } from '../db/repo';
 import { encryptBytes, decryptBytes } from './crypto';
 import { setLastSyncedAt, getLastRemoteStamp, setLastRemoteStamp } from './syncMeta';
+import { registerRemoteOrigin } from './lwwRepair';
+import { getPersonalBackupToken, setPersonalBackupToken } from './localSecrets';
 import { getActiveWorkspaceId } from '../lib/workspaces';
 import * as Y from 'yjs';
 
@@ -50,6 +52,9 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let docObserver: ((update: Uint8Array, origin: any) => void) | null = null;
 const listeners = new Set<Listener>();
 const ORIGIN_REMOTE_PULL = Symbol('monii-personal-backup-remote-pull');
+// Registered with the LWW repair (like driveProvider) so a pulled snapshot
+// that regresses a record's updatedAt gets the newer local copy re-asserted.
+registerRemoteOrigin(ORIGIN_REMOTE_PULL);
 
 export function onPersonalBackupStatus(cb: Listener): () => void {
   listeners.add(cb);
@@ -102,8 +107,27 @@ function endpointFor(kind: 'snapshot' | 'list'): string | null {
   return `${base}/backup/${encodeURIComponent(ws)}/snapshots`;
 }
 
+/**
+ * One-time migration (mirrors driveProvider's migrateLegacyToken): the
+ * bearer token used to live in the SYNCED settings map, which replicated
+ * it to every paired device. Move a legacy token into device-local
+ * storage and blank the synced field. After this, each device holds its
+ * own token — paired devices that were (incorrectly) receiving the token
+ * via sync must enter it once themselves.
+ */
+function migrateLegacyToken(): void {
+  if (getPersonalBackupToken()) return;
+  const s = getSettings();
+  if (!s.personalBackupToken) return;
+  setPersonalBackupToken(s.personalBackupToken);
+  setSettingsField('personalBackupToken', '');
+}
+
 function authHeaders(): Record<string, string> {
-  const token = getSettings().personalBackupToken.trim();
+  // Device-local token (localSecrets), never the synced settings map.
+  // The migration is a no-op after its first run.
+  migrateLegacyToken();
+  const token = getPersonalBackupToken().trim();
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
 }
@@ -215,6 +239,9 @@ async function push(): Promise<void> {
 
 /** Bootstrap: pull once, then start the push observer + poll loop. */
 export async function startPersonalBackupSync(): Promise<void> {
+  // Move a legacy synced-settings token to device-local storage first
+  // (one-time per device) so the pull below authenticates with it.
+  migrateLegacyToken();
   const s = getSettings();
   if (!s.personalBackupEnabled || !s.personalBackupUrl.trim() || !s.syncRoom.trim()) return;
   await pull();

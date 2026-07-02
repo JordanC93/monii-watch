@@ -32,6 +32,7 @@ import { getDoc } from './doc';
 import { getSettings, setSettingsField, isSettingsLoaded } from '../db/repo';
 import { newSyncRoom } from '../domain/id';
 import { deriveRoomName, deriveRoomPassword } from './roomDerivation';
+import { installLwwRepair, registerRemoteOrigin } from './lwwRepair';
 
 export type SyncStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -148,6 +149,15 @@ export async function initSync(): Promise<void> {
     console.warn('[sync] settings not loaded after 1s; proceeding with defaults');
   }
   installRemoteMergeNotifier();
+  // Newest-edit-wins conflict repair. Installed here (after the store
+  // wired every map) so its observers cover all named maps; transports
+  // register their transaction origins as they connect.
+  installLwwRepair(getDoc(), (count) => {
+    console.info(`[lww] re-asserted ${count} newer local record(s) after a sync merge`);
+    void import('../lib/toast')
+      .then((m) => m.toast.info('Kept your newer edits during a sync merge'))
+      .catch(() => {});
+  });
   const settings = getSettings();
   if (settings.syncEnabled && settings.syncRoom) {
     await connectWebrtc(settings.syncRoom);
@@ -244,6 +254,7 @@ export async function connectWebrtc(room: string): Promise<void> {
       maxConns: 8,
       filterBcConns: true,
     } as any);
+    registerRemoteOrigin(webrtc);
 
     webrtc.on('status', (e: any) => {
       if (e.connected) setStatus('connected');
@@ -319,6 +330,7 @@ export async function connectWebsocket(serverUrl: string, room: string): Promise
       // user wants strong encryption-at-rest, they should run the server
       // behind a TLS proxy and inside their own network.
     });
+    registerRemoteOrigin(websocket);
     websocket.on('status', (e: { status: 'connecting' | 'connected' | 'disconnected' }) => {
       if (e.status === 'connected') setStatus('connected');
       else if (e.status === 'disconnected' && (!webrtc || peerCount() === 0)) setStatus('connecting');

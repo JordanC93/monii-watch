@@ -11,7 +11,8 @@ import {
 import { setSettingsField } from '../../db/repo';
 import { getLastSyncedAt, subscribeSyncMeta } from '../../sync/syncMeta';
 import {
-  getGoogleAccessToken, getGoogleAccessTokenExpiresAt, setGoogleAccessToken, subscribeLocalSecrets,
+  getGoogleAccessToken, getGoogleAccessTokenExpiresAt, setGoogleAccessToken,
+  getPersonalBackupToken, setPersonalBackupToken, subscribeLocalSecrets,
 } from '../../sync/localSecrets';
 import { newSyncRoom } from '../../domain/id';
 import { Cloud, CloudOff, Loader2, RefreshCw, Copy, Check, ShieldCheck, Server, Wifi, AlertTriangle, HardDrive } from 'lucide-react';
@@ -546,13 +547,17 @@ function PersonalBackupSection() {
   const enabled = settings.personalBackupEnabled;
   const [open, setOpen] = useState(enabled);
   const [url, setUrl] = useState(settings.personalBackupUrl ?? '');
-  const [token, setToken] = useState(settings.personalBackupToken ?? '');
+  // Device-local token (localSecrets), with a legacy synced-settings
+  // fallback for docs that pre-date the one-time migration.
+  const localToken = useSyncExternalStore(subscribeLocalSecrets, getPersonalBackupToken);
+  const storedToken = localToken || (settings.personalBackupToken ?? '');
+  const [token, setToken] = useState(storedToken);
   const [workspace, setWorkspace] = useState(settings.personalBackupWorkspace ?? 'default');
   const [busy, setBusy] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => { setUrl(settings.personalBackupUrl ?? ''); }, [settings.personalBackupUrl]);
-  useEffect(() => { setToken(settings.personalBackupToken ?? ''); }, [settings.personalBackupToken]);
+  useEffect(() => { setToken(storedToken); }, [storedToken]);
   useEffect(() => { setWorkspace(settings.personalBackupWorkspace ?? 'default'); }, [settings.personalBackupWorkspace]);
 
   async function testNow() {
@@ -563,9 +568,10 @@ function PersonalBackupSection() {
     setBusy(true);
     setTestResult(null);
     try {
-      // Persist the values first so the provider reads them.
+      // Persist the values first so the provider reads them. The token is
+      // device-local (localSecrets), never the synced settings map.
       setSettingsField('personalBackupUrl', url.trim());
-      setSettingsField('personalBackupToken', token.trim());
+      setPersonalBackupToken(token.trim());
       setSettingsField('personalBackupWorkspace', workspace.trim() || 'default');
       const m = await import('../../sync/personalServerProvider');
       const err = await m.testConnection();
@@ -582,7 +588,7 @@ function PersonalBackupSection() {
     setBusy(true);
     try {
       setSettingsField('personalBackupUrl', url.trim());
-      setSettingsField('personalBackupToken', token.trim());
+      setPersonalBackupToken(token.trim());
       setSettingsField('personalBackupWorkspace', workspace.trim() || 'default');
       setSettingsField('personalBackupEnabled', true);
       const m = await import('../../sync/personalServerProvider');
@@ -670,6 +676,9 @@ function PersonalBackupSection() {
               className="mt-0.5 font-mono text-[11.5px]"
               type="password"
             />
+            <div className="text-[10.5px] text-fg-subtle mt-0.5">
+              Stored on this device only. Enter it once on each device.
+            </div>
           </div>
           <div>
             <label className="text-[11px] text-fg-subtle">Workspace name</label>

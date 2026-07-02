@@ -37,7 +37,7 @@ export function FirePage() {
   const fmt = useFormatMoney();
 
   // Derive current NW + annual contribution from existing data.
-  const balances = computeAccountBalances(accounts, txns);
+  const balances = computeAccountBalances(accounts, txns, settings.currency, settings.fxSnapshots ?? []);
   const nw = computeNetWorth(balances);
 
   // Annual contribution = trailing 12-month net (income - outflow).

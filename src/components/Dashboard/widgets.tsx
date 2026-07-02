@@ -41,8 +41,9 @@ export type WidgetSpec = {
 function NetWorthWidget() {
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
+  const settings = useBudget((s) => s.settings);
   const fmt = useFormatMoney();
-  const balances = computeAccountBalances(accounts, txns);
+  const balances = computeAccountBalances(accounts, txns, settings.currency, settings.fxSnapshots ?? []);
   const nw = computeNetWorth(balances);
   return (
     <div>

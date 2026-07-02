@@ -63,6 +63,59 @@ describe('projectDeterministic', () => {
   });
 });
 
+describe('Social Security surplus accretes to net worth', () => {
+  // Already retired, SS pays $24k/yr against $12k/yr spending.
+  const retiredWithSurplus: FireInputs = {
+    currentAge: 70,
+    targetRetirementAge: 70,
+    lifeExpectancy: 80,
+    currentNetWorth: 10000000,     // $100k
+    annualContribution: 0,
+    targetAnnualSpending: 1200000, // $12k/yr
+    expectedReturnPct: 0,
+    expectedStdevPct: 0,
+    expectedInflationPct: 0,
+    socialSecurityStartAge: 62,
+    socialSecurityMonthly: 200000, // $2k/mo = $24k/yr → $12k/yr surplus
+  };
+
+  it('deterministic: NW grows by the exact surplus each year at 0% return', () => {
+    const p = projectDeterministic(retiredWithSurplus);
+    expect(p.yearly.length).toBe(11);
+    for (let i = 1; i < p.yearly.length; i++) {
+      expect(p.yearly[i]).toBe(p.yearly[i - 1] + 1200000);
+    }
+    expect(p.finalNetWorth).toBe(10000000 + 10 * 1200000);
+    expect(p.ranOutOfMoney).toBe(false);
+  });
+
+  it('deterministic: surplus compounds with returns and beats the break-even SS scenario', () => {
+    const withSurplus = projectDeterministic({ ...retiredWithSurplus, expectedReturnPct: 0.05 });
+    const breakEven = projectDeterministic({
+      ...retiredWithSurplus,
+      expectedReturnPct: 0.05,
+      socialSecurityMonthly: 100000, // $1k/mo = exactly covers spending
+    });
+    // Break-even leaves the principal compounding untouched.
+    let expected = 10000000;
+    for (let i = 0; i < 10; i++) expected = Math.round(expected * 1.05);
+    expect(breakEven.finalNetWorth).toBe(expected);
+    expect(withSurplus.finalNetWorth).toBeGreaterThan(breakEven.finalNetWorth);
+  });
+
+  it('monte carlo (stdev 0 = deterministic sampling): p50 is non-decreasing and beats break-even SS', () => {
+    // With expectedStdevPct 0, sampleNormal collapses to the mean, so
+    // every trial is identical and the percentile bands are exact.
+    const surplus = monteCarloSimulate(retiredWithSurplus, 50);
+    for (let i = 1; i < surplus.p50.length; i++) {
+      expect(surplus.p50[i]).toBeGreaterThanOrEqual(surplus.p50[i - 1]);
+    }
+    const breakEven = monteCarloSimulate({ ...retiredWithSurplus, socialSecurityMonthly: 100000 }, 50);
+    expect(surplus.p50[surplus.p50.length - 1]).toBeGreaterThan(breakEven.p50[breakEven.p50.length - 1]);
+    expect(surplus.successProbability).toBe(1);
+  });
+});
+
 describe('monteCarloSimulate', () => {
   it('returns 11 percentile values between 0 and lifeExpectancy', () => {
     const r = monteCarloSimulate(baseInputs, 100);

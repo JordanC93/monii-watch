@@ -176,8 +176,8 @@ const netWorth: Intent<{}> = {
     return /net ?worth|total (?:balance|money)|how much (?:do i have|is everything)/i.test(input) ? {} : null;
   },
   run(_, ctx): IntentResult {
-    const { accounts, txns } = snapshot();
-    const balances = computeAccountBalances(accounts, txns);
+    const { accounts, txns, settings } = snapshot();
+    const balances = computeAccountBalances(accounts, txns, settings.currency, settings.fxSnapshots ?? []);
     const nw = computeNetWorth(balances);
     return {
       reply: `Net worth: ${ctx.formatMoney(nw.total)} (${ctx.formatMoney(nw.onBudget)} on-budget, ${ctx.formatMoney(nw.tracking)} tracking).`,

@@ -83,6 +83,27 @@ describe('computeAccountBalances', () => {
     expect(out[0].balance).toBe(10000);
     expect(out[0].balanceInBudgetCurrency).toBe(11000);
   });
+  it('prefers a month fx snapshot over the account fxRate, matching computeMonthActivity', () => {
+    const eur: Account = { ...checking, id: 'a4', currency: 'EUR', fxRate: 1.1 };
+    const snapshots = [{ month: '2026-04', from: 'EUR', to: 'USD', rate: 1.25 }];
+    const txns = [txn({ amount: -10000, accountId: 'a4', categoryId: 'c1', date: '2026-04-15' })];
+
+    // With snapshots: the month snapshot rate (1.25) wins over fxRate (1.1).
+    const withSnaps = computeAccountBalances([eur], txns, 'USD', snapshots, '2026-04');
+    expect(withSnaps[0].balance).toBe(-10000);
+    expect(withSnaps[0].balanceInBudgetCurrency).toBe(-12500);
+    // Consistent with the envelope math for the same month.
+    const activity = computeMonthActivity([eur], [cat], txns, '2026-04', 'USD', snapshots);
+    expect(activity.get('c1')).toBe(withSnaps[0].balanceInBudgetCurrency);
+
+    // Same call without snapshots: falls back to the account fxRate.
+    const noSnaps = computeAccountBalances([eur], txns, 'USD', [], '2026-04');
+    expect(noSnaps[0].balanceInBudgetCurrency).toBe(-11000);
+
+    // Legacy call shape (no budgetCurrency at all): unchanged behavior.
+    const legacy = computeAccountBalances([eur], txns);
+    expect(legacy[0].balanceInBudgetCurrency).toBe(-11000);
+  });
 });
 
 describe('computeNetWorth', () => {

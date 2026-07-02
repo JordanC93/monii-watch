@@ -28,7 +28,7 @@ export function MorePage() {
   const openModal = useUI((s) => s.openModal);
   const fmt = useFormatMoney();
 
-  const accountsWithBal = computeAccountBalances(accounts.filter((a) => !a.closed), txns);
+  const accountsWithBal = computeAccountBalances(accounts.filter((a) => !a.closed), txns, settings.currency, settings.fxSnapshots ?? []);
   const networth = computeNetWorth(accountsWithBal);
 
   return (
