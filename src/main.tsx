@@ -13,6 +13,15 @@ import { applyHostAttributes } from './lib/device';
 async function bootstrap() {
   // Install log capture FIRST so boot-time errors land in the in-app viewer.
   installLogCapture();
+  // Ask the browser to exempt this origin's storage from eviction.
+  // IndexedDB holds the ENTIRE budget; without persisted storage, iOS
+  // Safari can purge it under storage pressure and browser-tab users
+  // hit the 7-day ITP cap. Fire-and-forget — denial is non-fatal.
+  try {
+    void navigator.storage?.persist?.().then((granted) => {
+      if (!granted) console.warn('[storage] persistence not granted — data may be evicted under storage pressure');
+    });
+  } catch { /* older WebViews lack the API */ }
   initTheme();
   // Apply density preference to <html> so the first paint reflects it.
   const { initDensity } = await import('./lib/density');
@@ -82,6 +91,19 @@ async function bootstrap() {
   } catch (err) {
     console.warn('[nw] snapshot failed', err);
   }
+  // Eager-construct the UndoManager. A Yjs UndoManager only captures
+  // transactions made AFTER it exists — built lazily inside undo(), the
+  // first Cmd+Z of every session found an empty stack and everything
+  // before it was permanently uncapturable. Constructed here, after the
+  // boot-time mutations above, so materialized scheduled txns and other
+  // boot writes don't land on the user's undo stack.
+  try {
+    const { getUndoManager } = await import('./store/undo');
+    getUndoManager();
+  } catch (err) {
+    console.warn('[undo] init failed', err);
+  }
+
   initSync().catch((err) => console.warn('[sync] failed to start', err));
 
   // Optional Google Drive sync — lazy-imported so it never enters the

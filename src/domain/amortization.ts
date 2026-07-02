@@ -9,6 +9,7 @@
  */
 
 import type { Money } from './types';
+import { isoAddMonths } from './date';
 
 export type AmortizationRow = {
   /** 1-indexed payment number (month). */
@@ -71,7 +72,7 @@ export function amortize(input: {
       // and bail. Realistic remediation is "bump the monthly payment".
       rows.push({
         n,
-        date: addMonthsIso(input.firstPaymentDate, n - 1),
+        date: isoAddMonths(input.firstPaymentDate, n - 1),
         interest,
         principal: 0,
         extra: 0,
@@ -92,7 +93,7 @@ export function amortize(input: {
     totalPaid += interest + principalPart + extraPart;
     rows.push({
       n,
-      date: addMonthsIso(input.firstPaymentDate, n - 1),
+      date: isoAddMonths(input.firstPaymentDate, n - 1),
       interest,
       principal: principalPart,
       extra: extraPart,
@@ -143,10 +144,4 @@ export function suggestedMonthlyPayment(principal: Money, annualRate: number, te
   const numerator = principal * r * Math.pow(1 + r, termMonths);
   const denom = Math.pow(1 + r, termMonths) - 1;
   return Math.ceil(numerator / denom);
-}
-
-function addMonthsIso(iso: string, months: number): string {
-  const d = new Date(iso + 'T00:00:00');
-  d.setMonth(d.getMonth() + months);
-  return d.toISOString().slice(0, 10);
 }

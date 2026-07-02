@@ -869,3 +869,104 @@ $14.10
     expect(dunkin?.vendor).toBe('Dunkin\'');
   });
 });
+
+// v0.7.31 — regression coverage for the audit fixes.
+
+describe('parseStatementText — Dec–Jan year boundary', () => {
+  it('advances bare January rows to the next year on a cross-year statement', () => {
+    const text = `
+Statement period: 12/15/2025 - 01/14/2026
+12/18 Coffee Shop 5.00
+12/28 Grocery Store 42.10
+01/03 Bookstore 12.99
+01/10 Hardware Store 8.75
+`;
+    const parsed = parseStatementText(text);
+    const dec = parsed.rows.filter((r) => r.date.slice(5, 7) === '12');
+    const jan = parsed.rows.filter((r) => r.date.slice(5, 7) === '01');
+    expect(dec.length).toBe(2);
+    expect(jan.length).toBe(2);
+    // Pre-fix: January rows resolved to the header year (2025) — a
+    // full year in the past — because the back-off only corrected
+    // far-FUTURE dates.
+    for (const r of dec) expect(r.date.slice(0, 4)).toBe('2025');
+    for (const r of jan) expect(r.date.slice(0, 4)).toBe('2026');
+  });
+});
+
+describe('parseStatementText — time token vs calendar date on the same line', () => {
+  it('dates the row from the calendar token, not the bare time', () => {
+    const text = `
+POS 5:41 PM 04/23/2026 STARBUCKS $8.50
+POS 9:12 AM 04/24/2026 LENWICH $18.50
+`;
+    const parsed = parseStatementText(text);
+    expect(parsed.rows.length).toBe(2);
+    // Pre-fix: the leftmost DATE_RE match was the bare time, so both
+    // rows were dated "today" and the real posting date was discarded.
+    const dates = parsed.rows.map((r) => r.date).sort();
+    expect(dates).toEqual(['2026-04-23', '2026-04-24']);
+  });
+});
+
+describe('placeholder injection guards (v0.7.31)', () => {
+  it('flags injected rows with isPlaceholder', () => {
+    const text = `
+May 01
+Deposit from Checking +$80.00
+Apr 01
+Deposit from Checking +$80.00
+Mar 01
+Deposit from Checking CER
+`;
+    const parsed = parseStatementText(text);
+    const recovered = parsed.rows.find((r) => r.date.endsWith('-03-01') && r.amount === 8000);
+    expect(recovered).toBeDefined();
+    expect(recovered!.isPlaceholder).toBe(true);
+    const genuine = parsed.rows.find((r) => r.date.endsWith('-05-01') && r.amount === 8000);
+    expect(genuine).toBeDefined();
+    expect(genuine!.isPlaceholder).toBeFalsy();
+  });
+
+  it('does NOT inject from a single confirmed peer', () => {
+    const text = `
+May 01
+Deposit from Checking +$80.00
+Mar 01
+Deposit from Checking CER
+`;
+    const parsed = parseStatementText(text);
+    // One sighting is not a recurring pattern — no fabricated $80 row.
+    const recovered = parsed.rows.find((r) => r.date.endsWith('-03-01') && r.amount === 8000);
+    expect(recovered).toBeUndefined();
+  });
+
+  it('does NOT fabricate a transaction from an interest-rate summary line', () => {
+    const text = `
+May 01
+Monthly Interest Paid Interest +$3.96
+Apr 01
+Monthly Interest Paid Interest +$3.94
+INTEREST RATE SUMMARY APY
+`;
+    const parsed = parseStatementText(text);
+    // Pre-fix the summary line matched the 'interest' family + the
+    // trailing-caps shape and became a fabricated +$3.96 transaction.
+    expect(parsed.rows.some((r) => /RATE\s+SUMMARY/i.test(r.rawDescription))).toBe(false);
+  });
+});
+
+describe('parseDate — impossible calendar dates', () => {
+  it('never emits a stored date like Feb 31', () => {
+    const text = `
+Statement period: 02/01/2026 - 02/28/2026
+02/31 Ghost Row 5.00
+02/10 Real Row 7.50
+`;
+    const parsed = parseStatementText(text);
+    // Pre-fix "02/31" passed the day<=31 check and the literal string
+    // "2026-02-31" flowed into a stored transaction.
+    expect(parsed.rows.some((r) => r.date === '2026-02-31')).toBe(false);
+    expect(parsed.rows.some((r) => r.date === '2026-02-10')).toBe(true);
+  });
+});

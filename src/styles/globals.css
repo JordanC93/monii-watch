@@ -624,9 +624,13 @@ html, body, .glass-panel, [data-theme] {
  * but applies across all themes for consistency. Uses class match
  * `bg-accent` (Tailwind utility) — but unlike Iron Rule #18
  * violations, we're augmenting (gradient overlay), not replacing
- * the utility's behavior, and we're scoping to `button[class*=...]`
- * so it doesn't leak to non-button accent backgrounds. */
-button[class*="bg-accent"]:not([disabled]):not(:disabled) {
+ * the utility's behavior, and we're scoping to buttons so it
+ * doesn't leak to non-button accent backgrounds.
+ * `~=` (word match) per Iron Rule #24 — the earlier `*=` substring
+ * form also matched `hover:bg-accent/15` / `bg-accent/10` chips,
+ * painting the resting pillow on transparent buttons (Toaster undo,
+ * chat saved-phrase chips). */
+button[class~="bg-accent"]:not([disabled]):not(:disabled) {
   background-image: linear-gradient(
     180deg,
     rgb(255 255 255 / 0.07) 0%,
@@ -739,9 +743,11 @@ html[data-theme='glass'] .topbar-chrome-pill {
 
 /* Money pill polish — the colorful pills (positive / negative /
  * zero) on the budget table get a tiny inner highlight to feel
- * like printed paper coupons rather than flat HTML. */
-.bg-positive\/15,
-.bg-negative\/15 {
+ * like printed paper coupons rather than flat HTML.
+ * Scoped class hook per Iron Rule #18 — the earlier version targeted
+ * the bare `.bg-positive\/15` utility, painting the gradient on every
+ * badge/button/banner app-wide that happened to use that token. */
+.budget-money-pill {
   background-image: linear-gradient(
     180deg,
     rgb(255 255 255 / 0.04) 0%,

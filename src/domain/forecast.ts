@@ -35,6 +35,7 @@
 import type { Account, Money, ScheduledTransaction, Transaction } from './types';
 import { ACCOUNT_TYPE_META } from './types';
 import { advanceDate } from './recurrence';
+import { isoAddDays, todayIso } from './date';
 
 export type ForecastPoint = {
   /** ISO yyyy-mm-dd */
@@ -82,8 +83,7 @@ export function computeForecast(
   const horizonDays = opts.horizonDays ?? 60;
   const lookbackDays = opts.lookbackDays ?? 60;
   const confidenceFraction = opts.confidenceFraction ?? 0.25;
-  const todayStr = opts.today ?? new Date().toISOString().slice(0, 10);
-  const today = parseISO(todayStr);
+  const todayStr = opts.today ?? todayIso();
 
   // 1. Starting balance = sum of on-budget account balances right now.
   const onBudgetIds = new Set(
@@ -104,11 +104,11 @@ export function computeForecast(
     if (s.paused) continue;
     let cursor = s.nextDate;
     let safety = 0;
-    while (cursor && cursor <= addDaysIso(todayStr, horizonDays + 1) && safety < 1000) {
+    while (cursor && cursor <= isoAddDays(todayStr, horizonDays + 1) && safety < 1000) {
+      if (s.endDate && cursor > s.endDate) break;
       if (cursor >= todayStr) {
         scheduledByDay.set(cursor, (scheduledByDay.get(cursor) ?? 0) + s.amount);
       }
-      if (s.endDate && cursor > s.endDate) break;
       cursor = advanceDate(cursor, s.frequency);
       safety++;
     }
@@ -119,7 +119,7 @@ export function computeForecast(
   //    represented in `scheduled` (rough heuristic: ignore txns whose
   //    payee matches a scheduled-template payee).
   const scheduledPayeeIds = new Set(scheduled.map((s) => s.payeeId).filter(Boolean));
-  const lookbackStart = addDaysIso(todayStr, -lookbackDays);
+  const lookbackStart = isoAddDays(todayStr, -lookbackDays);
   let variableSpend = 0;
   let inflows = 0;
   for (const t of txns) {
@@ -146,7 +146,7 @@ export function computeForecast(
   // 4. Walk forward.
   const out: ForecastPoint[] = [];
   for (let d = 0; d <= horizonDays; d++) {
-    const dateStr = addDaysIso(todayStr, d);
+    const dateStr = isoAddDays(todayStr, d);
     const sched = scheduledByDay.get(dateStr) ?? 0;
     if (d > 0) {
       balance += sched;
@@ -163,16 +163,5 @@ export function computeForecast(
     });
   }
 
-  void today;
   return out;
-}
-
-function parseISO(iso: string): Date {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d));
-}
-function addDaysIso(iso: string, days: number): string {
-  const d = parseISO(iso);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
 }

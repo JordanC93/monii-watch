@@ -19,7 +19,7 @@ import type {
 } from '../domain/types';
 import type { LotAllocation } from '../domain/investmentLots';
 import { ACCOUNT_TYPE_META } from '../domain/types';
-import { newId, newSyncRoom } from '../domain/id';
+import { newId } from '../domain/id';
 import { todayIso, thisMonthIso } from '../domain/date';
 import { advanceDate } from '../domain/recurrence';
 import { evaluateAllocationRules, type AllocationTrigger } from '../domain/allocation';
@@ -146,15 +146,14 @@ export function isSettingsLoaded(): boolean { return _initialized; }
  *  Users who want to explore can click "Try with sample data" in
  *  the welcome modal, which calls `seedIfEmpty()` directly. */
 export async function initDb(): Promise<void> {
-  // Wait a tick for y-indexeddb to load existing state (provider awaits 'synced').
-  // Then ensure required maps + settings exist.
+  // Deliberately writes NOTHING to the doc. Defaults are applied at read
+  // time by getSettings()/refreshSettings(), so persisting them here is
+  // redundant — and dangerous: on a fresh install those writes are
+  // causally concurrent with a shared budget's real settings, so pairing
+  // could let the blank device's defaults win LWW for every key (budget
+  // name, theme, Drive file id, audit logs). The sync room is generated
+  // lazily by the sync flow the first time it's actually needed.
   const sm = settingsMap();
-  tx(() => {
-    for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
-      if (!sm.has(k)) sm.set(k, v);
-    }
-    if (!sm.get('syncRoom')) sm.set('syncRoom', newSyncRoom());
-  });
   // Apply persisted theme to <html> immediately.
   const theme = (sm.get('theme') as ThemeName) ?? 'dark';
   document.documentElement.setAttribute('data-theme', theme);
@@ -370,8 +369,22 @@ export function deleteAccount(id: string): void {
           txnsMap().set(partner.id, { ...partner, transferAccountId: null, transferTransactionId: null });
         }
       }
+      // Clear the hard link on any surviving partner in another account so
+      // the edit modal's click-to-jump doesn't point at a deleted row.
+      if (t?.linkedTxnId) {
+        const lp = txnsMap().get(t.linkedTxnId);
+        if (lp && lp.accountId !== id) {
+          txnsMap().set(lp.id, { ...lp, linkedTxnId: undefined, updatedAt: Date.now() });
+        }
+      }
       txnsMap().delete(tid);
     }
+    // Remove scheduled templates targeting this account — the materializer
+    // has no existence check, so leaving them would create ghost
+    // transactions in a nonexistent account on the next boot.
+    scheduledMap().forEach((s, sid) => {
+      if (s.accountId === id || s.transferAccountId === id) scheduledMap().delete(sid);
+    });
     if (acct) {
       // Tier 11 #1 — move into trash before removing. Restore brings
       // the account AND its transactions back atomically.
@@ -673,6 +686,22 @@ export function deleteCategory(id: string): void {
       }
     });
     for (const k of toDel) aMap.delete(k);
+    // Scrub scheduled templates and auto-rules that point at this category —
+    // otherwise future materializations carry a dangling categoryId and
+    // auto-categorize keeps filing new transactions under a deleted category.
+    scheduledMap().forEach((s, sid) => {
+      if (s.categoryId === id || s.autoAssignCategoryId === id) {
+        scheduledMap().set(sid, {
+          ...s,
+          categoryId: s.categoryId === id ? null : s.categoryId,
+          autoAssignCategoryId: s.autoAssignCategoryId === id ? undefined : s.autoAssignCategoryId,
+          updatedAt: Date.now(),
+        });
+      }
+    });
+    autoRulesMap().forEach((r, rid) => {
+      if (r.categoryId === id) autoRulesMap().delete(rid);
+    });
     if (cat) {
       pushToTrash({
         kind: 'category',
@@ -762,6 +791,9 @@ export function deletePayee(id: string): void {
   tx(() => {
     txnsMap().forEach((t, tid) => {
       if (t.payeeId === id) txnsMap().set(tid, { ...t, payeeId: null });
+    });
+    scheduledMap().forEach((s, sid) => {
+      if (s.payeeId === id) scheduledMap().set(sid, { ...s, payeeId: null, updatedAt: Date.now() });
     });
     payeesMap().delete(id);
   });
@@ -1011,6 +1043,13 @@ export function deleteTransaction(id: string): void {
     if (t.transferTransactionId) {
       txnsMap().delete(t.transferTransactionId);
     }
+    // Clear the symmetric hard link on the surviving partner (Iron Rule
+    // companion to linkTransactions' careful symmetry on link/relink).
+    const linkedIds = [t.linkedTxnId, partner?.linkedTxnId].filter(Boolean) as string[];
+    for (const lid of linkedIds) {
+      const lp = txnsMap().get(lid);
+      if (lp) txnsMap().set(lp.id, { ...lp, linkedTxnId: undefined, updatedAt: Date.now() });
+    }
     txnsMap().delete(id);
     const payee = t.payeeId ? payeesMap().get(t.payeeId) : null;
     // Tier 11 #1 — push to trash. For transfers, both halves travel
@@ -1130,6 +1169,10 @@ export function bulkDeleteTransactions(ids: string[]): { deleted: number } {
         const partner = txnsMap().get(t.transferTransactionId);
         if (partner) collected.push(partner);
         txnsMap().delete(t.transferTransactionId);
+      }
+      if (t.linkedTxnId) {
+        const lp = txnsMap().get(t.linkedTxnId);
+        if (lp) txnsMap().set(lp.id, { ...lp, linkedTxnId: undefined, updatedAt: Date.now() });
       }
       txnsMap().delete(id);
       deleted++;
@@ -1636,12 +1679,17 @@ export function materializeDueScheduled(today: string = todayIso()): number {
       let nextDate = cur.nextDate;
       let lastRun = cur.lastRunAt;
       let safety = 0;
+      // Anchor the day-of-month to the schedule's start date so a monthly
+      // entry on the 31st clamps to Feb 28 but returns to the 31st in
+      // March, instead of drifting to the 28th forever.
+      const anchorDay = Number(cur.startDate?.slice(8, 10)) || undefined;
       while (nextDate <= today && safety < 365) {
         if (cur.endDate && nextDate > cur.endDate) break;
-        materializeOne(cur, nextDate);
-        created++;
-        lastRun = Date.now();
-        nextDate = advanceDate(nextDate, cur.frequency);
+        if (materializeOne(cur, nextDate)) {
+          created++;
+          lastRun = Date.now();
+        }
+        nextDate = advanceDate(nextDate, cur.frequency, anchorDay);
         safety++;
       }
       const exhausted = !!cur.endDate && nextDate > cur.endDate;
@@ -1664,8 +1712,14 @@ export function materializeDueScheduled(today: string = todayIso()): number {
   return created;
 }
 
-function materializeOne(sched: ScheduledTransaction, date: string): void {
-  const id = newId();
+function materializeOne(sched: ScheduledTransaction, date: string): boolean {
+  // Deterministic occurrence ID. Two devices that both boot while offline
+  // each materialize the same due occurrence; with random IDs the CRDT
+  // merge kept BOTH copies (duplicate rent bills). With a deterministic
+  // key both devices write the same map entry and converge to one row.
+  // The has() guard also makes this function idempotent outright.
+  const id = `sch_${sched.id}_${date}`;
+  if (txnsMap().has(id)) return false;
   const now = Date.now();
   // Tier 9 #5 — auto-escalation. Compute the effective amount based
   // on years elapsed since startDate. Multiplicative compounding.
@@ -1687,7 +1741,7 @@ function materializeOne(sched: ScheduledTransaction, date: string): void {
     updatedAt: now,
   };
   if (sched.transferAccountId) {
-    const partnerId = newId();
+    const partnerId = `${id}_b`;
     const partner: Transaction = {
       ...baseTxn,
       id: partnerId,
@@ -1729,6 +1783,7 @@ function materializeOne(sched: ScheduledTransaction, date: string): void {
       applyAllocationRulesForTrigger('income-over', { triggerTxn: txnRef, today: todayIso(), month: date.slice(0, 7) });
     }
   }
+  return true;
 }
 
 /**
@@ -1757,7 +1812,10 @@ export function applyEscalation(sched: ScheduledTransaction, date: string): Mone
 // -- Bulk export / import -------------------------------------------------
 
 export type Snapshot = {
-  version: 1;
+  /** v2 adds trips/autoRules/budgetTemplates/savedSearches/nwSnapshots
+   *  (v1 exports silently dropped them) and strips secret settings.
+   *  v1 files remain importable. */
+  version: 1 | 2;
   exportedAt: string;
   settings: Settings;
   accounts: Account[];
@@ -1767,13 +1825,34 @@ export type Snapshot = {
   transactions: Transaction[];
   assignments: MonthAssignment[];
   scheduled?: ScheduledTransaction[];
+  trips?: TripBudget[];
+  autoRules?: AutoRule[];
+  budgetTemplates?: BudgetTemplate[];
+  savedSearches?: SavedSearch[];
+  nwSnapshots?: NwSnapshot[];
 };
+
+/** Device/session credentials that must never travel inside a plaintext
+ *  JSON backup (they end up in Downloads, emails, bug reports). Stripped
+ *  on export AND ignored on import so old files can't re-plant them. */
+const SECRET_SETTINGS_KEYS: readonly string[] = [
+  'googleAccessToken',
+  'googleAccessTokenExpiresAt',
+  'personalBackupToken',
+  'stockPriceApiKey',
+];
+
+function scrubSecretSettings(s: Settings): Settings {
+  const clean: Record<string, unknown> = { ...s };
+  for (const k of SECRET_SETTINGS_KEYS) delete clean[k];
+  return clean as Settings;
+}
 
 export function exportSnapshot(): Snapshot {
   return {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
-    settings: getSettings(),
+    settings: scrubSecretSettings(getSettings()),
     accounts: listAccounts(),
     groups: listGroups(),
     categories: listCategories(),
@@ -1781,6 +1860,11 @@ export function exportSnapshot(): Snapshot {
     transactions: listTransactions(),
     assignments: listAssignments(),
     scheduled: listScheduled(),
+    trips: listTrips(),
+    autoRules: Array.from(autoRulesMap().values()),
+    budgetTemplates: Array.from(budgetTemplatesMap().values()),
+    savedSearches: Array.from(savedSearchesMap().values()),
+    nwSnapshots: Array.from(nwSnapshotsMap().values()),
   };
 }
 
@@ -1833,8 +1917,8 @@ export function validateSnapshot(raw: unknown): SnapshotValidation {
     return { ok: false, errors, warnings, stats };
   }
   const snap = raw as Partial<Snapshot>;
-  if (snap.version !== 1) {
-    errors.push(`Unsupported backup version ${(snap as { version?: unknown }).version ?? 'unknown'}. Expected version 1.`);
+  if (snap.version !== 1 && snap.version !== 2) {
+    errors.push(`Unsupported backup version ${(snap as { version?: unknown }).version ?? 'unknown'}. Expected version 1 or 2.`);
   }
   if (!Array.isArray(snap.accounts)) {
     errors.push('Backup is missing the accounts array.');
@@ -1913,7 +1997,15 @@ export function importSnapshot(snap: Snapshot, opts: { mode: 'replace' | 'merge'
   let added = 0;
   tx(() => {
     if (opts.mode === 'replace') {
-      [accountsMap(), groupsMap(), categoriesMap(), payeesMap(), txnsMap(), assignmentsMap(), scheduledMap()].forEach((m) => m.clear());
+      // Clear EVERY map, including ones this snapshot version may not
+      // carry — a v1 restore that left old autoRules/trash in place
+      // mixed stale rules (pointing at replaced category IDs) into the
+      // restored dataset.
+      [
+        accountsMap(), groupsMap(), categoriesMap(), payeesMap(), txnsMap(),
+        assignmentsMap(), scheduledMap(), tripsMap(), autoRulesMap(),
+        budgetTemplatesMap(), savedSearchesMap(), nwSnapshotsMap(), trashMap(),
+      ].forEach((m) => m.clear());
     }
     for (const a of snap.accounts) { accountsMap().set(a.id, a); added++; }
     for (const g of snap.groups) { groupsMap().set(g.id, g); added++; }
@@ -1922,8 +2014,17 @@ export function importSnapshot(snap: Snapshot, opts: { mode: 'replace' | 'merge'
     for (const t of snap.transactions) { txnsMap().set(t.id, t); added++; }
     for (const m of snap.assignments) { assignmentsMap().set(m.id, m); added++; }
     for (const s of snap.scheduled ?? []) { scheduledMap().set(s.id, s); added++; }
-    // settings: only overwrite explicit fields
-    for (const [k, v] of Object.entries(snap.settings)) settingsMap().set(k, v);
+    for (const t of snap.trips ?? []) { tripsMap().set(t.id, t); added++; }
+    for (const r of snap.autoRules ?? []) { autoRulesMap().set(r.id, r); added++; }
+    for (const b of snap.budgetTemplates ?? []) { budgetTemplatesMap().set(b.id, b); added++; }
+    for (const s of snap.savedSearches ?? []) { savedSearchesMap().set(s.id, s); added++; }
+    for (const n of snap.nwSnapshots ?? []) { nwSnapshotsMap().set(n.date, n); added++; }
+    // settings: only overwrite explicit fields; never accept credentials
+    // from a backup file (old v1 exports embedded them).
+    for (const [k, v] of Object.entries(snap.settings)) {
+      if (SECRET_SETTINGS_KEYS.includes(k)) continue;
+      settingsMap().set(k, v);
+    }
   });
   return { added };
 }

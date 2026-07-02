@@ -31,6 +31,7 @@ import { WebsocketProvider } from 'y-websocket';
 import { getDoc } from './doc';
 import { getSettings, setSettingsField, isSettingsLoaded } from '../db/repo';
 import { newSyncRoom } from '../domain/id';
+import { deriveRoomName, deriveRoomPassword } from './roomDerivation';
 
 export type SyncStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -142,25 +143,47 @@ export async function initSync(): Promise<void> {
   }
   const settings = getSettings();
   if (settings.syncEnabled && settings.syncRoom) {
-    connectWebrtc(settings.syncRoom);
+    await connectWebrtc(settings.syncRoom);
     if (settings.syncServerUrl) {
-      connectWebsocket(settings.syncServerUrl, settings.syncRoom);
+      await connectWebsocket(settings.syncServerUrl, settings.syncRoom);
     }
   }
 }
 
 // -- WebRTC transport ----------------------------------------------------
 
-export function connectWebrtc(room: string) {
+// Generation counters guard the async connect flows: if a connect or
+// disconnect supersedes an in-flight connect (while it awaits the room
+// derivation), the stale one bails instead of creating a second provider.
+let webrtcSeq = 0;
+let websocketSeq = 0;
+
+/**
+ * COMPATIBILITY NOTE (see roomDerivation.ts): as of this change, the
+ * room name sent to signaling servers and the y-webrtc password are
+ * SHA-256 derivations of the pairing phrase, not the raw phrase. Devices
+ * on an older app version join the old raw-phrase room and will NOT see
+ * devices on this version. All devices sharing a phrase must run the
+ * same app version to pair.
+ */
+export async function connectWebrtc(room: string): Promise<void> {
   disconnectWebrtc();
+  const seq = ++webrtcSeq;
   setStatus('connecting');
   try {
+    const [roomName, password] = await Promise.all([
+      deriveRoomName(room),
+      deriveRoomPassword(room),
+    ]);
+    if (seq !== webrtcSeq) return; // superseded while deriving
     const doc = getDoc();
-    webrtc = new WebrtcProvider(`monii-watch-${room}`, doc, {
-      // Default y-webrtc signaling servers are public — fine for v1, but the
+    webrtc = new WebrtcProvider(roomName, doc, {
+      // Default y-webrtc signaling server is public — fine for v1, but the
       // user can host their own later (Plex box, etc.) and we'll point here.
-      signaling: ['wss://signaling.yjs.dev', 'wss://y-webrtc-signaling-eu.herokuapp.com'],
-      password: room,
+      // (The old second entry, y-webrtc-signaling-eu.herokuapp.com, died
+      // with Heroku's free tier in Nov 2022 and was removed.)
+      signaling: ['wss://signaling.yjs.dev'],
+      password,
       maxConns: 8,
       filterBcConns: true,
     } as any);
@@ -181,6 +204,7 @@ export function connectWebrtc(room: string) {
 }
 
 export function disconnectWebrtc() {
+  webrtcSeq++; // cancel any in-flight async connect
   if (webrtc) {
     try { webrtc.disconnect(); webrtc.destroy(); } catch {}
     webrtc = null;
@@ -198,21 +222,41 @@ export function disconnectWebrtc() {
  * users on the same server stay isolated by phrase.
  *
  * Safe to call without WebRTC also being active. Independent transport.
+ *
+ * COMPATIBILITY NOTE: the doc name on the server is now the SHA-256
+ * derived room (see roomDerivation.ts), not the raw phrase. Devices on
+ * older app versions land in a different doc on the same server and
+ * won't sync with this version. Same phrase + same app version = same doc.
  */
-export function connectWebsocket(serverUrl: string, room: string) {
+export async function connectWebsocket(serverUrl: string, room: string): Promise<void> {
   disconnectWebsocket();
   if (!serverUrl || !serverUrl.trim()) return;
+  const seq = ++websocketSeq;
   // Normalize: accept "https://x.com" and convert to "wss://x.com" so the
   // user can paste either; ws/wss already works as-is.
-  let url = serverUrl.trim().replace(/\/+$/, '');
+  let url = serverUrl.trim();
+  // Optional server auth: the user can embed `?token=...` in the URL they
+  // enter (matches MONII_SYNC_TOKEN on the self-hosted server). Strip it
+  // here and re-attach via y-websocket's `params` so it ends up as a
+  // query param on the actual ws URL instead of corrupting the path.
+  let token: string | null = null;
+  const qIdx = url.indexOf('?');
+  if (qIdx >= 0) {
+    token = new URLSearchParams(url.slice(qIdx + 1)).get('token');
+    url = url.slice(0, qIdx);
+  }
+  url = url.replace(/\/+$/, '');
   if (url.startsWith('https://')) url = 'wss://' + url.slice(8);
   else if (url.startsWith('http://')) url = 'ws://' + url.slice(7);
   setStatus('connecting');
   try {
+    const roomName = await deriveRoomName(room);
+    if (seq !== websocketSeq) return; // superseded while deriving
     const doc = getDoc();
-    websocket = new WebsocketProvider(url, `monii-watch-${room}`, doc, {
+    websocket = new WebsocketProvider(url, roomName, doc, {
       // y-websocket reconnects automatically on drop. Default backoff is fine.
       connect: true,
+      ...(token ? { params: { token } } : {}),
       // y-websocket doesn't natively encrypt the stream the way y-webrtc does
       // with its room password. The server holds the doc in memory; if the
       // user wants strong encryption-at-rest, they should run the server
@@ -234,6 +278,7 @@ export function connectWebsocket(serverUrl: string, room: string) {
 }
 
 export function disconnectWebsocket() {
+  websocketSeq++; // cancel any in-flight async connect
   if (websocket) {
     try { websocket.disconnect(); websocket.destroy(); } catch {}
     websocket = null;
@@ -254,8 +299,8 @@ export function setSyncEnabled(enabled: boolean) {
       room = newSyncRoom();
       setSettingsField('syncRoom', room);
     }
-    connectWebrtc(room);
-    if (settings.syncServerUrl) connectWebsocket(settings.syncServerUrl, room);
+    void connectWebrtc(room);
+    if (settings.syncServerUrl) void connectWebsocket(settings.syncServerUrl, room);
   } else {
     disconnectWebrtc();
     disconnectWebsocket();
@@ -266,8 +311,8 @@ export function setSyncRoom(room: string) {
   setSettingsField('syncRoom', room);
   const settings = getSettings();
   if (settings.syncEnabled) {
-    connectWebrtc(room);
-    if (settings.syncServerUrl) connectWebsocket(settings.syncServerUrl, room);
+    void connectWebrtc(room);
+    if (settings.syncServerUrl) void connectWebsocket(settings.syncServerUrl, room);
   }
 }
 
@@ -282,7 +327,7 @@ export function setSyncServerUrl(url: string) {
   setSettingsField('syncServerUrl', trimmed);
   const settings = getSettings();
   if (!settings.syncEnabled) return;
-  if (trimmed) connectWebsocket(trimmed, settings.syncRoom);
+  if (trimmed) void connectWebsocket(trimmed, settings.syncRoom);
   else disconnectWebsocket();
 }
 

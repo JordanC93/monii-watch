@@ -176,9 +176,19 @@ async function preprocessForOcr(file: File | Blob): Promise<Blob> {
   // v0.7.30 — projection-profile deskew. Cheap (downsamples the image
   // to ~200 px before angle search) and effective for the common case
   // of phone-photo statements taken 1–5° off-axis.
+  // SIGN CONVENTION: `detectSkewAngle` returns the angle θ for which
+  // projectionVariance is maximized — i.e. the rotation that, when
+  // APPLIED to the content, makes text lines horizontal.
+  // `projectionVariance` computes ry = dx·sinθ + dy·cosθ, which is the
+  // row index a content pixel lands on after `ctx.rotate(θ)` (canvas
+  // convention: y-down, positive θ = clockwise on screen). That is the
+  // exact same transform `rotateCanvas(source, θ)` performs, so the
+  // detected angle is applied DIRECTLY — do NOT negate it. Negating
+  // (the pre-fix code did `-skewDeg`) rotates the opposite way and
+  // doubles the skew instead of correcting it.
   const skewDeg = detectSkewAngle(canvas);
   const rotated = Math.abs(skewDeg) >= 0.5;
-  const finalCanvas = rotated ? rotateCanvas(canvas, -skewDeg) : canvas;
+  const finalCanvas = rotated ? rotateCanvas(canvas, skewDeg) : canvas;
 
   // v0.7.30 — release the source ImageBitmap immediately (a 3000×3000
   // image is ~36 MB held in GPU memory until close()). Also zero the
@@ -209,9 +219,11 @@ async function preprocessForOcr(file: File | Blob): Promise<Blob> {
  * alignment. Uses a projection-profile metric: for each candidate
  * angle, rotate the (downsampled binary) image by that angle and
  * compute the variance of row sums. Text rows form sharp dark/light
- * bands when horizontal, which spikes the variance. Returns degrees
- * (positive = clockwise) in the range [-8, +8]; 0 if the image is
- * already aligned or the detection signal is too weak.
+ * bands when horizontal, which spikes the variance. Returns the
+ * CORRECTION angle in degrees (canvas convention: positive =
+ * clockwise on screen) in the range [-8, +8] — pass it straight to
+ * `rotateCanvas` without negating. 0 if the image is already aligned
+ * or the detection signal is too weak.
  */
 function detectSkewAngle(source: HTMLCanvasElement): number {
   // Downsample to keep the angle search cheap. 200 px on the long
@@ -327,15 +339,23 @@ function rotateCanvas(source: HTMLCanvasElement, deg: number): HTMLCanvasElement
  * neighbourhood to find the median, and writes the median back to
  * all three channels. Borders are passed through unchanged.
  *
- * Memory: O(W) for one scratch row (we can't overwrite in place
- * because subsequent pixels need the original neighbourhood). CPU:
+ * Memory: O(W) for two alternating scratch rows (we can't overwrite in
+ * place because subsequent pixels need the original neighbourhood). CPU:
  * O(W·H) with a tiny constant (9-element sort via fixed swap network).
+ *
+ * Two-buffer commit protocol: `cur` receives row Y's medians while
+ * `prev` still holds row Y-1's. Row Y-1's ORIGINAL pixels are only
+ * needed as kernel input up through row Y (the 3-tall kernel for row
+ * Y+1 reads rows Y..Y+2), so after computing row Y we can safely
+ * commit `prev` into row Y-1 and swap the buffers. The pre-fix
+ * single-buffer version committed row Y's medians into row Y-1,
+ * shifting the whole image up by one pixel and smearing the bottom.
+ *
+ * Exported for unit tests (pure array math, no DOM).
  */
-function denoise3x3Median(data: Uint8ClampedArray, w: number, h: number): void {
-  // Scratch buffer holds the median values for the row we're computing.
-  // We only need one row at a time because the kernel is 3-row tall —
-  // by the time we finish row Y, rows Y-1 are no longer needed by Y+1.
-  const scratch = new Uint8ClampedArray(w);
+export function denoise3x3Median(data: Uint8ClampedArray, w: number, h: number): void {
+  let prev = new Uint8ClampedArray(w); // medians of row y-1 (valid once y >= 2)
+  let cur = new Uint8ClampedArray(w);  // medians of the row being computed
   const samples = new Uint8Array(9);
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
@@ -355,28 +375,29 @@ function denoise3x3Median(data: Uint8ClampedArray, w: number, h: number): void {
         while (j >= 0 && samples[j] > v) { samples[j + 1] = samples[j]; j--; }
         samples[j + 1] = v;
       }
-      scratch[x] = samples[4]; // index 4 = median of 9
+      cur[x] = samples[4]; // index 4 = median of 9
     }
-    // Commit scratch into the previous row's RGB channels. We delay
-    // by one row so the next row's kernel still sees the unmodified
-    // pixel values.
+    // Commit row y-1's medians (held in `prev`) into row y-1. Safe:
+    // no later kernel reads row y-1 anymore, and row y's original
+    // pixels are untouched for row y+1's kernel.
     if (y > 1) {
-      const commitY = y - 1;
-      const off = commitY * w * 4;
+      const off = (y - 1) * w * 4;
       for (let x = 1; x < w - 1; x++) {
-        const m = scratch[x];
+        const m = prev[x];
         data[off + x * 4]     = m;
         data[off + x * 4 + 1] = m;
         data[off + x * 4 + 2] = m;
       }
     }
+    // Swap: cur becomes prev for the next iteration.
+    const tmp = prev; prev = cur; cur = tmp;
   }
-  // Commit the final row.
+  // Commit the final computed row (y = h-2, whose medians ended up in
+  // `prev` after the last swap).
   if (h > 2) {
-    const commitY = h - 2;
-    const off = commitY * w * 4;
+    const off = (h - 2) * w * 4;
     for (let x = 1; x < w - 1; x++) {
-      const m = scratch[x];
+      const m = prev[x];
       data[off + x * 4]     = m;
       data[off + x * 4 + 1] = m;
       data[off + x * 4 + 2] = m;
@@ -504,21 +525,45 @@ function pickVendor(lines: string[]): string {
   return lines[0] ?? '';
 }
 
+// Amount token, aligned with statement.ts's MONEY_RE comma handling:
+//   - "1,234.56" / "12,345,678.90" — US thousands groups + optional decimals
+//   - "1234.56"  — plain dot decimals
+//   - "12,34"    — EU decimal comma, ONLY when no dot is present
+// Alternation order matters: the thousands form must win over the EU
+// decimal-comma form so "1,234.56" isn't read as "$1.23".
+const AMOUNT_TOKEN_SRC = String.raw`(\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2}|\d+,\d{2}(?!\d))`;
+
+/** Convert a matched amount token to cents, stripping US thousands commas.
+ *  A comma is only treated as the decimal separator when no dot exists
+ *  AND the comma is followed by exactly 2 digits (EU receipts). */
+function amountTokenToCents(token: string): number {
+  const normalized = token.includes('.')
+    ? token.replace(/,/g, '')                 // "1,234.56" → "1234.56"
+    : /^\d+,\d{2}$/.test(token)
+      ? token.replace(',', '.')               // "12,34" → "12.34" (EU)
+      : token.replace(/,/g, '');              // "1,234" → "1234"
+  const v = parseFloat(normalized);
+  return Number.isFinite(v) ? dollarsToCents(v) : 0;
+}
+
 function pickAmount(lines: string[]): number {
   // Look for explicit "TOTAL" / "AMOUNT DUE" / "BALANCE DUE" lines first.
-  const totalRegex = /(?:^|\s)(?:GRAND\s+)?(?:TOTAL|AMOUNT\s+DUE|BALANCE\s+DUE|AMOUNT)\s*[:.]?\s*\$?\s*(\d+(?:[.,]\d{2}))/i;
+  const totalRegex = new RegExp(
+    String.raw`(?:^|\s)(?:GRAND\s+)?(?:TOTAL|AMOUNT\s+DUE|BALANCE\s+DUE|AMOUNT)\s*[:.]?\s*\$?\s*${AMOUNT_TOKEN_SRC}`,
+    'i',
+  );
   for (const line of [...lines].reverse()) {
     const m = line.match(totalRegex);
-    if (m) return dollarsToCents(parseFloat(m[1].replace(',', '.')));
+    if (m) return amountTokenToCents(m[1]);
   }
 
   // Fall back to the largest dollar amount on the slip.
   let best = 0;
-  const moneyRegex = /\$?\s?(\d+(?:[.,]\d{2}))/g;
+  const moneyRegex = new RegExp(String.raw`\$?\s?${AMOUNT_TOKEN_SRC}`, 'g');
   for (const line of lines) {
     let m: RegExpExecArray | null;
     while ((m = moneyRegex.exec(line)) !== null) {
-      const v = dollarsToCents(parseFloat(m[1].replace(',', '.')));
+      const v = amountTokenToCents(m[1]);
       if (v > best) best = v;
     }
   }

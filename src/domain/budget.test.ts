@@ -168,6 +168,16 @@ describe('computeMonthBudget — assignment + activity + carry', () => {
     // April: 7000 + 5000 = 12000 available
     expect(c1.available).toBe(12000);
   });
+  it('walks every month between the earliest assignment and the target, across year boundaries', () => {
+    const assignments: MonthAssignment[] = [
+      { id: '2025-11|c1', month: '2025-11', categoryId: 'c1', assigned: 10000 },
+    ];
+    const txns = [txn({ amount: -4000, categoryId: 'c1', date: '2026-01-15' })];
+    const out = computeMonthBudget([checking], [cat], txns, assignments, '2026-02');
+    const c1 = out.get('c1')!;
+    // Nov 10000 carries through Dec, Jan spends 4000, Feb shows 6000
+    expect(c1.available).toBe(6000);
+  });
   it('overspending rolls forward as negative available', () => {
     const assignments: MonthAssignment[] = [
       { id: '2026-03|c1', month: '2026-03', categoryId: 'c1', assigned: 5000 },
@@ -248,6 +258,20 @@ describe('computeAgeOfMoney', () => {
         txn({ amount: -10000, date: '2026-04-08' }),
       ],
       new Date('2026-04-09'),
+    );
+    expect(result).toBe(7);
+  });
+  it('excludes outflows older than the window using a local-date cutoff', () => {
+    const result = computeAgeOfMoney(
+      [checking],
+      [
+        txn({ amount: 10000, date: '2026-01-01' }),
+        txn({ amount: -10000, date: '2026-01-05' }), // age 4, outside window
+        txn({ amount: 10000, date: '2026-04-01' }),
+        txn({ amount: -10000, date: '2026-04-08' }), // age 7, inside window
+      ],
+      new Date(2026, 3, 9), // local Apr 9
+      30,
     );
     expect(result).toBe(7);
   });

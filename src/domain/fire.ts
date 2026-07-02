@@ -117,9 +117,11 @@ export function projectDeterministic(input: FireInputs): Projection {
         withdrawal -= input.socialSecurityMonthly * 12;
       }
       nw -= Math.max(0, withdrawal);
-      if (nw < 0 && !ranOut) {
-        ranOut = true;
-        ranOutInYear = y + 1;
+      if (nw < 0) {
+        if (!ranOut) {
+          ranOut = true;
+          ranOutInYear = y + 1;
+        }
         nw = 0;
       }
       // Inflate spending for next year.

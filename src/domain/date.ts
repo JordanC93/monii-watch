@@ -91,6 +91,12 @@ export function isoAddDays(iso: string, days: number): string {
   return format(d, DATE_FMT);
 }
 
+/** Add (or subtract) calendar months from an ISO date string, clamping
+ *  the day to the target month's length (Jan 31 + 1mo = Feb 28). */
+export function isoAddMonths(iso: string, months: number): string {
+  return format(addMonths(parseISO(iso), months), DATE_FMT);
+}
+
 /** Inclusive range check: is `iso` between `from` and `to`? Both ISO yyyy-mm-dd. */
 export function isoBetween(iso: string, from: string, to: string): boolean {
   return iso >= from && iso <= to;

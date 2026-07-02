@@ -18,6 +18,7 @@ import {
   setAssignment, updateGroup, reorderGroups, reorderCategoriesInGroup, moveCategory,
 } from '../../db/repo';
 import { cn } from '../../lib/cn';
+import { useFormatMoney } from '../../lib/format';
 import type { Category, CategoryGroup, Money as MoneyCents } from '../../domain/types';
 
 /**
@@ -149,7 +150,9 @@ export function BudgetTable() {
     setDrag(null);
   }
 
-  function onCategoryDrop(targetGroupId: string, targetCategoryId: string | null) {
+  // Stable ref so the row memo comparator can compare it without
+  // defeating memoization on every parent render.
+  const onCategoryDrop = useCallback((targetGroupId: string, targetCategoryId: string | null) => {
     if (!drag || drag.kind !== 'category') return;
     const targetSiblings = categories
       .filter((c) => c.groupId === targetGroupId && !c.hidden && c.id !== drag.id)
@@ -166,7 +169,7 @@ export function BudgetTable() {
       moveCategory(drag.id, targetGroupId, insertAt);
     }
     setDrag(null);
-  }
+  }, [drag, categories]);
 
   // Tier 4 #3 — spreadsheet keyboard nav. Tab/Shift+Tab move horizontally;
   // Arrow Up/Down move between MoneyInputs in the table; Enter commits +
@@ -394,6 +397,10 @@ function BudgetGroupRow({
 const BudgetCategoryRow = memo(BudgetCategoryRowImpl, (prev, next) => {
   // Re-render only when something this row actually displays changes.
   // Keeps 30+ rows from re-rendering on every unrelated observer fire.
+  // The callbacks MUST be compared too: onCommitAssignment closes over
+  // `month`, and a row whose numbers are identical across two months
+  // (0/0/0 is common) would otherwise keep the stale closure and write
+  // the assignment into the PREVIOUS month.
   return (
     prev.category === next.category
     && prev.assigned === next.assigned
@@ -402,6 +409,8 @@ const BudgetCategoryRow = memo(BudgetCategoryRowImpl, (prev, next) => {
     && prev.drag === next.drag
     && prev.sandboxActive === next.sandboxActive
     && prev.isSandboxOverridden === next.isSandboxOverridden
+    && prev.onCommitAssignment === next.onCommitAssignment
+    && prev.onCategoryDrop === next.onCategoryDrop
   );
 });
 
@@ -421,6 +430,7 @@ function BudgetCategoryRowImpl({
   const month = useBudget((s) => s.selectedMonth);
   const openModal = useUI((s) => s.openModal);
   const navigate = useNavigate();
+  const fmtMoney = useFormatMoney();
   const memo = useBudget((s) => s.assignments.find((a) => a.month === month && a.categoryId === category.id)?.memo);
   const accounts = useBudget((s) => s.accounts);
   const txns = useBudget((s) => s.transactions);
@@ -579,7 +589,7 @@ function BudgetCategoryRowImpl({
           }}
         >
           <button
-            className={cn('px-2 py-0.5 rounded font-medium tabular cursor-grab active:cursor-grabbing',
+            className={cn('budget-money-pill px-2 py-0.5 rounded font-medium tabular cursor-grab active:cursor-grabbing',
               available > 0 && 'bg-positive/15',
               available < 0 && 'bg-negative/15',
               available === 0 && 'bg-surface-3',
@@ -618,14 +628,14 @@ function BudgetCategoryRowImpl({
             >{category.name}</button>
           </div>
           <div className="flex items-baseline gap-3 mt-0.5 text-[11.5px] text-fg-subtle">
-            <span>Assigned <span className="text-fg-muted tabular">{centsShort(assigned)}</span></span>
+            <span>Assigned <span className="text-fg-muted tabular">{centsShort(assigned, fmtMoney)}</span></span>
             <button
               type="button"
               onClick={() => navigate(`/categories/${category.id}`)}
               className="hover:text-accent text-left"
               aria-label={`See ${category.name} breakdown`}
             >
-              Spent <span className={cn('tabular', activity < 0 ? 'text-negative' : 'text-fg-muted')}>{centsShort(activity)}</span>
+              Spent <span className={cn('tabular', activity < 0 ? 'text-negative' : 'text-fg-muted')}>{centsShort(activity, fmtMoney)}</span>
             </button>
           </div>
           {goal.status !== 'noGoal' && (
@@ -637,7 +647,7 @@ function BudgetCategoryRowImpl({
         </div>
         <div className="flex flex-col items-end gap-1.5">
           <button
-            className={cn('px-2.5 py-1 rounded-md text-[13px] font-semibold tabular min-w-[80px] text-right',
+            className={cn('budget-money-pill px-2.5 py-1 rounded-md text-[13px] font-semibold tabular min-w-[80px] text-right',
               available > 0 && 'bg-positive/15 text-positive',
               available < 0 && 'bg-negative/15 text-negative',
               available === 0 && 'bg-surface-3 text-fg-muted',
@@ -696,11 +706,11 @@ function labelFor(s: ReturnType<typeof computeGoalProgress>['status']) {
   }
 }
 
-function centsShort(cents: number): string {
-  const sign = cents < 0 ? '-' : '';
-  const abs = Math.abs(cents);
-  if (abs >= 100000) return `${sign}$${Math.round(abs / 100).toLocaleString()}`;
-  return `${sign}$${(abs / 100).toFixed(2)}`;
+/** Compact money label for the mobile card — drops cents at ≥$1,000
+ *  equivalents. Currency-aware (Iron Rule #5): takes the formatter from
+ *  useFormatMoney instead of hardcoding `$`. */
+function centsShort(cents: number, fmt: ReturnType<typeof useFormatMoney>): string {
+  return fmt(cents, { showCents: Math.abs(cents) < 100000 });
 }
 
 function ColorDot({ color }: { color: string }) {

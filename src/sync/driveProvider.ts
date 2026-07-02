@@ -42,6 +42,7 @@
 import { getDoc } from './doc';
 import { getSettings, setSettingsField } from '../db/repo';
 import { encryptBytes, decryptBytes } from './crypto';
+import { setLastSyncedAt } from './syncMeta';
 import * as Y from 'yjs';
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -321,7 +322,10 @@ async function pull(token: string): Promise<void> {
   const update = await decryptBytes(blob, phrase);
   // Apply with a tagged origin so our own observer skips the rebound.
   Y.transact(getDoc(), () => Y.applyUpdate(getDoc(), update), ORIGIN_REMOTE_PULL);
-  setSettingsField('googleDriveLastSyncedAt', Date.now());
+  // Device-local, NOT settings: writing the timestamp into the synced
+  // settings map used to re-trigger the push observer forever (and
+  // trigger peers' observers). See syncMeta.ts.
+  setLastSyncedAt('drive', Date.now());
   setStatus({ kind: 'connected' });
 }
 
@@ -338,7 +342,9 @@ async function push(token: string): Promise<void> {
   const blob = await encryptBytes(update, phrase);
   const newFileId = await uploadSnapshot(token, folderId, fileId || null, blob);
   if (newFileId !== fileId) setSettingsField('googleDriveFileId', newFileId);
-  setSettingsField('googleDriveLastSyncedAt', Date.now());
+  // Device-local — a settings write here would re-fire our own push
+  // observer and loop forever. See syncMeta.ts.
+  setLastSyncedAt('drive', Date.now());
   setStatus({ kind: 'connected' });
 }
 

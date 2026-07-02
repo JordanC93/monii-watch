@@ -50,6 +50,22 @@ describe('nextPaycheck', () => {
     const next = nextPaycheck({ payFrequency: 'monthly', payAnchorDate: '2026-01-15' }, '2026-04-20');
     expect(next).toBe('2026-05-15');
   });
+  it('monthly: end-of-month anchor does not drift after a clamped February', () => {
+    const next = nextPaycheck({ payFrequency: 'monthly', payAnchorDate: '2026-01-31' }, '2026-04-01');
+    expect(next).toBe('2026-04-30');
+  });
+  it('semimonthly: anchor before the 15th pays on day and day + 15', () => {
+    const next = nextPaycheck({ payFrequency: 'semimonthly', payAnchorDate: '2026-01-05' }, '2026-04-10');
+    expect(next).toBe('2026-04-20');
+  });
+  it('semimonthly: anchor after the 15th pays on day - 15, not month-end', () => {
+    const next = nextPaycheck({ payFrequency: 'semimonthly', payAnchorDate: '2026-01-20' }, '2026-04-01');
+    expect(next).toBe('2026-04-05');
+  });
+  it('semimonthly: anchor after the 15th rolls into next month after the anchor day', () => {
+    const next = nextPaycheck({ payFrequency: 'semimonthly', payAnchorDate: '2026-01-20' }, '2026-04-21');
+    expect(next).toBe('2026-05-05');
+  });
 });
 
 describe('PAY_FREQUENCY_LABELS', () => {

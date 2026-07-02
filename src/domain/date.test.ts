@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   todayIso, monthIso, thisMonthIso, parseMonth, shiftMonth, monthRange,
   isoIsInMonth, monthsBetween, formatMonthLong, formatMonthShort,
-  formatDate, formatDateShort, isoAddDays, isoBetween,
+  formatDate, formatDateShort, isoAddDays, isoAddMonths, isoBetween,
 } from './date';
 
 describe('date helpers', () => {
@@ -92,6 +92,22 @@ describe('isoAddDays', () => {
   });
   it('handles month boundary', () => {
     expect(isoAddDays('2026-04-30', 1)).toBe('2026-05-01');
+  });
+});
+
+describe('isoAddMonths', () => {
+  it('adds months keeping the day', () => {
+    expect(isoAddMonths('2026-01-15', 1)).toBe('2026-02-15');
+    expect(isoAddMonths('2026-01-15', 13)).toBe('2027-02-15');
+  });
+  it('clamps to the last day of shorter months', () => {
+    expect(isoAddMonths('2025-01-31', 1)).toBe('2025-02-28');
+    expect(isoAddMonths('2024-01-31', 1)).toBe('2024-02-29');
+    expect(isoAddMonths('2026-03-31', 1)).toBe('2026-04-30');
+  });
+  it('subtracts months', () => {
+    expect(isoAddMonths('2026-03-31', -1)).toBe('2026-02-28');
+    expect(isoAddMonths('2026-01-15', -1)).toBe('2025-12-15');
   });
 });
 

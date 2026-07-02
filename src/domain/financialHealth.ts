@@ -16,7 +16,7 @@ import { ACCOUNT_TYPE_META } from './types';
 import { computeAccountBalances } from './budget';
 import { computeCreditCardSummary, totalCreditUtilization } from './creditCard';
 import { detectSubscriptions } from './subscriptions';
-import { todayIso } from './date';
+import { todayIso, isoAddDays } from './date';
 import type { Payee } from './types';
 
 export type HealthBand = 'green' | 'yellow' | 'red' | 'unknown';
@@ -55,7 +55,7 @@ export function computeHealthScore(
   settings: Settings,
 ): HealthScorecard {
   const today = todayIso();
-  const cutoff = isoMinus(today, LOOKBACK_DAYS);
+  const cutoff = isoAddDays(today, -LOOKBACK_DAYS);
 
   const onBudgetIds = new Set(
     accounts.filter((a) => ACCOUNT_TYPE_META[a.type].onBudget && !a.closed).map((a) => a.id),
@@ -251,12 +251,6 @@ export function computeHealthScore(
     : 'red';
 
   return { overall, band: overallBand, indicators };
-}
-
-function isoMinus(today: string, days: number): string {
-  const d = new Date(today + 'T00:00:00');
-  d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
 }
 
 function formatCents(c: number): string {

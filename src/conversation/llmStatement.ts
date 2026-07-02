@@ -31,7 +31,7 @@
  * explicitly allows a future *local* model. This module is that.
  */
 
-import type { ParsedStatementRow } from './statement';
+import { isCardPaymentText, type ParsedStatementRow } from './statement';
 import { extractInnerVendor, inferVendorCategoryHint } from './vendors';
 import { dollarsToCents } from '../domain/money';
 
@@ -266,7 +266,13 @@ function validateRow(r: unknown): ParsedStatementRow | null {
   // when the actual amount was unparseable.
   if (cents === 0) return null;
 
-  const isIncome = lr.is_income === true || cents > 0;
+  // Same card-payment detection as the regex parser. Hardcoding false
+  // here meant LLM-parsed credit-card statements skipped the Iron Rule
+  // #28 sign-flip and imported "Payment Thank You" rows as spending.
+  const isCardPayment = isCardPaymentText(rawVendor);
+  // Trust the model's is_income flag only — forcing every positive row
+  // to income mislabeled merchant refunds and card payments.
+  const isIncome = lr.is_income === true && !isCardPayment;
   const categoryHint =
     typeof lr.category_hint === 'string' && lr.category_hint.trim()
       ? (inferVendorCategoryHint(lr.category_hint.trim()) ?? inferVendorCategoryHint(rawVendor))
@@ -285,7 +291,7 @@ function validateRow(r: unknown): ParsedStatementRow | null {
     categoryHint,
     isPeerPayment,
     isIncome,
-    isCardPayment: false,
+    isCardPayment,
   };
 }
 

@@ -29,6 +29,16 @@ describe('simulatePayoff', () => {
     expect(ava.totalInterest).toBeLessThanOrEqual(sno.totalInterest);
   });
 
+  it('rolls freed minimum payments into the extra pool after a debt retires', () => {
+    const small: DebtItem = { accountId: 's', name: 'S', balance: 10000, apr: 0, minPayment: 10000 };
+    const big: DebtItem = { accountId: 'b', name: 'B', balance: 60000, apr: 0, minPayment: 10000 };
+    const out = simulatePayoff({ debts: [small, big], monthlyBudget: 20000, strategy: 'snowball' });
+    // Month 1 retires S; its $100 minimum then accelerates B:
+    // 50000 → 30000 → 10000 → 0. Without the roll-forward this takes 6 months.
+    expect(out.months).toBe(4);
+    expect(out.payoffOrder.map((d) => d.accountId)).toEqual(['s', 'b']);
+  });
+
   it('handles single-account input', () => {
     const out = simulatePayoff({ debts: [cardA], monthlyBudget: 20000, strategy: 'avalanche' });
     expect(out.payoffOrder.length).toBe(1);

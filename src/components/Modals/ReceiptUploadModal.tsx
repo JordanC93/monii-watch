@@ -76,6 +76,13 @@ type StatementRowDraft = {
   originalVendor: string;
   /** Tier 7 #2 — id of an existing transaction this row likely duplicates. */
   dupOfId?: string;
+  /** v0.7.31 — amount was INJECTED by the OCR-recovery pass (mode of
+   *  peer amounts), not read from the document. Shown as an
+   *  "estimated" badge so the user verifies before importing. */
+  isPlaceholder?: boolean;
+  /** v0.7.31 — the user manually edited amountText. Kind-selector
+   *  toggles must NOT re-derive over a manual correction. */
+  amountEdited?: boolean;
 };
 
 type Draft =
@@ -138,6 +145,9 @@ type Draft =
        */
       statementKind: 'credit-card' | 'bank' | 'other';
       rows: StatementRowDraft[];
+      /** v0.7.31 — the user has edited/checked/removed rows. The async
+       *  LLM fallback must NOT replace the table once this is set. */
+      touched?: boolean;
     };
 
 /**
@@ -525,14 +535,20 @@ export function ReceiptUploadModal({ open, onClose }: { open: boolean; onClose: 
         console.info(`[llm] no improvement (${llmRows?.length ?? 0} rows); keeping regex result`);
         return;
       }
-      console.info(`[llm] replaced ${regexRowCount} regex rows with ${llmRows.length} LLM rows`);
       const drafted = llmRows.map((r) => statementRowToDraft(r, categories));
       const adjusted = applyKindToRows(drafted, inferredKind);
-      setDraft((d) =>
-        d && d.kind === 'statement'
-          ? { ...d, rows: adjusted, accountId: d.accountId || defaultAcct }
-          : d,
-      );
+      setDraft((d) => {
+        if (!d || d.kind !== 'statement') return d;
+        // The first-run model download takes minutes; the user has been
+        // reviewing (and possibly editing) the regex rows the whole
+        // time. Replacing the table would silently discard those edits.
+        if (d.touched) {
+          console.info('[llm] result ready but the user already edited the table — keeping their version');
+          return d;
+        }
+        console.info(`[llm] replaced ${regexRowCount} regex rows with ${llmRows.length} LLM rows`);
+        return { ...d, rows: adjusted, accountId: d.accountId || defaultAcct };
+      });
     } catch (err) {
       console.warn('[llm] fallback errored', err);
       setLlmProgress(null);
@@ -1491,6 +1507,7 @@ function statementRowToDraft(r: ParsedStatementRow, categories: any[]): Statemen
     isCardPayment: r.isCardPayment,
     originalAmount: r.amount,
     originalVendor: r.vendor,
+    isPlaceholder: r.isPlaceholder,
   };
 }
 
@@ -1509,6 +1526,10 @@ function statementRowToDraft(r: ParsedStatementRow, categories: any[]): Statemen
 function applyKindToRows<T extends StatementRowDraft>(rows: T[], kind: 'credit-card' | 'bank' | 'other'): T[] {
   return rows.map((r) => {
     if (!r.isCardPayment) return r;
+    // Never clobber a manual correction — re-deriving from
+    // originalAmount would silently revert the user's edit every time
+    // they touched the kind selector.
+    if (r.amountEdited) return r;
     const target = kind === 'credit-card' ? Math.abs(r.originalAmount) : r.originalAmount;
     return { ...r, amountText: (target / 100).toFixed(2) };
   });
@@ -1529,13 +1550,19 @@ function StatementForm({
   // in Settings → Display).
   const fmtDate = useFormatDate();
   function patchRow(rowId: string, patch: Partial<StatementRowDraft>) {
-    onChange({ ...draft, rows: draft.rows.map((r) => r.rowId === rowId ? { ...r, ...patch } : r) });
+    // Amount edits are sticky: the kind selector's re-derive skips them.
+    const withFlags = 'amountText' in patch ? { ...patch, amountEdited: true } : patch;
+    onChange({
+      ...draft,
+      touched: true,
+      rows: draft.rows.map((r) => r.rowId === rowId ? { ...r, ...withFlags } : r),
+    });
   }
   function setAllIncluded(include: boolean) {
-    onChange({ ...draft, rows: draft.rows.map((r) => ({ ...r, include })) });
+    onChange({ ...draft, touched: true, rows: draft.rows.map((r) => ({ ...r, include })) });
   }
   function removeRow(rowId: string) {
-    onChange({ ...draft, rows: draft.rows.filter((r) => r.rowId !== rowId) });
+    onChange({ ...draft, touched: true, rows: draft.rows.filter((r) => r.rowId !== rowId) });
   }
 
   const totals = useMemo(() => {
@@ -1740,9 +1767,17 @@ function StatementRow({
             Card payment row — sign handled by the statement type up top.
           </div>
         )}
+        {row.isPlaceholder && (
+          /* v0.7.31 — the amount was inferred from sibling rows (the
+             document's own figure was OCR-mangled). Without this badge
+             an injected amount is pixel-identical to a parsed one. */
+          <div className="text-[10px] text-warning truncate mt-0.5 flex items-center gap-1" title="The amount could not be read from the document; this is an estimate from similar rows. Verify before importing.">
+            <AlertTriangle size={10} className="flex-shrink-0" /> Estimated amount — verify before importing
+          </div>
+        )}
         {row.dupOfId && (
-          <div className="text-[10px] text-warning truncate mt-0.5" title="Looks like a duplicate of an existing transaction">
-            ⚠ Likely duplicate, auto-deselected
+          <div className="text-[10px] text-warning truncate mt-0.5 flex items-center gap-1" title="Looks like a duplicate of an existing transaction">
+            <AlertTriangle size={10} className="flex-shrink-0" /> Likely duplicate, auto-deselected
           </div>
         )}
         <div className="text-[10px] text-fg-subtle truncate sm:hidden mt-0.5">

@@ -24,9 +24,52 @@ const LS_HASH_KEY = 'monii:applock-hash';
 const LS_SALT_KEY = 'monii:applock-salt';
 const LS_LAST_UNLOCK_KEY = 'monii:applock-last-unlock';
 const LS_BG_AT_KEY = 'monii:applock-bg-at';
+const LS_FAILS_KEY = 'monii:applock-fails';
+const LS_LOCKOUT_KEY = 'monii:applock-lockout-until';
 const ITERATIONS = 200_000;
 const SALT_BYTES = 16;
 const HASH_BYTES = 32;
+
+// Attempt throttling. A 4-digit PIN is 10k guesses; without a delay it
+// can be scripted against the UI in minutes. After FREE_ATTEMPTS
+// consecutive failures each further failure imposes a lockout that
+// doubles, capped at LOCKOUT_MAX_MS. Reset on success.
+const FREE_ATTEMPTS = 5;
+const LOCKOUT_BASE_MS = 30_000;
+const LOCKOUT_MAX_MS = 30 * 60_000;
+
+function getFailCount(): number {
+  try { return parseInt(localStorage.getItem(LS_FAILS_KEY) ?? '0', 10) || 0; } catch { return 0; }
+}
+
+/** Milliseconds until another PIN attempt is allowed; 0 = allowed now. */
+export function getLockoutRemainingMs(): number {
+  try {
+    const until = parseInt(localStorage.getItem(LS_LOCKOUT_KEY) ?? '0', 10) || 0;
+    return Math.max(0, until - Date.now());
+  } catch {
+    return 0;
+  }
+}
+
+function recordFailure(): void {
+  try {
+    const fails = getFailCount() + 1;
+    localStorage.setItem(LS_FAILS_KEY, String(fails));
+    if (fails >= FREE_ATTEMPTS) {
+      const over = fails - FREE_ATTEMPTS; // 0 on the 5th failure
+      const ms = Math.min(LOCKOUT_MAX_MS, LOCKOUT_BASE_MS * 2 ** over);
+      localStorage.setItem(LS_LOCKOUT_KEY, String(Date.now() + ms));
+    }
+  } catch { /* private mode — throttling degrades, verify still works */ }
+}
+
+function recordSuccess(): void {
+  try {
+    localStorage.removeItem(LS_FAILS_KEY);
+    localStorage.removeItem(LS_LOCKOUT_KEY);
+  } catch { /* ignore */ }
+}
 
 /** Whether a PIN has been set on THIS device. */
 export function hasLocalPin(): boolean {
@@ -58,12 +101,17 @@ export function clearLocalPin(): void {
     localStorage.removeItem(LS_SALT_KEY);
     localStorage.removeItem(LS_LAST_UNLOCK_KEY);
     localStorage.removeItem(LS_BG_AT_KEY);
+    localStorage.removeItem(LS_FAILS_KEY);
+    localStorage.removeItem(LS_LOCKOUT_KEY);
   } catch { /* ignore */ }
 }
 
-/** Verify a candidate PIN against the stored hash. Constant-time-ish via subtle. */
+/** Verify a candidate PIN against the stored hash. Constant-time-ish via subtle.
+ *  Refuses (returns false without deriving) while a failure lockout is
+ *  active — check `getLockoutRemainingMs()` first to show the user why. */
 export async function verifyLocalPin(candidate: string): Promise<boolean> {
   try {
+    if (getLockoutRemainingMs() > 0) return false;
     const hashB64 = localStorage.getItem(LS_HASH_KEY);
     const saltB64 = localStorage.getItem(LS_SALT_KEY);
     if (!hashB64 || !saltB64) return false;
@@ -76,9 +124,11 @@ export async function verifyLocalPin(candidate: string): Promise<boolean> {
       diff |= actual[i] ^ expected[i];
     }
     if (diff === 0) {
+      recordSuccess();
       try { localStorage.setItem(LS_LAST_UNLOCK_KEY, String(Date.now())); } catch {}
       return true;
     }
+    recordFailure();
     return false;
   } catch {
     return false;

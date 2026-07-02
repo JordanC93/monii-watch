@@ -12,7 +12,7 @@ import { Money } from '../ui/Money';
 import { MoneyInput } from '../ui/MoneyInput';
 import { cn } from '../../lib/cn';
 import { updateTransaction, deleteTransaction, setCleared, setFlag } from '../../db/repo';
-import { useFormatDateShort } from '../../lib/format';
+import { useFormatDateShort, useFormatMoney } from '../../lib/format';
 import { useUI } from '../../store/ui';
 import { useEffectiveLayout } from '../../lib/layout';
 
@@ -628,20 +628,11 @@ function nextClearedState(c: ClearedState): ClearedState {
  * the same way it covers the regular Money component.
  */
 function RunningBalanceBadge({ cents }: { cents: number }) {
-  const settings = useBudget((s) => s.settings);
-  try {
-    return (
-      <span>
-        {new Intl.NumberFormat(undefined, {
-          style: 'currency',
-          currency: settings.currency || 'USD',
-          maximumFractionDigits: 0,
-        }).format(cents / 100)}
-      </span>
-    );
-  } catch {
-    return <span>{(cents / 100).toFixed(0)}</span>;
-  }
+  // useFormatMoney handles per-currency decimals (a raw `/ 100` showed
+  // JPY balances 100× too small) and subscribes only to the currency
+  // code, so settings churn doesn't defeat the row memoization.
+  const fmt = useFormatMoney();
+  return <span>{fmt(cents, { showCents: false })}</span>;
 }
 
 function payeeName(id: string | null, payees: { id: string; name: string }[]): string {

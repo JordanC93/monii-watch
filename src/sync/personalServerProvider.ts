@@ -27,8 +27,9 @@
  */
 
 import { getDoc } from './doc';
-import { getSettings, setSettingsField } from '../db/repo';
+import { getSettings } from '../db/repo';
 import { encryptBytes, decryptBytes } from './crypto';
+import { setLastSyncedAt } from './syncMeta';
 import * as Y from 'yjs';
 
 const POLL_INTERVAL_MS = 60_000;
@@ -121,7 +122,9 @@ async function pull(): Promise<void> {
     const phrase = getSettings().syncRoom;
     const update = await decryptBytes(blob, phrase);
     Y.transact(getDoc(), () => Y.applyUpdate(getDoc(), update), ORIGIN_REMOTE_PULL);
-    setSettingsField('personalBackupLastSyncedAt', Date.now());
+    // Device-local, NOT settings — a settings write is a doc update and
+    // would re-fire the push observer forever. See syncMeta.ts.
+    setLastSyncedAt('personal-server', Date.now());
     setStatus({ kind: 'connected' });
   } catch (e: any) {
     setStatus({ kind: 'error', message: e?.message ?? 'Pull failed.' });
@@ -143,7 +146,8 @@ async function push(): Promise<void> {
       body: new Blob([blob.buffer.slice(blob.byteOffset, blob.byteOffset + blob.byteLength) as ArrayBuffer]),
     });
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-    setSettingsField('personalBackupLastSyncedAt', Date.now());
+    // Device-local — see comment in pull().
+    setLastSyncedAt('personal-server', Date.now());
     setStatus({ kind: 'connected' });
   } catch (e: any) {
     setStatus({ kind: 'error', message: e?.message ?? 'Push failed.' });
@@ -223,5 +227,5 @@ export async function restoreVersion(name: string): Promise<void> {
   const blob = new Uint8Array(await r.arrayBuffer());
   const update = await decryptBytes(blob, s.syncRoom);
   Y.transact(getDoc(), () => Y.applyUpdate(getDoc(), update), ORIGIN_REMOTE_PULL);
-  setSettingsField('personalBackupLastSyncedAt', Date.now());
+  setLastSyncedAt('personal-server', Date.now());
 }

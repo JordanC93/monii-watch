@@ -50,6 +50,17 @@ describe('projectDeterministic', () => {
     expect(p.ranOutOfMoney).toBe(true);
     expect(p.ranOutInYear).toBeGreaterThan(0);
   });
+  it('clamps net worth at zero every year after running out (never negative)', () => {
+    const p = projectDeterministic({
+      ...baseInputs,
+      currentNetWorth: 100000,
+      annualContribution: 0,
+      targetAnnualSpending: 6000000,
+    });
+    expect(p.ranOutOfMoney).toBe(true);
+    expect(p.yearly.every((v) => v >= 0)).toBe(true);
+    expect(p.finalNetWorth).toBe(0);
+  });
 });
 
 describe('monteCarloSimulate', () => {

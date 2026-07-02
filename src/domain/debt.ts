@@ -55,8 +55,6 @@ export function simulatePayoff(input: SimulateInput): PayoffResult {
   }));
   const order: PayoffResult['payoffOrder'] = [];
   let monthsElapsed = 0;
-  const totalMins = remaining.reduce((s, d) => s + d.minPayment, 0);
-  const extraBudget = Math.max(0, input.monthlyBudget - totalMins);
 
   while (remaining.some((d) => d.balance > 0) && monthsElapsed < MAX_MONTHS) {
     monthsElapsed++;
@@ -70,12 +68,16 @@ export function simulatePayoff(input: SimulateInput): PayoffResult {
       d.interestPaid += interest;
     }
 
-    // Step 2: pay minimums.
-    let extraPool = extraBudget;
+    // Step 2: pay minimums. Retired debts' minimums join the extra pool
+    // (the snowball/avalanche roll-forward), as does any leftover when a
+    // final minimum overshoots the remaining balance.
+    const activeMins = remaining.reduce((s, d) => (d.balance > 0 ? s + d.minPayment : s), 0);
+    let extraPool = Math.max(0, input.monthlyBudget - activeMins);
     for (const d of remaining) {
       if (d.balance <= 0) continue;
       const pay = Math.min(d.balance, d.minPayment);
       d.balance -= pay;
+      extraPool += d.minPayment - pay;
     }
 
     // Step 3: distribute extra according to strategy. Pour into the
@@ -89,8 +91,7 @@ export function simulatePayoff(input: SimulateInput): PayoffResult {
       extraPool -= pay;
     }
 
-    // Step 4: roll freed minimums forward (snowball/avalanche behavior — when
-    // a debt is paid off, its minimum joins the extra pool for *next* month).
+    // Step 4: record newly retired debts in payoff order.
     for (const d of remaining) {
       if (d.balance <= 0 && d.monthsToPayoff === 0) {
         d.monthsToPayoff = monthsElapsed;

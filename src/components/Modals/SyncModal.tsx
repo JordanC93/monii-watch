@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
@@ -9,6 +9,7 @@ import {
   setSyncRoom, setSyncServerUrl, type SyncDetail,
 } from '../../sync/provider';
 import { setSettingsField } from '../../db/repo';
+import { getLastSyncedAt, subscribeSyncMeta } from '../../sync/syncMeta';
 import { newSyncRoom } from '../../domain/id';
 import { Cloud, CloudOff, Loader2, RefreshCw, Copy, Check, ShieldCheck, Server, Wifi, AlertTriangle, HardDrive } from 'lucide-react';
 import { toast } from '../../lib/toast';
@@ -50,7 +51,7 @@ export function SyncModal({ open, onClose }: { open: boolean; onClose: () => voi
     const r = newSyncRoom();
     setRoom(r);
     setSettingsField('syncRoom', r);
-    if (settings.syncEnabled) connectWebrtc(r);
+    if (settings.syncEnabled) void connectWebrtc(r);
   }
   function applyRoom() { setSyncRoom(room.trim()); }
 
@@ -376,7 +377,9 @@ function DriveSection() {
     }
   }
 
-  const lastSyncedAt = settings.googleDriveLastSyncedAt;
+  // Device-local timestamp (syncMeta), NOT the legacy synced settings
+  // field — writing it into settings caused an infinite push loop.
+  const lastSyncedAt = useSyncExternalStore(subscribeSyncMeta, () => getLastSyncedAt('drive'));
   const tokenExpired = enabled && (!settings.googleAccessToken
     || (settings.googleAccessTokenExpiresAt && settings.googleAccessTokenExpiresAt < Date.now()));
 
@@ -578,7 +581,8 @@ function PersonalBackupSection() {
     }
   }
 
-  const lastSyncedAt = settings.personalBackupLastSyncedAt;
+  // Device-local timestamp (syncMeta), NOT the legacy synced settings field.
+  const lastSyncedAt = useSyncExternalStore(subscribeSyncMeta, () => getLastSyncedAt('personal-server'));
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">

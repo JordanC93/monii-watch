@@ -72,6 +72,11 @@ jobs:
       - name: Install npm deps
         run: npm ci
 
+      # Tags can be cut on commits whose CI hasn't finished (or failed).
+      # Run the suite here too so a release build never ships failing tests.
+      - name: Run tests
+        run: npm test
+
       - name: Build PWA
         run: npm run build
 

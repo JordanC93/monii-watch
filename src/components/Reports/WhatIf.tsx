@@ -38,7 +38,9 @@ export function WhatIf() {
     () => computeForecast(accounts, txns, scheduled, monthlyIncome, { horizonDays: HORIZON_DAYS }),
     [accounts, txns, scheduled, monthlyIncome],
   );
-  const extraIncome = parseFloat(extraIncomeText.replace(/[$,]/g, '')) * 100 || 0;
+  // Math.round — parseFloat('10.10') * 100 is 1009.999…; unrounded float
+  // cents would compound across the whole forecast horizon (Iron Rule #1).
+  const extraIncome = Math.round(parseFloat(extraIncomeText.replace(/[$,]/g, '')) * 100) || 0;
   const scenario = useMemo(
     () => computeForecast(accounts, txns, scheduled, monthlyIncome, {
       horizonDays: HORIZON_DAYS,

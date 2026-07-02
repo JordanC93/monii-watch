@@ -25,6 +25,33 @@ describe('advanceDate', () => {
   });
 });
 
+describe('advanceDate with anchorDay', () => {
+  it('snaps back to the anchor day after a clamped month', () => {
+    expect(advanceDate('2026-02-28', 'monthly', 31)).toBe('2026-03-31');
+    expect(advanceDate('2026-04-30', 'monthly', 31)).toBe('2026-05-31');
+  });
+  it('still clamps when the anchor day does not fit', () => {
+    expect(advanceDate('2026-01-31', 'monthly', 31)).toBe('2026-02-28');
+    expect(advanceDate('2024-01-31', 'monthly', 31)).toBe('2024-02-29');
+  });
+  it('does not drift across a full year of iteration', () => {
+    let d = '2026-01-31';
+    const seen: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      d = advanceDate(d, 'monthly', 31);
+      seen.push(d);
+    }
+    expect(seen).toEqual(['2026-02-28', '2026-03-31', '2026-04-30', '2026-05-31']);
+  });
+  it('applies to yearly Feb-29 anchors', () => {
+    expect(advanceDate('2025-02-28', 'yearly', 29)).toBe('2026-02-28');
+    expect(advanceDate('2027-02-28', 'yearly', 29)).toBe('2028-02-29');
+  });
+  it('two-arg calls keep the legacy clamped behavior', () => {
+    expect(advanceDate('2026-02-28', 'monthly')).toBe('2026-03-28');
+  });
+});
+
 describe('FREQUENCY_LABELS', () => {
   it('has labels for every frequency', () => {
     expect(FREQUENCY_LABELS.daily).toBe('Daily');

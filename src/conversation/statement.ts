@@ -54,6 +54,13 @@ export type ParsedStatementRow = {
    * there as a transfer.
    */
   isCardPayment: boolean;
+  /**
+   * v0.7.31 — true when the row's amount was NOT read from the
+   * document but INJECTED by the OCR-mangled-amount recovery pass
+   * (the mode of confirmed peer amounts). The UI flags these as
+   * "estimated" so the user knows to verify before importing.
+   */
+  isPlaceholder?: boolean;
 };
 
 export type ParsedStatement = {
@@ -74,7 +81,7 @@ export function looksLikeStatement(text: string): boolean {
   // place, and statements where some amounts came through OCR as
   // "CER" garbage still cross the detection threshold (the
   // placeholders are real money lines once injected).
-  const lines = injectPlaceholdersForOcrMangledAmounts(
+  const { lines } = injectPlaceholdersForOcrMangledAmounts(
     stitchStackedDates(
       text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean),
     ),
@@ -118,7 +125,15 @@ const TXN_KEYWORDS: Array<{ id: string; re: RegExp }> = [
   { id: 'interest',   re: /\binterest\b/i },
 ];
 const TRAILING_GARBAGE_RE = /\s+(?:[A-Z]{1,3}\s+)*[A-Z]{2,4}\s*$/;
-function injectPlaceholdersForOcrMangledAmounts(lines: string[]): string[] {
+// v0.7.31 — rate-summary guard. Interest-rate disclosure lines
+// ("INTEREST RATE SUMMARY APY", "0.50% APY") match the 'interest'
+// keyword family AND end with all-caps garbage-shaped tokens, but
+// they are NOT transactions. Never inject a placeholder amount on
+// a line that carries a percent figure or rate-summary vocabulary.
+const RATE_SUMMARY_RE = /%|\bAPY\b|\bAPR\b|\binterest\s+rate\b|\brate\s+summary\b/i;
+function injectPlaceholdersForOcrMangledAmounts(
+  lines: string[],
+): { lines: string[]; injectedIdx: Set<number> } {
   // Pass 1: per-keyword-family, collect successful amounts (cents,
   // unsigned). Mode wins as the inferred placeholder.
   const successByFamily = new Map<string, number[]>();
@@ -126,7 +141,15 @@ function injectPlaceholdersForOcrMangledAmounts(lines: string[]): string[] {
     if (!MONEY_RE.test(line)) continue;
     for (const fam of TXN_KEYWORDS) {
       if (!fam.re.test(line)) continue;
-      const tokens = [...line.matchAll(MONEY_RE_GLOBAL)];
+      // v0.7.31 — exclude percentage figures from seeding. MONEY_RE
+      // happily matches the "2.50" in "2.50% APY"; treating rate
+      // figures as transaction amounts would poison the inferred
+      // placeholder value.
+      const tokens = [...line.matchAll(MONEY_RE_GLOBAL)].filter((m) => {
+        const after = line.slice((m.index ?? 0) + m[0].length);
+        return !/^\s*%/.test(after);
+      });
+      if (tokens.length === 0) break;
       const last = tokens[tokens.length - 1];
       const cents = parseSignedAmount(last, line);
       if (cents === 0) continue;
@@ -144,21 +167,27 @@ function injectPlaceholdersForOcrMangledAmounts(lines: string[]): string[] {
     for (const [c, n] of counts) {
       if (n > bestCount) { bestCount = n; bestCents = c; }
     }
-    if (bestCount >= 1) placeholderByFamily.set(fam, bestCents);
+    // v0.7.31 — require at least TWO confirmed peers before treating
+    // the mode as an inferable pattern. A single sighting isn't a
+    // "recurring amount"; injecting from it fabricates plausible-
+    // looking rows out of one-off transactions.
+    if (bestCount >= 2) placeholderByFamily.set(fam, bestCents);
   }
 
   // Pass 2: rewrite lines that match a family + have no money + end
   // with trailing-garbage caps. Replace the trailing garbage with
-  // the inferred amount (or $0 if no peer succeeded).
+  // the inferred amount.
   //
   // GUARD: skip when the immediately-following line already has
   // money. That case is the "desc line above its own money line"
   // shape — e.g. "ATM WITHDRAWAL 005875 05/016701 BAY" followed by
   // "$8,754.37 -$300.00". Without the guard we'd inject a phantom
   // $0 placeholder that duplicates the real money on the next line.
-  return lines.map((line, idx) => {
+  const injectedIdx = new Set<number>();
+  const out = lines.map((line, idx) => {
     if (MONEY_RE.test(line)) return line;
     if (!TRAILING_GARBAGE_RE.test(line)) return line;
+    if (RATE_SUMMARY_RE.test(line)) return line;
     if (idx + 1 < lines.length && MONEY_RE.test(lines[idx + 1])) return line;
     for (const fam of TXN_KEYWORDS) {
       if (!fam.re.test(line)) continue;
@@ -170,6 +199,7 @@ function injectPlaceholdersForOcrMangledAmounts(lines: string[]): string[] {
       // this fix landed.
       if (cents === 0) return line;
       const dollars = (cents / 100).toFixed(2);
+      injectedIdx.add(idx);
       // Same-sign convention as a "+$" prefix — deposit/interest
       // peers were positive; if they weren't, the placeholder still
       // lands as positive (user adjusts during review).
@@ -177,6 +207,7 @@ function injectPlaceholdersForOcrMangledAmounts(lines: string[]): string[] {
     }
     return line;
   });
+  return { lines: out, injectedIdx };
 }
 
 /**
@@ -270,7 +301,29 @@ const MONEY_RE_GLOBAL = /([\-−–+]?)\s*\$?\s*(\d{1,3}(?:,\d{3})*|\d+)\.(\d{2}
 //   - "5:41 PM"  (today, since iOS strips the day word for same-day)
 // Weekday + time requires the time to follow so vendor names like
 // "Sun Country Airlines $50" don't get classified as dates.
-const DATE_RE = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b|\b\d{1,2}\/\d{1,2}\/\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}\/\d{1,2}\b(?!\/\d)|\byesterday\b(?:[,]?\s*\d{1,2}:\d{2}\s*(?:am|pm))?|\b(?:sun|mon|tue|wed|thu|fri|sat)(?:day|nday|sday|nesday|rsday|urday)?\b[,]?\s+\d{1,2}:\d{2}\s*(?:am|pm)\b|\b\d{1,2}:\d{2}\s*(?:am|pm)\b/i;
+//
+// v0.7.31 — split into two tiers. CALENDAR_DATE_RE holds every form
+// that designates an actual calendar day (month-name dates, slash
+// dates, ISO, bare MM/DD, "Yesterday", weekday+time). The bare
+// TIME-ONLY form ("5:41 PM" → today) lives only in the combined
+// DATE_RE used for detection. When EXTRACTING a row's date, an
+// explicit calendar token on the line must beat a bare time token —
+// otherwise "POS 5:41 PM 04/23 STARBUCKS $8.50" dates to TODAY
+// because the leftmost regex match is the time. See matchRowDate().
+const CALENDAR_DATE_SRC = '\\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?\\s+\\d{1,2},?\\s+\\d{4}\\b|\\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?\\s+\\d{1,2}\\b|\\b\\d{1,2}\\/\\d{1,2}\\/\\d{2,4}\\b|\\b\\d{4}-\\d{2}-\\d{2}\\b|\\b\\d{1,2}\\/\\d{1,2}\\b(?!\\/\\d)|\\byesterday\\b(?:[,]?\\s*\\d{1,2}:\\d{2}\\s*(?:am|pm))?|\\b(?:sun|mon|tue|wed|thu|fri|sat)(?:day|nday|sday|nesday|rsday|urday)?\\b[,]?\\s+\\d{1,2}:\\d{2}\\s*(?:am|pm)\\b';
+const TIME_ONLY_SRC = '\\b\\d{1,2}:\\d{2}\\s*(?:am|pm)\\b';
+const CALENDAR_DATE_RE = new RegExp(CALENDAR_DATE_SRC, 'i');
+const DATE_RE = new RegExp(`${CALENDAR_DATE_SRC}|${TIME_ONLY_SRC}`, 'i');
+
+/**
+ * v0.7.31 — extract the date token that should represent a row's date.
+ * A calendar-date token anywhere on the line wins over a bare
+ * time-of-day token; the time-only form is only used when the line has
+ * no calendar date at all (the iOS same-day notification case).
+ */
+function matchRowDate(line: string): RegExpMatchArray | null {
+  return line.match(CALENDAR_DATE_RE) ?? line.match(DATE_RE);
+}
 
 // Bank "type" column tokens — used as a signal that a row is a transaction
 // (vs. a receipt line item) AND as a sign-direction hint.
@@ -299,6 +352,15 @@ const DEBIT_TOKEN_RE = /\b(?:debit|withdrawal|purchase|payment\s+to|transfer\s+t
 // log from the bank side. Phrases cover Capital One, Chase, Citi,
 // Amex, Discover, BofA, and the typical online-bill-pay descriptors.
 const CARD_PAYMENT_RE = /\b(?:payment\s+thank\s*you|thank\s*you\s*[-,]\s*payment|payment\s*-\s*thank\s*you|online\s+payment|autopay\s+payment|automatic\s+payment|electronic\s+payment|mobile\s+payment|web\s+payment|payment\s+received|electronic\s+payment\s*-\s*thank\s*you)\b/i;
+
+/**
+ * v0.7.31 — exported so other parse paths (the local-LLM fallback in
+ * `llmStatement.ts`) run the exact same card-payment detection the
+ * regex parser uses, instead of hardcoding `isCardPayment: false`.
+ */
+export function isCardPaymentText(text: string): boolean {
+  return CARD_PAYMENT_RE.test(text);
+}
 
 // -- Main parser ---------------------------------------------------------
 
@@ -336,34 +398,48 @@ export function parseStatementText(text: string): ParsedStatement {
   // the same document that share the line's primary keyword. So
   // "Deposit ... CER" gets the mode of "+$amount" values from the
   // other "Deposit" rows. Falls back to $0 if no successful peers.
-  const ocrFixedLines = injectPlaceholdersForOcrMangledAmounts(stitched);
-
-  const lines = ocrFixedLines;
+  const { lines, injectedIdx } = injectPlaceholdersForOcrMangledAmounts(stitched);
 
   // v0.7.29 — implied-year inference for `MM/DD` rows. US credit-card
   // statements (Capital One, Chase, Citi, Amex, Discover) print the
   // year ONCE in the page header (e.g. "Statement period: 04/01/2026
   // - 04/30/2026") and then `MM/DD` for every row. We sweep the doc
-  // once for any year-bearing date and use that as the running year;
-  // otherwise we fall back to the current year and back off by one if
-  // the resulting date would land more than 31 days in the future
-  // (which would mean we're parsing last-year's statement in January
-  // and the parser saw "12/15" — implying Dec 2025, not Dec 2026).
-  const impliedYear: number = (() => {
+  // once for any year-bearing date: the FIRST year found becomes the
+  // running year, and the LATEST full date found becomes the reference
+  // point for the year back-off/advance rules in parseDate (>31 days
+  // future → y−1; >~300 days past → y+1). Anchoring the reference to
+  // the doc itself (rather than "now") keeps a Dec–Jan statement
+  // ("period 12/15/2025 - 01/14/2026") correct — Dec rows stay 2025,
+  // Jan rows advance to 2026 — without mangling imports of genuinely
+  // old statements whose header year is explicit.
+  const { impliedYear, referenceMs } = (() => {
+    let firstYear: number | null = null;
+    let latestMs: number | null = null;
+    const consider = (y: number, m: number, d: number) => {
+      if (firstYear === null) firstYear = y;
+      const t = new Date(y, m - 1, d).getTime();
+      if (Number.isFinite(t) && (latestMs === null || t > latestMs)) latestMs = t;
+    };
     for (const line of lines) {
-      // Look for a full date with year — try each year-bearing pattern.
-      const isoMatch = line.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
-      if (isoMatch) return Number(isoMatch[1]);
-      const slashMatch = line.match(/\b\d{1,2}\/\d{1,2}\/(\d{2,4})\b/);
-      if (slashMatch) {
-        let y = slashMatch[1];
-        if (y.length === 2) y = (Number(y) > 50 ? '19' : '20') + y;
-        return Number(y);
+      for (const m of line.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g)) {
+        consider(Number(m[1]), Number(m[2]), Number(m[3]));
       }
-      const monMatch = line.match(/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+(\d{4})\b/i);
-      if (monMatch) return Number(monMatch[1]);
+      for (const m of line.matchAll(/\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/g)) {
+        let y = m[3];
+        if (y.length === 3) continue; // OCR fragment, not a year
+        if (y.length === 2) y = (Number(y) > 50 ? '19' : '20') + y;
+        consider(Number(y), Number(m[1]), Number(m[2]));
+      }
+      for (const m of line.matchAll(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})\b/gi)) {
+        const monthIdx = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
+          .indexOf(m[1].toLowerCase().slice(0, 3));
+        if (monthIdx >= 0) consider(Number(m[3]), monthIdx + 1, Number(m[2]));
+      }
     }
-    return new Date().getFullYear();
+    return {
+      impliedYear: firstYear ?? new Date().getFullYear(),
+      referenceMs: latestMs ?? Date.now(),
+    };
   })();
 
   // v0.7.30 — two-pass parse. The previous single-pass loop only handled
@@ -393,14 +469,14 @@ export function parseStatementText(text: string): ParsedStatement {
     const dateOnLine = DATE_RE.test(line);
 
     if (dateOnLine && !moneyOnLine) {
-      const iso = parseDate(line.match(DATE_RE)![0], impliedYear);
+      const iso = parseDate(matchRowDate(line)![0], impliedYear, referenceMs);
       if (iso) events.push({ kind: 'date', date: iso, idx: i });
       continue;
     }
     if (moneyOnLine) {
       let inlineDate: string | null = null;
-      const dm = line.match(DATE_RE);
-      if (dm) inlineDate = parseDate(dm[0], impliedYear);
+      const dm = matchRowDate(line);
+      if (dm) inlineDate = parseDate(dm[0], impliedYear, referenceMs);
       events.push({ kind: 'money', line, inlineDate, idx: i });
       continue;
     }
@@ -630,8 +706,12 @@ export function parseStatementText(text: string): ParsedStatement {
 
     // Build the description.
     let desc = line;
-    const dateMatch = line.match(DATE_RE);
+    const dateMatch = matchRowDate(line);
     if (dateMatch) desc = desc.replace(dateMatch[0], ' ');
+    // Also drop a leftover bare time token ("5:41 PM") when the row's
+    // date came from a calendar token on the same line — the time is
+    // display noise, not vendor content.
+    desc = desc.replace(new RegExp(TIME_ONLY_SRC, 'i'), ' ');
     const lastMoneyText = last[0];
     const lastIdx = desc.lastIndexOf(lastMoneyText);
     if (lastIdx >= 0) desc = desc.slice(0, lastIdx);
@@ -693,6 +773,9 @@ export function parseStatementText(text: string): ParsedStatement {
       isPeerPayment,
       isIncome,
       isCardPayment,
+      // v0.7.31 — flag rows whose amount was injected by the
+      // OCR-recovery pass so the review UI can mark them "estimated".
+      isPlaceholder: injectedIdx.has(e.idx) || undefined,
     });
   }
 
@@ -779,13 +862,53 @@ function parseSignedAmount(match: RegExpMatchArray, fullLine: string): number {
   return -cents;
 }
 
+/** Days in a given month (1-12), leap-year aware. */
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+/**
+ * v0.7.31 — pick the year for a year-less month/day pair. Starts at
+ * `impliedYear` (the first year seen in the doc, or the current year)
+ * and adjusts against the reference date (the LATEST full date in the
+ * doc, or "now"):
+ *   - more than 31 days in the FUTURE → back off one year (parsing
+ *     last year's December statement in January)
+ *   - more than ~300 days in the PAST → advance one year (the mirror
+ *     case: a Dec–Jan statement whose header year is the December
+ *     year, so bare January rows must land in year+1)
+ * A statement never spans anywhere near 300 days, so both thresholds
+ * are safe for any real doc.
+ */
+function resolveYearForMonthDay(
+  impliedYear: number,
+  m: string,
+  d: string,
+  referenceMs: number,
+): number {
+  let y = impliedYear;
+  const candidate = new Date(`${y}-${m}-${d}T00:00:00`);
+  const daysAhead = (candidate.getTime() - referenceMs) / (24 * 60 * 60 * 1000);
+  if (daysAhead > 31) y = y - 1;
+  else if (daysAhead < -300) y = y + 1;
+  return y;
+}
+
 /**
  * Parse a date fragment in any of our recognized forms to ISO. The
  * `impliedYear` is used ONLY for `MM/DD` (no-year) fragments; the
  * year-bearing forms always trust their own year. v0.7.29 — gained
- * `MM/DD` handling for credit-card statement rows.
+ * `MM/DD` handling for credit-card statement rows. v0.7.31 — gained
+ * `referenceMs` (latest full date in the doc, or now) so year-less
+ * fragments resolve correctly across a Dec–Jan statement boundary,
+ * plus real days-in-month validation ("Feb 31" is rejected, not
+ * passed through as 02-31).
  */
-function parseDate(fragment: string, impliedYear: number = new Date().getFullYear()): string | null {
+function parseDate(
+  fragment: string,
+  impliedYear: number = new Date().getFullYear(),
+  referenceMs: number = Date.now(),
+): string | null {
   const trimmed = fragment.trim();
   // ISO already.
   const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -797,6 +920,9 @@ function parseDate(fragment: string, impliedYear: number = new Date().getFullYea
     const d = slash[2].padStart(2, '0');
     let y = slash[3];
     if (y.length === 2) y = (Number(y) > 50 ? '19' : '20') + y;
+    const monthN = Number(m);
+    if (monthN < 1 || monthN > 12) return null;
+    if (Number(d) < 1 || Number(d) > daysInMonth(Number(y), monthN)) return null;
     return `${y}-${m}-${d}`;
   }
   // MMM DD, YYYY  or  MMM DD YYYY
@@ -807,12 +933,13 @@ function parseDate(fragment: string, impliedYear: number = new Date().getFullYea
     if (monthIdx < 0) return null;
     const m = String(monthIdx + 1).padStart(2, '0');
     const d = mon[2].padStart(2, '0');
+    if (Number(d) < 1 || Number(d) > daysInMonth(Number(mon[3]), monthIdx + 1)) return null;
     return `${mon[3]}-${m}-${d}`;
   }
   // v0.7.30 — MMM DD without year (some bank UIs stack "May" / "01"
   // on two lines, which we pre-stitch to "May 01"; no year is shown
   // anywhere in the UI). Year filled from impliedYear with the same
-  // back-off heuristic as bare MM/DD.
+  // adjustment heuristic as bare MM/DD.
   const monNoYear = trimmed.match(/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})$/i);
   if (monNoYear) {
     const monthIdx = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
@@ -822,30 +949,24 @@ function parseDate(fragment: string, impliedYear: number = new Date().getFullYea
     const d = monNoYear[2].padStart(2, '0');
     const monthN = Number(m);
     const dayN = Number(d);
-    if (monthN < 1 || monthN > 12 || dayN < 1 || dayN > 31) return null;
-    let y = impliedYear;
-    const candidate = new Date(`${y}-${m}-${d}T00:00:00`);
-    const now = Date.now();
-    const daysAhead = (candidate.getTime() - now) / (24 * 60 * 60 * 1000);
-    if (daysAhead > 31) y = y - 1;
+    if (monthN < 1 || monthN > 12 || dayN < 1 || dayN > daysInMonth(impliedYear, monthN)) return null;
+    const y = resolveYearForMonthDay(impliedYear, m, d, referenceMs);
     return `${y}-${m}-${d}`;
   }
   // Bare MM/DD — credit-card statement rows. Year filled from the doc's
-  // header (or current year). If the resulting date lands more than 31
-  // days in the future, back off by one year — that handles the
-  // "January 2027 looking at a December 2026 statement" case.
+  // header (or current year), then adjusted: >31 days in the future →
+  // back off one year ("January 2027 looking at a December 2026
+  // statement"); >~300 days in the past → advance one year (bare
+  // January rows on a statement whose header year is the December
+  // side of a Dec–Jan period).
   const bare = trimmed.match(/^(\d{1,2})\/(\d{1,2})$/);
   if (bare) {
     const m = bare[1].padStart(2, '0');
     const d = bare[2].padStart(2, '0');
     const monthN = Number(m);
     const dayN = Number(d);
-    if (monthN < 1 || monthN > 12 || dayN < 1 || dayN > 31) return null;
-    let y = impliedYear;
-    const candidate = new Date(`${y}-${m}-${d}T00:00:00`);
-    const now = Date.now();
-    const daysAhead = (candidate.getTime() - now) / (24 * 60 * 60 * 1000);
-    if (daysAhead > 31) y = y - 1;
+    if (monthN < 1 || monthN > 12 || dayN < 1 || dayN > daysInMonth(impliedYear, monthN)) return null;
+    const y = resolveYearForMonthDay(impliedYear, m, d, referenceMs);
     return `${y}-${m}-${d}`;
   }
   // v0.7.30 — iOS notification relative dates.

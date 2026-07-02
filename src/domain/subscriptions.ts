@@ -18,7 +18,8 @@
 
 import type { Transaction, Payee, Account, RecurrenceFrequency, Money } from './types';
 import { ACCOUNT_TYPE_META } from './types';
-import { parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+import { DATE_FMT, isoAddDays } from './date';
 
 export type DetectedSubscription = {
   payeeId: string;
@@ -115,7 +116,7 @@ export function detectSubscriptions(
     const categoryId = pickMostCommonNullable(bestRun.map((t) => t.categoryId));
 
     const last = bestRun[bestRun.length - 1];
-    const predictedNext = addDaysIso(last.date, bestCadence.expectedDays);
+    const predictedNext = isoAddDays(last.date, bestCadence.expectedDays);
 
     results.push({
       payeeId,
@@ -176,12 +177,6 @@ function daysBetween(aIso: string, bIso: string): number {
   const a = parseISO(aIso).getTime();
   const b = parseISO(bIso).getTime();
   return Math.round(Math.abs(b - a) / 86400000);
-}
-
-function addDaysIso(iso: string, days: number): string {
-  const d = parseISO(iso);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
 }
 
 function pickMostCommon<T>(xs: T[]): T {
@@ -259,9 +254,7 @@ export function detectSubscriptionCreep(
 }
 
 function isoMinus(today: Date, days: number): string {
-  const d = new Date(today);
-  d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
+  return isoAddDays(format(today, DATE_FMT), -days);
 }
 
 /**

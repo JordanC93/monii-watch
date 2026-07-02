@@ -31,6 +31,17 @@ describe('detectSubscriptions', () => {
     expect(subs[0].occurrences).toBe(4);
   });
 
+  it('predictedNext is the last date plus the cadence period, as a calendar date', () => {
+    const txns = [
+      txn({ date: '2026-01-15' }),
+      txn({ date: '2026-02-15' }),
+      txn({ date: '2026-03-15' }),
+      txn({ date: '2026-04-15' }),
+    ];
+    const subs = detectSubscriptions(txns, [payee], [checking]);
+    expect(subs[0].predictedNext).toBe('2026-05-15'); // Apr 15 + 30 days
+  });
+
   it('skips when fewer than minOccurrences', () => {
     const txns = [txn()];
     expect(detectSubscriptions(txns, [payee], [checking])).toHaveLength(0);

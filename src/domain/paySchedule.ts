@@ -63,9 +63,10 @@ export function nextPaycheck(settings: Pick<Settings, 'payFrequency' | 'payAncho
   const anchor = parseISO(settings.payAnchorDate);
 
   if (settings.payFrequency === 'monthly') {
-    // Same day of month, rolling forward.
+    // Same day of month, rolling forward. Always add from the ORIGINAL
+    // anchor so a clamped month (Jan 31 → Feb 28) doesn't drift the day.
     let d = anchor;
-    while (d.getTime() < today.getTime()) d = addMonths(d, 1);
+    for (let n = 1; d.getTime() < today.getTime(); n++) d = addMonths(anchor, n);
     return format(d, DATE_FMT);
   }
   if (settings.payFrequency === 'weekly' || settings.payFrequency === 'biweekly') {
@@ -85,18 +86,17 @@ export function nextPaycheck(settings: Pick<Settings, 'payFrequency' | 'payAncho
     return format(d, DATE_FMT);
   }
   // Semimonthly: two pay days each month — the anchor's day, and that day + 15
-  // (clamped to the last day of the month if needed).
+  // (or day - 15 when day + 15 overflows the month).
   const day = anchor.getDate();
-  const altDay = day + 15;
   // Try this month first.
   const here = today;
   const candidates: Date[] = [];
   for (const offset of [0, 1]) {
     const ym = new Date(here.getFullYear(), here.getMonth() + offset, 1);
     const lastDay = new Date(ym.getFullYear(), ym.getMonth() + 1, 0).getDate();
+    const altDay = day + 15 <= lastDay ? day + 15 : day - 15 >= 1 ? day - 15 : lastDay;
     candidates.push(new Date(ym.getFullYear(), ym.getMonth(), Math.min(day, lastDay)));
-    if (altDay <= lastDay) candidates.push(new Date(ym.getFullYear(), ym.getMonth(), altDay));
-    else candidates.push(new Date(ym.getFullYear(), ym.getMonth(), lastDay));
+    candidates.push(new Date(ym.getFullYear(), ym.getMonth(), altDay));
   }
   candidates.sort((a, b) => a.getTime() - b.getTime());
   const next = candidates.find((d) => d.getTime() >= today.getTime());

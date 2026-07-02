@@ -30,11 +30,21 @@
  *                     snapshots from the app. See "Personal backup" in
  *                     the README for the wire format.
  *   MONII_BACKUP_TOKEN Optional bearer token. When set, requests must
- *                     include Authorization: Bearer <token>. Strongly
- *                     recommended in any setting that isn't a private
- *                     LAN.
+ *                     include Authorization: Bearer <token>. REQUIRED
+ *                     when the server binds to a non-loopback address —
+ *                     without it the /backup routes refuse to serve
+ *                     (503) instead of exposing snapshots to the LAN.
  *   MONII_BACKUP_KEEP Number of historical snapshots to retain per
  *                     workspace (default 10). Older snapshots roll off.
+ *   MONII_SYNC_TOKEN  Optional bearer token for the WebSocket sync
+ *                     endpoint. When set, clients must include
+ *                     `?token=<token>` on the ws URL (the app supports
+ *                     pasting the server URL with `?token=...`).
+ *   MONII_ALLOWED_ORIGINS Comma-separated origin allowlist for CORS on
+ *                     the /backup routes. When unset, cross-origin
+ *                     access is allowed only when MONII_BACKUP_TOKEN
+ *                     guards the routes (otherwise any website the
+ *                     user visits could probe a LAN server).
  *
  * The web UI is OPTIONAL — if `MONII_PUBLIC_DIR` doesn't exist, the
  * server runs as a sync-only hub and the HTTP root prints a hint.
@@ -48,6 +58,7 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { WebSocketServer } from 'ws';
 import { setupWSConnection, setPersistence } from 'y-websocket/bin/utils.js';
@@ -61,6 +72,10 @@ const PUBLIC_DIR = process.env.MONII_PUBLIC_DIR || path.join(__dirname, 'public'
 const BACKUP_DIR = process.env.MONII_BACKUP_DIR || '';
 const BACKUP_TOKEN = process.env.MONII_BACKUP_TOKEN || '';
 const BACKUP_KEEP = parseInt(process.env.MONII_BACKUP_KEEP || '10', 10);
+const SYNC_TOKEN = process.env.MONII_SYNC_TOKEN || '';
+const ALLOWED_ORIGINS = (process.env.MONII_ALLOWED_ORIGINS || '')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+const IS_LOOPBACK_BIND = HOST === '127.0.0.1' || HOST === '::1' || HOST === 'localhost';
 
 // MIME-type lookup — covers everything Vite / the PWA bundle emits.
 const MIME = {
@@ -149,7 +164,11 @@ if (backupEnabled) {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
     console.log(`[monii-sync] personal backup enabled at ${BACKUP_DIR}`);
     if (!BACKUP_TOKEN) {
-      console.log('[monii-sync] WARNING: MONII_BACKUP_TOKEN not set — backups are unauthenticated');
+      if (IS_LOOPBACK_BIND) {
+        console.log('[monii-sync] MONII_BACKUP_TOKEN not set — backups unauthenticated (loopback-only bind, acceptable)');
+      } else {
+        console.log('[monii-sync] WARNING: MONII_BACKUP_TOKEN not set and server is reachable beyond loopback — /backup routes will refuse requests (503) until a token is configured');
+      }
     }
   } catch (e) {
     console.warn(`[monii-sync] backup dir could not be created at ${BACKUP_DIR}:`, e?.message ?? e);
@@ -159,49 +178,73 @@ if (backupEnabled) {
 const WORKSPACE_RE = /^[a-z0-9][a-z0-9_-]{0,47}$/i;
 const SNAPSHOT_NAME_RE = /^[0-9]{1,16}\.bin$/;
 
+/** Constant-time token comparison — `===` leaks match length/prefix timing. */
+function tokenMatches(candidate, expected) {
+  const a = Buffer.from(String(candidate));
+  const b = Buffer.from(String(expected));
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 function backupAuthOk(req) {
   if (!BACKUP_TOKEN) return true;
   const header = req.headers.authorization || '';
-  return header === `Bearer ${BACKUP_TOKEN}`;
+  return tokenMatches(header, `Bearer ${BACKUP_TOKEN}`);
 }
 
-function jsonResponse(res, status, body) {
-  res.writeHead(status, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
+/**
+ * CORS policy for the /backup routes. With an explicit allowlist, echo
+ * only matching origins. Without one, allow cross-origin access only
+ * when a bearer token guards the routes — an unauthenticated LAN server
+ * with `*` CORS lets any website the user visits probe it.
+ */
+function corsHeaders(req) {
+  const base = {
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
     'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+  };
+  if (ALLOWED_ORIGINS.length > 0) {
+    const origin = req.headers.origin || '';
+    return ALLOWED_ORIGINS.includes(origin)
+      ? { ...base, 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' }
+      : {};
+  }
+  return BACKUP_TOKEN ? { ...base, 'Access-Control-Allow-Origin': '*' } : {};
+}
+
+function jsonResponse(req, res, status, body) {
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    ...corsHeaders(req),
   });
   res.end(JSON.stringify(body));
 }
 
-function plainResponse(res, status, text) {
+function plainResponse(req, res, status, text) {
   res.writeHead(status, {
     'Content-Type': 'text/plain; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-    'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+    ...corsHeaders(req),
   });
   res.end(text);
 }
 
 function workspaceDir(workspace) {
-  const safe = path.resolve(BACKUP_DIR, workspace);
-  if (safe !== path.resolve(BACKUP_DIR, workspace) || !safe.startsWith(path.resolve(BACKUP_DIR) + path.sep)) {
-    return null;
-  }
+  // WORKSPACE_RE (checked by the caller) already excludes separators and
+  // dots, but keep a real containment check as defense-in-depth. (The
+  // previous version compared the resolved path to itself — always true.)
+  const root = path.resolve(BACKUP_DIR);
+  const safe = path.resolve(root, workspace);
+  if (safe === root || !safe.startsWith(root + path.sep)) return null;
   return safe;
 }
 
 async function handleBackupRoute(req, res, urlPath) {
   // CORS preflight — the desktop / web app may run on a different
   // origin from the backup server, so OPTIONS needs to ack the
-  // Authorization header up front.
+  // Authorization header up front (policy in corsHeaders()).
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-      'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+      ...corsHeaders(req),
       'Access-Control-Max-Age': '86400',
     });
     res.end();
@@ -209,28 +252,37 @@ async function handleBackupRoute(req, res, urlPath) {
   }
 
   if (!backupEnabled) {
-    plainResponse(res, 501, 'Personal backup is not configured on this server. Set MONII_BACKUP_DIR.\n');
+    plainResponse(req, res, 501, 'Personal backup is not configured on this server. Set MONII_BACKUP_DIR.\n');
+    return;
+  }
+  // Refuse to serve unauthenticated backups beyond loopback. Without a
+  // token, anyone who can reach the port could PUT unlimited blobs
+  // (disk-fill) and GET every workspace's ciphertext for offline
+  // brute-force against its pairing phrase.
+  if (!BACKUP_TOKEN && !IS_LOOPBACK_BIND) {
+    plainResponse(req, res, 503,
+      'Personal backup requires MONII_BACKUP_TOKEN when the server is reachable beyond loopback.\n');
     return;
   }
   if (!backupAuthOk(req)) {
-    plainResponse(res, 401, 'Unauthorized\n');
+    plainResponse(req, res, 401, 'Unauthorized\n');
     return;
   }
 
   // Parse: /backup/<workspace>/...
   const parts = urlPath.replace(/^\/backup\/?/, '').split('/').filter(Boolean);
   if (parts.length === 0) {
-    jsonResponse(res, 200, { ok: true, message: 'monii-sync backup endpoint' });
+    jsonResponse(req, res, 200, { ok: true, message: 'monii-sync backup endpoint' });
     return;
   }
   const workspace = parts[0];
   if (!WORKSPACE_RE.test(workspace)) {
-    plainResponse(res, 400, 'Bad workspace name\n');
+    plainResponse(req, res, 400, 'Bad workspace name\n');
     return;
   }
   const wsDir = workspaceDir(workspace);
   if (!wsDir) {
-    plainResponse(res, 400, 'Invalid path\n');
+    plainResponse(req, res, 400, 'Invalid path\n');
     return;
   }
 
@@ -252,7 +304,7 @@ async function handleBackupRoute(req, res, urlPath) {
     });
     req.on('end', () => {
       if (total > MAX_BYTES) {
-        plainResponse(res, 413, 'Payload too large\n');
+        plainResponse(req, res, 413, 'Payload too large\n');
         return;
       }
       const body = Buffer.concat(chunks, total);
@@ -270,12 +322,12 @@ async function handleBackupRoute(req, res, urlPath) {
         for (const name of all.slice(BACKUP_KEEP)) {
           try { fs.unlinkSync(path.join(wsDir, 'snapshots', name)); } catch {}
         }
-        jsonResponse(res, 200, { ok: true, size: body.length, stamp });
+        jsonResponse(req, res, 200, { ok: true, size: body.length, stamp });
       } catch (e) {
-        plainResponse(res, 500, `Write failed: ${e?.message ?? e}\n`);
+        plainResponse(req, res, 500, `Write failed: ${e?.message ?? e}\n`);
       }
     });
-    req.on('error', () => plainResponse(res, 400, 'Read error\n'));
+    req.on('error', () => plainResponse(req, res, 400, 'Read error\n'));
     return;
   }
 
@@ -284,14 +336,14 @@ async function handleBackupRoute(req, res, urlPath) {
     const file = path.join(wsDir, 'snapshot.bin');
     fs.stat(file, (err, stats) => {
       if (err || !stats.isFile()) {
-        plainResponse(res, 404, 'No snapshot yet\n');
+        plainResponse(req, res, 404, 'No snapshot yet\n');
         return;
       }
       res.writeHead(200, {
         'Content-Type': 'application/octet-stream',
         'Content-Length': stats.size,
         'Last-Modified': stats.mtime.toUTCString(),
-        'Access-Control-Allow-Origin': '*',
+        ...corsHeaders(req),
       });
       fs.createReadStream(file).pipe(res);
     });
@@ -302,7 +354,7 @@ async function handleBackupRoute(req, res, urlPath) {
   if (req.method === 'GET' && (sub === 'snapshots' || sub === 'snapshots/')) {
     const dir = path.join(wsDir, 'snapshots');
     if (!fs.existsSync(dir)) {
-      jsonResponse(res, 200, []);
+      jsonResponse(req, res, 200, []);
       return;
     }
     const entries = fs.readdirSync(dir)
@@ -312,7 +364,7 @@ async function handleBackupRoute(req, res, urlPath) {
         return { name, size: st.size, mtime: st.mtimeMs };
       })
       .sort((a, b) => b.mtime - a.mtime);
-    jsonResponse(res, 200, entries);
+    jsonResponse(req, res, 200, entries);
     return;
   }
 
@@ -320,26 +372,26 @@ async function handleBackupRoute(req, res, urlPath) {
   if (req.method === 'GET' && sub.startsWith('snapshots/')) {
     const name = sub.slice('snapshots/'.length);
     if (!SNAPSHOT_NAME_RE.test(name)) {
-      plainResponse(res, 400, 'Bad snapshot name\n');
+      plainResponse(req, res, 400, 'Bad snapshot name\n');
       return;
     }
     const file = path.join(wsDir, 'snapshots', name);
     fs.stat(file, (err, stats) => {
       if (err || !stats.isFile()) {
-        plainResponse(res, 404, 'Not Found\n');
+        plainResponse(req, res, 404, 'Not Found\n');
         return;
       }
       res.writeHead(200, {
         'Content-Type': 'application/octet-stream',
         'Content-Length': stats.size,
-        'Access-Control-Allow-Origin': '*',
+        ...corsHeaders(req),
       });
       fs.createReadStream(file).pipe(res);
     });
     return;
   }
 
-  plainResponse(res, 405, 'Method not allowed\n');
+  plainResponse(req, res, 405, 'Method not allowed\n');
 }
 
 // -----------------------------------------------------------------------
@@ -356,9 +408,18 @@ if (publicDirExists) {
 }
 
 function serveStatic(req, res) {
+  // Malformed percent-encoding (e.g. GET /%) throws URIError — uncaught,
+  // it would kill the whole Node process from one crafted request.
+  let urlPathForRouting;
+  try {
+    urlPathForRouting = decodeURIComponent(req.url.split('?')[0]);
+  } catch {
+    res.writeHead(400);
+    res.end('Bad Request');
+    return;
+  }
   // Personal backup endpoint takes priority over static files. Routes
   // under /backup are handled by the JSON / binary handler above.
-  let urlPathForRouting = decodeURIComponent(req.url.split('?')[0]);
   if (urlPathForRouting === '/backup' || urlPathForRouting.startsWith('/backup/')) {
     handleBackupRoute(req, res, urlPathForRouting);
     return;
@@ -374,7 +435,7 @@ function serveStatic(req, res) {
     return;
   }
 
-  let urlPath = decodeURIComponent(req.url.split('?')[0]);
+  let urlPath = urlPathForRouting;
   if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
 
   const filePath = path.join(publicDirResolved, urlPath);
@@ -443,9 +504,26 @@ const wss = new WebSocketServer({ noServer: true });
 
 server.on('upgrade', (request, socket, head) => {
   // Any WebSocket upgrade request becomes a y-websocket sync session.
-  // The URL path is the doc name (Monii Watch uses `monii-watch-<phrase>`).
+  // The URL path is the doc name (a SHA-256 derivation of the pairing
+  // phrase as of v0.7.31 — the raw phrase no longer travels the wire).
   // Browsers GET'ing the same paths get the static file handler instead,
   // because GET is HTTP and doesn't include `Upgrade: websocket`.
+  //
+  // Optional auth: when MONII_SYNC_TOKEN is set, the client must pass
+  // `?token=<token>` on the ws URL (the app forwards it from a server
+  // URL entered as `wss://host?token=...`).
+  if (SYNC_TOKEN) {
+    let ok = false;
+    try {
+      const q = new URL(request.url, 'http://localhost').searchParams;
+      ok = tokenMatches(q.get('token') || '', SYNC_TOKEN);
+    } catch { ok = false; }
+    if (!ok) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+  }
   wss.handleUpgrade(request, socket, head, (ws) => {
     setupWSConnection(ws, request, { gc: true });
   });

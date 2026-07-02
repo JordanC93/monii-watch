@@ -13,7 +13,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Lock, ShieldCheck } from 'lucide-react';
-import { verifyLocalPin } from '../../lib/appLock';
+import { verifyLocalPin, getLockoutRemainingMs } from '../../lib/appLock';
+
+function formatLockout(ms: number): string {
+  const s = Math.ceil(ms / 1000);
+  if (s < 90) return `${s} seconds`;
+  return `${Math.ceil(s / 60)} minutes`;
+}
 
 type Props = {
   onUnlock: () => void;
@@ -56,11 +62,22 @@ export function AppLockScreen({ onUnlock }: Props) {
     setBusy(true);
     setError(null);
     try {
+      // Failure lockout — tell the user how long instead of a bare
+      // "Incorrect PIN" (verifyLocalPin refuses while locked out).
+      const lockoutMs = getLockoutRemainingMs();
+      if (lockoutMs > 0) {
+        setError(`Too many attempts. Try again in ${formatLockout(lockoutMs)}.`);
+        setPin('');
+        return;
+      }
       const ok = await verifyLocalPin(pin);
       if (ok) {
         onUnlock();
       } else {
-        setError('Incorrect PIN.');
+        const nowLocked = getLockoutRemainingMs();
+        setError(nowLocked > 0
+          ? `Too many attempts. Try again in ${formatLockout(nowLocked)}.`
+          : 'Incorrect PIN.');
         setPin('');
         inputRef.current?.focus();
       }

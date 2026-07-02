@@ -12,8 +12,8 @@
 
 import type { Account, Category, FxSnapshot, MonthAssignment, Transaction, Money } from './types';
 import { ACCOUNT_TYPE_META, categoriesTouched } from './types';
-import { isoIsInMonth, parseMonth } from './date';
-import { parseISO } from 'date-fns';
+import { DATE_FMT, isoAddDays, isoIsInMonth, parseMonth, shiftMonth } from './date';
+import { format, parseISO } from 'date-fns';
 import { lookupRate } from './fx';
 
 export type AccountWithBalance = Account & {
@@ -186,15 +186,9 @@ function collectMonthsUpTo(month: string, txns: Transaction[], assignments: Mont
   let cur = earliest;
   while (cur <= month) {
     months.push(cur);
-    cur = shiftMonthString(cur, 1);
+    cur = shiftMonth(cur, 1);
   }
   return months;
-}
-
-function shiftMonthString(m: string, delta: number): string {
-  const d = parseMonth(m);
-  d.setMonth(d.getMonth() + delta);
-  return d.toISOString().slice(0, 7);
 }
 
 /**
@@ -230,9 +224,7 @@ export function computeAgeOfMoney(
   const ageDaysAccumulated: number[] = [];
   const ageDollars: number[] = [];
 
-  const cutoff = new Date(asOf);
-  cutoff.setDate(cutoff.getDate() - windowDays);
-  const cutoffISO = cutoff.toISOString().slice(0, 10);
+  const cutoffISO = isoAddDays(format(asOf, DATE_FMT), -windowDays);
 
   for (const t of sorted) {
     if (t.amount > 0) {
