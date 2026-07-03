@@ -1051,6 +1051,16 @@ export type Settings = {
     customAccent?: string;
   };
   /**
+   * v0.7.31 — "Prism" effects for the Liquid Glass theme (experimental
+   * prototype). When on, `<html>` carries `data-glass-fx` and CSS gates
+   * three extras: a pressed-state specular glint on buttons, a
+   * palette-accent-tinted meniscus ring, and a deeper shadow stack on
+   * modal sheets for stronger z-hierarchy. Off = the classic glass
+   * look, byte-for-byte. Synced (it's part of the theme identity, like
+   * glassPalette).
+   */
+  glassPrismFx?: boolean;
+  /**
    * v0.7.27 — per-context highlight-color overrides. Keys identify the
    * context the override applies to:
    *   `light` / `dark` / `oled`   — flat themes, one accent each

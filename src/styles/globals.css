@@ -444,6 +444,55 @@ html[data-theme='glass'] .glass-panel::after {
 }
 html[data-theme='glass'] .glass-panel[data-no-meniscus]::after { display: none; }
 
+/* ============================================================
+ *  PRISM EFFECTS (v0.7.31, experimental — Settings → Appearance)
+ * ============================================================
+ *
+ * Opt-in extras gated on `data-glass-fx` on <html> (mirrors
+ * `Settings.glassPrismFx`; applied by the store observer). Three
+ * effects, all compositor-cheap; with the toggle off the classic
+ * glass look is untouched.
+ */
+
+/* 1. Pressed-state specular glint — iOS 26 glass "lights up" under the
+ * finger. Filter-only (no transform, no overlay pseudo) so it can't
+ * collide with existing button transitions, gradients, or the
+ * `button.glass-panel:active` translate rule. The pop is instant on
+ * press (Apple presses respond immediately); release snaps back. */
+html[data-theme='glass'][data-glass-fx] button:not([disabled]):not(:disabled):active {
+  filter: brightness(1.22) saturate(1.12);
+}
+
+/* 2. Palette-tinted meniscus — the specular ring picks up the active
+ * accent (indigo under Aurora, orange under Sunset, ...) instead of
+ * pure white, the way real glass edges catch the dominant light in
+ * the scene. `--accent` lives on <body> (Iron Rule #26) and inherits
+ * here. Alphas stay in the classic ring's range so it reads as an
+ * edge, not a glow. */
+html[data-theme='glass'][data-glass-fx] .glass-panel::before {
+  background: linear-gradient(
+    135deg,
+    rgb(var(--accent) / 0.30) 0%,
+    rgba(255, 255, 255, 0.10) 22%,
+    rgba(255, 255, 255, 0.02) 55%,
+    rgb(var(--accent) / 0.07) 78%,
+    rgb(var(--accent) / 0.20) 100%
+  );
+}
+
+/* 3. Deeper modal shadow stack — modals float ABOVE cards in the
+ * z-hierarchy, so they get a longer, softer third shadow while cards
+ * keep the standard recipe. Inset hairlines re-stated because
+ * box-shadow replaces the whole list. */
+html[data-theme='glass'][data-glass-fx] .glass-panel.modal-sheet-card {
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.22),
+    0 8px 24px -4px rgba(0, 0, 0, 0.34),
+    0 36px 90px -16px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22);
+}
+
 /* Body content above the rim + lensing pseudo-elements.
  *
  * Z-index 2 on every direct child puts it above the meniscus

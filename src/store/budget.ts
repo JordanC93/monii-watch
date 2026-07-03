@@ -44,6 +44,7 @@ const initialSettings: Settings = {
   googleAccessToken: '',
   googleAccessTokenExpiresAt: 0,
   syncSignalingUrl: '',
+  glassPrismFx: false,
   googleDriveFileId: '',
   googleDriveLastSyncedAt: 0,
   personalBackupEnabled: false,
@@ -240,9 +241,20 @@ export function wireStoreToYjs() {
   let lastAppliedTheme: ThemeName | null = null;
   let lastAppliedGlassPaletteJson: string | null = null;
   let lastAppliedAccentOverridesJson: string | null = null;
+  let lastAppliedPrismFx: boolean | null = null;
+  // v0.7.31 — "Prism" glass effects flag. The attribute is inert
+  // outside the glass theme (CSS gates on data-theme too), so it just
+  // mirrors the setting. Applied at boot AND on settings ticks.
+  function applyPrismFx(on: boolean) {
+    if (on === lastAppliedPrismFx) return;
+    lastAppliedPrismFx = on;
+    document.documentElement.toggleAttribute('data-glass-fx', on);
+  }
+  applyPrismFx(!!useBudget.getState().settings.glassPrismFx);
   doc.getMap(MAPS.settings).observeDeep(() => {
     refreshSettings();
     const settings = useBudget.getState().settings;
+    applyPrismFx(!!settings.glassPrismFx);
     const t = settings.theme as ThemeName;
 
     if (t !== lastAppliedTheme) {

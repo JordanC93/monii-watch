@@ -26,6 +26,7 @@ export function GlassPalettePicker() {
   // changes (e.g. someone editing a transaction memo).
   const theme = useBudget((s) => s.settings.theme);
   const glassPalette = useBudget((s) => s.settings.glassPalette);
+  const prismFx = useBudget((s) => s.settings.glassPrismFx);
 
   // Iron Rule (Rules of Hooks): every hook must run on every render.
   // The early-return for non-glass themes lives BELOW this block.
@@ -168,6 +169,26 @@ export function GlassPalettePicker() {
           Glass). It reads per-context overrides from
           `Settings.accentOverrides` and resolves the right context key
           for the active theme/palette automatically. */}
+
+      {/* v0.7.31 — Prism effects prototype. The store observer mirrors
+          the setting onto <html data-glass-fx>; all three effects are
+          pure CSS gated on that attribute, so the toggle previews live. */}
+      <label className="flex items-start gap-2.5 mt-3 p-3 rounded-lg bg-surface-2/40 border border-border cursor-pointer">
+        <input
+          type="checkbox"
+          checked={!!prismFx}
+          onChange={(e) => setSettingsField('glassPrismFx', e.target.checked)}
+          className="accent-accent mt-0.5"
+        />
+        <span>
+          <span className="block text-[12px] font-medium">Prism effects (experimental)</span>
+          <span className="block text-[11.5px] text-fg-subtle leading-snug mt-0.5">
+            Buttons glint when pressed, panel edges pick up the palette accent,
+            and dialogs cast a deeper shadow. Applies instantly; turn it off to
+            return to the classic glass look.
+          </span>
+        </span>
+      </label>
     </div>
   );
 }
