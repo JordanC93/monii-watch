@@ -587,9 +587,18 @@ to the border (specular meniscus, currently 22% white). If you tweak it, keep:
   the colorful aurora backdrop
 - Edge-pinned panels (Sidebar, TopBar, BottomNav) get `data-no-meniscus`
   so they don't draw a bright line on the edge that touches the screen
-- The aurora backdrop uses 3 large radial zones + slow drift via
-  `@property`-registered CSS variables. Animation auto-disables under
-  `prefers-reduced-motion: reduce`
+- The aurora backdrop (v0.7.31) lives in `<GlassBackdrop>`: two fixed
+  layers each carrying two of the four palette radial blobs, painted
+  ONCE and drifted in opposite directions with transform-only
+  keyframes (compositor-only — never animate the blob gradients or
+  CSS variables again; the old `@property`-var approach re-rasterized
+  the full viewport every frame). A veil child holds the dim tint +
+  vignette ABOVE the blobs; grain stays on `html::after`. Drift
+  auto-disables under `prefers-reduced-motion: reduce` AND on
+  ≤768px viewports (battery)
+- `prefers-reduced-transparency: reduce` is honored: panels swap to
+  near-opaque `--elevated` fills with no backdrop blur (the white
+  `--surface` tint would flip contrast against the light text)
 - Surface tokens are split: `--surface` stays white (for the panel
   translucent fill) but `--surface-2`, `--surface-3`, `--elevated` are
   dark-tinted purples so form controls don't punch through as solid white

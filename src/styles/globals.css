@@ -108,14 +108,18 @@ button { white-space: nowrap; }
  * Material thickness via [data-material="…"]:
  *   "thick"      — modals, cards, anything floating (default)
  *   "regular"    — sidebars, toolbars, secondary surfaces
- *   "thin"       — popovers, tooltips, tooltips, inline cards
+ *   "thin"       — popovers, tooltips, inline cards
  *   "ultraThin"  — overlay scrims, contextual labels
  *   These match Apple's UIBlurEffect.Style values 1:1.
  */
 
-/* --- Backdrop layer 0: solid midnight --- */
+/* --- Backdrop layer 0: solid midnight + the lifted navy base wash.
+ *     Painted directly on <html> — static, costs nothing. --- */
 html[data-theme='glass'] {
-  background: #050614;
+  /* Lifted base — low-saturation deep navy so even no-blob zones
+     still carry color presence. The solid color backstops the
+     gradient during overscroll bounce. */
+  background: linear-gradient(180deg, #0a0d2c 0%, #050714 100%) fixed, #050614;
   /* Hint to the compositor: the html element has fixed effects layered on
      top, treat them as their own layer so backdrop-filter children get a
      stable parent to read pixels from. */
@@ -126,60 +130,79 @@ html[data-theme='glass'] body { background: transparent; }
 /* --- Backdrop layer 1: continuous color wash that mimics how an actual
  *     Apple Sonoma / Sequoia abstract wallpaper bleeds. The trick is NOT
  *     to use small radial "blobs" (they read as spotlights / lava lamps no
- *     matter how many you stack). Instead:
+ *     matter how many you stack) — each layer carries two MASSIVE radial
+ *     gradients (~140% of viewport) that overlap so heavily you can't
+ *     tell where one ends and the other begins.
  *
- *     • Two MASSIVE radial gradients that each cover ~140% of viewport
- *       at very low alpha — they overlap so heavily you can't tell where
- *       one ends and the other begins
- *     • A conic-gradient at low alpha that adds a slow rotating hue
- *       transition across the whole field — this is what gives Sequoia
- *       wallpapers their "flowing" character
- *     • A linear color shift top-to-bottom for cool→warm depth
- *     • Heavy vignette pulling the corners into darkness
- *
- *     Together these read as a single unified wash, not a collection of
- *     light sources. Animation drifts the conic angle + a couple of
- *     anchor points slowly so the wash feels alive. ---*/
-html[data-theme='glass']::before {
-  content: "";
+ *     v0.7.31 PERF REWORK — the drift used to animate @property-registered
+ *     custom properties inside these gradients (the blob anchor points),
+ *     which forced a full-viewport re-rasterization of the multi-gradient
+ *     layer EVERY FRAME for the infinite 120s loop: constant paint work,
+ *     real battery cost on iPhone, and contention with the backdrop-blur
+ *     GPU budget. Now the wash is split across TWO fixed children of
+ *     `.glass-backdrop` (diagonal blob pairs 1+3 and 2+4), each painted
+ *     ONCE and drifted in opposite directions with `transform` — pure
+ *     compositor work, zero repaint, and no @property dependency (whose
+ *     absence made older engines jump discretely between keyframes).
+ *     Relative motion between the pairs keeps the "alive" feeling. --- */
+html[data-theme='glass'] .glass-backdrop {
+  display: block;
   position: fixed;
-  inset: -10%;  /* over-extend so animated drift doesn't reveal edges */
+  inset: 0;
   z-index: -2;
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+}
+html[data-theme='glass'] .glass-aurora-a,
+html[data-theme='glass'] .glass-aurora-b {
+  position: absolute;
+  inset: -14%;  /* over-extend so the transform drift never reveals edges */
+  /* Slight saturation boost to compensate for the lighter dimming
+     layers. Apple's wallpapers feel chromatic, not pastel. Static
+     filter on a transform-animated layer stays composited. */
+  filter: saturate(1.25);
+  will-change: transform;
+}
+/* Blob alphas at the v0.7.28 bumped 0.55-0.62 values so picked colors
+ * actually saturate the canvas. White at 60% over a deep-blue base
+ * reads as bright white-on-blue. */
+html[data-theme='glass'] .glass-aurora-a {
   background:
-    /* v0.7.28 — soft tint instead of a heavy dimming wash. Critical
-       for the macOS Sequoia / iOS 26 Liquid Glass aesthetic: bright
-       saturated wallpaper bleeds through translucent panels. The
-       earlier 0.55 alpha killed every bright palette by clipping
-       blob math down to middle-gray. */
+    radial-gradient(140% 110% at 28% 18%,
+      rgb(var(--glass-c1, 58 72 200) / 0.62),
+      transparent 65%),
+    radial-gradient(150% 120% at 18% 78%,
+      rgb(var(--glass-c3, 180 70 160) / 0.55),
+      transparent 70%);
+  animation: glass-drift-a 120s linear infinite;
+}
+html[data-theme='glass'] .glass-aurora-b {
+  background:
+    radial-gradient(140% 110% at 72% 82%,
+      rgb(var(--glass-c2, 110 70 200) / 0.58),
+      transparent 65%),
+    radial-gradient(150% 120% at 82% 22%,
+      rgb(var(--glass-c4, 40 130 200) / 0.58),
+      transparent 70%);
+  animation: glass-drift-b 120s linear infinite;
+}
+/* Dim tint + vignette OVER the blobs (paint order matters — these used
+ * to be the top entries of the old single background list).
+ * v0.7.28 — soft tint instead of a heavy dimming wash. Critical for
+ * the macOS Sequoia / iOS 26 Liquid Glass aesthetic: bright saturated
+ * wallpaper bleeds through translucent panels. The earlier 0.55 alpha
+ * killed every bright palette by clipping blob math down to middle-gray. */
+html[data-theme='glass'] .glass-aurora-veil {
+  position: absolute;
+  inset: 0;
+  background:
     linear-gradient(rgba(6, 8, 22, 0.18), rgba(6, 8, 22, 0.18)),
     /* Vignette — softer corners so they aren't crushed to near-black. */
     radial-gradient(140% 100% at 50% 50%,
       transparent 40%,
       rgba(0, 0, 0, 0.18) 75%,
-      rgba(0, 0, 0, 0.42) 100%),
-    /* Four large radial blobs — alphas at the bumped 0.55-0.62 values
-       so picked colors actually saturate the canvas. White at 60%
-       over a deep-blue base reads as bright white-on-blue. */
-    radial-gradient(140% 110% at var(--glass-pos-1, 28%) var(--glass-pos-1y, 18%),
-      rgb(var(--glass-c1, 58 72 200) / 0.62),
-      transparent 65%),
-    radial-gradient(140% 110% at var(--glass-pos-2, 72%) var(--glass-pos-2y, 82%),
-      rgb(var(--glass-c2, 110 70 200) / 0.58),
-      transparent 65%),
-    radial-gradient(150% 120% at var(--glass-pos-3, 18%) var(--glass-pos-3y, 78%),
-      rgb(var(--glass-c3, 180 70 160) / 0.55),
-      transparent 70%),
-    radial-gradient(150% 120% at var(--glass-pos-4, 82%) var(--glass-pos-4y, 22%),
-      rgb(var(--glass-c4, 40 130 200) / 0.58),
-      transparent 70%),
-    /* Lifted base — low-saturation deep navy so even no-blob zones
-       still carry color presence. */
-    linear-gradient(180deg, #0a0d2c 0%, #050714 100%);
-  animation: glass-aurora-drift 120s linear infinite;
-  pointer-events: none;
-  /* Slight saturation boost to compensate for the lighter dimming
-     layers. Apple's wallpapers feel chromatic, not pastel. */
-  filter: saturate(1.25);
+      rgba(0, 0, 0, 0.42) 100%);
 }
 
 /* --- Backdrop layer 2: SVG fractal noise grain. Tiny inline data URI;
@@ -202,69 +225,49 @@ html[data-theme='glass']::after {
   background-repeat: repeat;
 }
 
-/* Drift animation, 120 seconds linear. All four blob anchor points
- * move on offset paths (each blob orbits a slightly different center)
- * so the wash slowly shifts character without any one blob feeling
- * stationary. Linear (not ease-in-out) keeps the motion imperceptibly
- * steady rather than rocking back and forth.
- *
- * v0.7.10: removed --glass-hue-angle. Conic gone, no angle to rotate. */
-@keyframes glass-aurora-drift {
-  0% {
-    --glass-pos-1: 28%; --glass-pos-1y: 18%;
-    --glass-pos-2: 72%; --glass-pos-2y: 82%;
-    --glass-pos-3: 18%; --glass-pos-3y: 78%;
-    --glass-pos-4: 82%; --glass-pos-4y: 22%;
-  }
-  25% {
-    --glass-pos-1: 38%; --glass-pos-1y: 28%;
-    --glass-pos-2: 62%; --glass-pos-2y: 72%;
-    --glass-pos-3: 12%; --glass-pos-3y: 88%;
-    --glass-pos-4: 88%; --glass-pos-4y: 12%;
-  }
-  50% {
-    --glass-pos-1: 32%; --glass-pos-1y: 22%;
-    --glass-pos-2: 68%; --glass-pos-2y: 78%;
-    --glass-pos-3: 22%; --glass-pos-3y: 72%;
-    --glass-pos-4: 78%; --glass-pos-4y: 28%;
-  }
-  75% {
-    --glass-pos-1: 22%; --glass-pos-1y: 14%;
-    --glass-pos-2: 78%; --glass-pos-2y: 86%;
-    --glass-pos-3: 26%; --glass-pos-3y: 82%;
-    --glass-pos-4: 74%; --glass-pos-4y: 18%;
-  }
-  100% {
-    --glass-pos-1: 28%; --glass-pos-1y: 18%;
-    --glass-pos-2: 72%; --glass-pos-2y: 82%;
-    --glass-pos-3: 18%; --glass-pos-3y: 78%;
-    --glass-pos-4: 82%; --glass-pos-4y: 22%;
-  }
+/* Drift, 120 seconds linear. The two layers orbit in opposite
+ * directions so the blob pairs move RELATIVE to each other — the wash
+ * slowly shifts character without any one blob feeling stationary.
+ * Linear (not ease-in-out) keeps the motion imperceptibly steady
+ * rather than rocking back and forth. Translate percentages are of
+ * the layer box (128% of viewport), so ±4-5% ≈ the old ±10-point
+ * anchor drift. transform-only = composited, zero repaint. */
+@keyframes glass-drift-a {
+  0%   { transform: translate3d(0, 0, 0); }
+  25%  { transform: translate3d(5%, 4.5%, 0); }
+  50%  { transform: translate3d(2%, 2%, 0); }
+  75%  { transform: translate3d(-3.5%, -2%, 0); }
+  100% { transform: translate3d(0, 0, 0); }
 }
-
-/* CSS-var animation requires registered properties to interpolate
- * smoothly. Without these, keyframes apply discretely. */
-@property --glass-pos-1  { syntax: '<percentage>'; inherits: true; initial-value: 28%; }
-@property --glass-pos-1y { syntax: '<percentage>'; inherits: true; initial-value: 18%; }
-@property --glass-pos-2  { syntax: '<percentage>'; inherits: true; initial-value: 72%; }
-@property --glass-pos-2y { syntax: '<percentage>'; inherits: true; initial-value: 82%; }
-@property --glass-pos-3  { syntax: '<percentage>'; inherits: true; initial-value: 18%; }
-@property --glass-pos-3y { syntax: '<percentage>'; inherits: true; initial-value: 78%; }
-@property --glass-pos-4  { syntax: '<percentage>'; inherits: true; initial-value: 82%; }
-@property --glass-pos-4y { syntax: '<percentage>'; inherits: true; initial-value: 22%; }
+@keyframes glass-drift-b {
+  0%   { transform: translate3d(0, 0, 0); }
+  25%  { transform: translate3d(-5%, -4.5%, 0); }
+  50%  { transform: translate3d(-2%, -2.5%, 0); }
+  75%  { transform: translate3d(3%, 2%, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
 
 /* Reduced motion: freeze the drift, keep the gradient + grain. */
 @media (prefers-reduced-motion: reduce) {
-  html[data-theme='glass']::before { animation: none; }
+  html[data-theme='glass'] .glass-aurora-a,
+  html[data-theme='glass'] .glass-aurora-b { animation: none; }
 }
 
 /* Mobile perf: high-radius backdrop-blur is GPU-expensive. Slightly
  * lighter blur + simpler grain on small screens keeps scrolling smooth
- * on iPhone-class devices. */
+ * on iPhone-class devices. The drift is parked too — animating two
+ * extra composited layers forever is pure battery spend on a phone,
+ * and at 120s/loop nobody misses the motion. */
 @media (max-width: 768px) {
   html[data-theme='glass']::after { opacity: 0.35; }
+  html[data-theme='glass'] .glass-aurora-a,
+  html[data-theme='glass'] .glass-aurora-b {
+    animation: none;
+    will-change: auto;
+  }
 }
 
+/* Outside the glass theme the backdrop mount is inert. */
 .glass-backdrop { display: none; }
 
 /* ---------- Surfaces ---------- */
@@ -476,6 +479,32 @@ html[data-theme='glass'] .glass-panel > :not(.absolute):not(.fixed):not(.sticky)
     backdrop-filter: blur(16px) saturate(150%);
     -webkit-backdrop-filter: blur(16px) saturate(150%);
   }
+}
+
+/* v0.7.31 — honor the OS "Reduce Transparency" accessibility setting
+ * (iOS/macOS Settings → Accessibility → Display). Apple's own Liquid
+ * Glass swaps its materials for near-opaque fills; we do the same:
+ * panels take the dark-tinted --elevated token at ~full opacity (the
+ * white --surface tint would flip contrast against the light text),
+ * the costly backdrop blur is dropped (pointless against an opaque
+ * fill), and the aurora drift parks. Every specular / shadow layer
+ * stays, so the theme keeps its depth without the see-through. */
+@media (prefers-reduced-transparency: reduce) {
+  html[data-theme='glass'] .glass-panel,
+  html[data-theme='glass'] .glass-panel[data-material="thin"],
+  html[data-theme='glass'] .glass-panel[data-material="regular"],
+  html[data-theme='glass'] .glass-panel[data-material="ultraThin"] {
+    background-color: rgb(var(--elevated) / 0.97);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  html[data-theme='glass'] .help-hint-popover {
+    background-color: rgb(var(--elevated));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  html[data-theme='glass'] .glass-aurora-a,
+  html[data-theme='glass'] .glass-aurora-b { animation: none; }
 }
 
 /* ---------- Glass theme typography ----------
