@@ -83,7 +83,14 @@ button { font-family: inherit; }
  * button that legitimately needs to wrap can opt back in with
  * Tailwind's `whitespace-normal` utility (specificity wins over
  * this base rule). */
-button { white-space: nowrap; }
+/* v0.7.31 — scoped with :not(:has(...)): the bare rule also caught
+ * CARD-style buttons (theme picker, date-format picker — any button
+ * whose content is block-level divs with multi-line descriptions) and
+ * forced their copy onto one line, bleeding text out of the card.
+ * Buttons containing block content keep normal wrapping; text/icon
+ * pills stay one-line. :has() is supported by every 2026 target
+ * (Firefox 121+, Safari 15.4+, Chrome 105+). */
+button:not(:has(div, p, ul)) { white-space: nowrap; }
 
 /* ============================================================
  * LIQUID GLASS THEME — macOS Sequoia / iOS 26 inspired
@@ -458,9 +465,11 @@ html[data-theme='glass'] .glass-panel[data-no-meniscus]::after { display: none; 
  * finger. Filter-only (no transform, no overlay pseudo) so it can't
  * collide with existing button transitions, gradients, or the
  * `button.glass-panel:active` translate rule. The pop is instant on
- * press (Apple presses respond immediately); release snaps back. */
+ * press (Apple presses respond immediately); release snaps back.
+ * v0.7.31b — strengthened (1.22 → 1.4 brightness) after real-device
+ * feedback that the first pass was imperceptible. */
 html[data-theme='glass'][data-glass-fx] button:not([disabled]):not(:disabled):active {
-  filter: brightness(1.22) saturate(1.12);
+  filter: brightness(1.4) saturate(1.35);
 }
 
 /* 2. Palette-tinted meniscus — the specular ring picks up the active
@@ -470,13 +479,17 @@ html[data-theme='glass'][data-glass-fx] button:not([disabled]):not(:disabled):ac
  * here. Alphas stay in the classic ring's range so it reads as an
  * edge, not a glow. */
 html[data-theme='glass'][data-glass-fx] .glass-panel::before {
+  /* v0.7.31b — tint strengthened (0.30 → 0.48 at the lit corner) after
+   * real-device feedback: colored stops read weaker than white at equal
+   * alpha, so matching the classic ring's numbers made the effect
+   * invisible. */
   background: linear-gradient(
     135deg,
-    rgb(var(--accent) / 0.30) 0%,
-    rgba(255, 255, 255, 0.10) 22%,
-    rgba(255, 255, 255, 0.02) 55%,
-    rgb(var(--accent) / 0.07) 78%,
-    rgb(var(--accent) / 0.20) 100%
+    rgb(var(--accent) / 0.48) 0%,
+    rgba(255, 255, 255, 0.12) 22%,
+    rgba(255, 255, 255, 0.03) 55%,
+    rgb(var(--accent) / 0.12) 78%,
+    rgb(var(--accent) / 0.32) 100%
   );
 }
 
@@ -530,31 +543,14 @@ html[data-theme='glass'] .glass-panel > :not(.absolute):not(.fixed):not(.sticky)
   }
 }
 
-/* v0.7.31 — honor the OS "Reduce Transparency" accessibility setting
- * (iOS/macOS Settings → Accessibility → Display). Apple's own Liquid
- * Glass swaps its materials for near-opaque fills; we do the same:
- * panels take the dark-tinted --elevated token at ~full opacity (the
- * white --surface tint would flip contrast against the light text),
- * the costly backdrop blur is dropped (pointless against an opaque
- * fill), and the aurora drift parks. Every specular / shadow layer
- * stays, so the theme keeps its depth without the see-through. */
-@media (prefers-reduced-transparency: reduce) {
-  html[data-theme='glass'] .glass-panel,
-  html[data-theme='glass'] .glass-panel[data-material="thin"],
-  html[data-theme='glass'] .glass-panel[data-material="regular"],
-  html[data-theme='glass'] .glass-panel[data-material="ultraThin"] {
-    background-color: rgb(var(--elevated) / 0.97);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-  html[data-theme='glass'] .help-hint-popover {
-    background-color: rgb(var(--elevated));
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-  html[data-theme='glass'] .glass-aurora-a,
-  html[data-theme='glass'] .glass-aurora-b { animation: none; }
-}
+/* NOTE (v0.7.31, removed same version): a `prefers-reduced-transparency`
+ * fallback briefly lived here, swapping panels to opaque --elevated
+ * fills. Real-world problem: Windows reports `reduce` whenever the OS
+ * "Transparency effects" toggle is off — which many Windows setups
+ * (including the maintainer's) have — so the entire Liquid Glass look
+ * silently flattened to near-black panels on desktop. If reduce-
+ * transparency support comes back, it must be an IN-APP opt-in
+ * toggle, never an automatic media query. */
 
 /* ---------- Glass theme typography ----------
  *

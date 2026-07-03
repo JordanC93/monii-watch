@@ -596,9 +596,15 @@ to the border (specular meniscus, currently 22% white). If you tweak it, keep:
   vignette ABOVE the blobs; grain stays on `html::after`. Drift
   auto-disables under `prefers-reduced-motion: reduce` AND on
   ≤768px viewports (battery)
-- `prefers-reduced-transparency: reduce` is honored: panels swap to
-  near-opaque `--elevated` fills with no backdrop blur (the white
-  `--surface` tint would flip contrast against the light text)
+- Do NOT auto-apply `prefers-reduced-transparency`. Windows reports
+  `reduce` whenever the OS "Transparency effects" toggle is off (the
+  maintainer's setup), so a media query silently flattened every
+  glass panel to opaque near-black on desktop. If reduce-transparency
+  support returns, it must be an in-app opt-in toggle
+- "Prism effects" (`Settings.glassPrismFx` → `data-glass-fx` on
+  `<html>`) is the experimental opt-in variant: press glint on
+  buttons, accent-tinted meniscus, deeper modal shadows. All pure
+  CSS gated on the attribute; off = classic look
 - Surface tokens are split: `--surface` stays white (for the panel
   translucent fill) but `--surface-2`, `--surface-3`, `--elevated` are
   dark-tinted purples so form controls don't punch through as solid white

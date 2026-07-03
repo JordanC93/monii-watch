@@ -521,7 +521,11 @@ export function SettingsPage() {
             <button
               key={t.id}
               onClick={() => setTheme(t.id)}
-              className={`text-left rounded-lg border-2 p-3 transition ${
+              // whitespace-normal: the v0.7.30 base rule `button {
+              // white-space: nowrap }` (for one-line pills) forces these
+              // multi-line descriptions onto one line, bleeding out of
+              // the card. Opt back in to wrapping.
+              className={`text-left rounded-lg border-2 p-3 transition whitespace-normal overflow-hidden ${
                 settings.theme === t.id ? 'border-accent' : 'border-border hover:border-border-strong'
               }`}
             >
