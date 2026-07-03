@@ -23,18 +23,31 @@ import type { DriveStatus } from '../../sync/driveProvider';
 import { ENCRYPTION_LABEL, ENCRYPTION_DESCRIPTION } from '../../sync/cryptoMeta';
 
 /**
- * Sync settings modal. Two transports surface here:
+ * Sync settings modal. Five transports surface here:
  *
  *   - **Pairing phrase** (always available) — opens a WebRTC P2P connection
  *     to any other device using the same phrase. The friends-and-family
- *     default. Encrypted with the phrase.
+ *     default. Encrypted with the phrase; the public identifiers sent to
+ *     signaling/sync servers are SHA-256 derivations of it (v0.7.31), so
+ *     all devices must run the same app version to pair.
  *
- *   - **Self-hosted server URL** (optional) — points at a y-websocket
- *     server you run yourself (Plex box, Pi, cloud VM). When set, the app
- *     opens a websocket alongside WebRTC — the server acts as a hub so
- *     devices coming online catch up even if the other device is offline.
- *     This whole section is collapsible and stays out of the way for
- *     non-tech users.
+ *   - **Google Drive** (optional) — E2E-encrypted snapshots in the user's
+ *     own Drive. OAuth token is device-local (localSecrets), never synced.
+ *
+ *   - **Cloud folder / iCloud** (optional, Tauri) — encrypted snapshots in
+ *     a user-chosen folder that a cloud client syncs.
+ *
+ *   - **Personal backup server** (optional) — encrypted snapshots pushed to
+ *     the self-hosted server's /backup endpoint. Bearer token is
+ *     device-local.
+ *
+ *   - **Self-hosted realtime server URL** (optional) — points at a
+ *     y-websocket server you run yourself (Plex box, Pi, cloud VM). When
+ *     set, the app opens a websocket alongside WebRTC — the server acts as
+ *     a hub so devices coming online catch up even if the other device is
+ *     offline. An optional custom signaling URL (v0.7.31) moves WebRTC
+ *     peer discovery onto the same box. These advanced sections are
+ *     collapsible and stay out of the way for non-tech users.
  */
 export function SyncModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const settings = useBudget((s) => s.settings);
@@ -154,13 +167,13 @@ export function SyncModal({ open, onClose }: { open: boolean; onClose: () => voi
               onChange={(e) => setRoom(e.target.value)}
               onBlur={applyRoom}
               className="flex-1 font-mono"
-              placeholder="amber-falcon-042"
+              placeholder="amber-falcon-quiet-harbor-1234"
             />
             <Button variant="secondary" onClick={copyRoom}>{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy'}</Button>
             <Button variant="secondary" onClick={regenerate}><RefreshCw size={14} /> New</Button>
           </div>
           <div className="text-[11.5px] text-fg-subtle mt-1.5 leading-snug">
-            Enter the same phrase on every device you want to sync. Treat it like a password; anyone with this phrase can read or change your data.
+            Enter the same phrase on every device you want to sync. All devices need to run the same app version to find each other. Treat the phrase like a password: it also encrypts your cloud backups, and anyone who has it can read or change your data.
           </div>
         </div>
 

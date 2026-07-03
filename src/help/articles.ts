@@ -216,8 +216,9 @@ Don't panic. Overspending happens. Monii has a one-tap fix.
 
 When any category goes red (negative Available), Monii shows an
 **Overspending alert** above the budget table. Tap **Cover from
-Ready to Assign** and it pulls just enough money from your unspent
-RTA to bring every red category back to zero.
+Ready to Assign** and it pulls just enough from Ready to Assign
+(money you haven't given a job yet) to bring every red category
+back to zero.
 
 ## What if Ready to Assign is also empty?
 
@@ -281,12 +282,14 @@ and date, then asks for any missing info.
 A small form at the bottom of the Account page or floating action
 button on Budget page. Pick payee, amount, category, done.
 
-## 3. Receipt OCR
+## 3. Receipt scanning
 
 Tap **Add receipt** in the chat panel or Command Palette (⌘K) →
-Upload receipt. Take a photo or pick a file; Monii reads the vendor
-+ amount + date and pre-fills the form. Works on PDFs too. The
-receipt image is stored alongside the transaction.
+Upload receipt. Take a photo or pick a file; Monii reads the text
+out of the image (this is called OCR) and pre-fills the vendor,
+amount, and date. Works on PDFs too. The reading happens entirely
+on your device, and the receipt image is stored alongside the
+transaction.
 
 ## Inflows vs outflows
 
@@ -391,15 +394,24 @@ that's used twice a year is not.
     category: 'transactions',
     tags: ['import', 'csv', 'statement', 'ofx', 'qfx', 'paste'],
     body: `
-Two paths. Both end at a review screen where you can deselect rows
-and tweak categories before saving.
+Two paths. Both end at a review table where you check every row
+before anything is saved.
 
 ## File upload
 
-1. Open Settings → Backup & Import (or use ⌘K → Upload receipt)
-2. Pick a CSV, OFX, QFX, or PDF statement
-3. Monii parses the rows and shows a review table
-4. Uncheck duplicates, set categories, hit Save
+1. Use ⌘K → Upload receipt (or the camera button in the chat
+   panel). Statements and receipts go through the same door;
+   Monii figures out which one you gave it.
+2. Pick a CSV, OFX, QFX, PDF, or even a photo or screenshot of a
+   statement. You can drop several files at once; they're
+   processed one at a time.
+3. Monii reads the rows and shows a review table.
+4. Uncheck rows you don't want, fix categories, hit Save.
+
+Nothing is imported until you press Save. See "Reviewing a
+statement import" for a walkthrough of the review table itself,
+including the statement-type selector and the "Estimated amount"
+warning.
 
 ## Copy-paste
 
@@ -436,9 +448,10 @@ receipt). The image is stored with the transaction automatically.
 
 ## Search by content
 
-The OCR'd text from a receipt is searchable. On the Search page or
-Receipts gallery (More → Receipts), type "wood stain" or "ground
-beef" and Monii finds the receipt that contained those words.
+The text Monii reads out of a receipt is searchable. On the Search
+page or Receipts gallery (More → Receipts), type "wood stain" or
+"ground beef" and Monii finds the receipt that contained those
+words.
 `,
   },
   // ---------------- Accounts -------------------------------------------
@@ -727,41 +740,6 @@ load.
   },
   // ---------------- Sync & privacy -------------------------------------
   {
-    id: 'sync-overview',
-    title: 'How does sync work?',
-    category: 'sync-privacy',
-    tags: ['sync', 'pair', 'devices', 'webrtc', 'phrase'],
-    body: `
-Sync is OFF by default. You opt in.
-
-## How to pair devices
-
-1. On device A, open **Settings → Sync → Configure**
-2. Toggle Sync ON. Monii generates a 3-word **pairing phrase**
-   ("forest-lemon-spark", say)
-3. On device B, do the same: enter the SAME phrase
-4. Devices find each other and merge their data within seconds
-
-The pairing phrase is the encryption key. Anyone who knows it can
-sync to your data. Treat it like a password.
-
-## What sync uses
-
-- **WebRTC**: direct peer-to-peer, the default. Works as long as
-  both devices are online at some point.
-- **Self-hosted server** (advanced): set a y-websocket URL in
-  Sync settings. Useful if you have a home server / Pi.
-- **Google Drive** (E2E encrypted): opt-in. Stores an encrypted
-  snapshot in your own Drive. Google holds the bytes but can't
-  decrypt them.
-
-## Resetting the phrase
-
-Don't! The phrase is the key. If you lose all devices, the data is
-gone. Export a backup occasionally (Settings → Backup) to be safe.
-`,
-  },
-  {
     id: 'privacy',
     title: 'Where is my data stored?',
     category: 'sync-privacy',
@@ -769,25 +747,29 @@ gone. Export a backup occasionally (Settings → Backup) to be safe.
     body: `
 On YOUR devices. Specifically:
 
-## Browser PWA
+## In the browser
 
-In your browser's **IndexedDB**. A specific database named
-\`monii-watch-doc-v1\`. It stays there until you clear it or
-uninstall the app.
+In your browser's built-in database (IndexedDB), in a database
+named \`monii-watch-doc-v1\`. It stays there until you clear it or
+uninstall the app. The app also asks the browser to protect that
+storage from being cleaned up automatically when disk space runs
+low.
 
-## Tauri desktop apps (Mac, Windows, Linux)
+## Desktop apps (Mac, Windows, Linux)
 
-Same IndexedDB, scoped to the Tauri WebView's local storage. Lives
-in your OS user directory.
+Same built-in database, stored inside your OS user directory.
 
-## Sync transports (when enabled)
+## Sync options (when you turn them on)
 
-- **WebRTC**: data is encrypted with your pairing phrase before
-  leaving your device. Public signaling servers help devices find
-  each other but never see your data.
-- **Self-hosted**: encrypted with the same phrase before sending.
-- **Google Drive**: encrypted with XChaCha20-Poly1305 + Argon2id
-  derived from the phrase before upload.
+- **Pairing phrase (device-to-device)**: data is encrypted with
+  your pairing phrase before leaving your device. Public helper
+  servers only help your devices find each other. They see a
+  scrambled fingerprint of your phrase, never the phrase itself
+  and never your data.
+- **Self-hosted server**: encrypted the same way before sending.
+- **Google Drive**: encrypted on your device before upload, using
+  a key made from your pairing phrase. Google stores the file but
+  cannot read it.
 
 ## What we DON'T do
 
@@ -795,7 +777,9 @@ in your OS user directory.
 - No "anonymous usage data"
 - No third-party SDKs
 - No bank linking (Plaid etc.)
-- No AI / LLM services
+- No cloud AI. The optional statement-reading AI (Settings →
+  On-device AI parsing) runs entirely on your device; nothing is
+  sent anywhere.
 `,
   },
   {
@@ -804,30 +788,41 @@ in your OS user directory.
     category: 'sync-privacy',
     tags: ['backup', 'export', 'restore', 'json', 'encrypted'],
     body: `
-Monii has two export formats and two import paths.
+A backup is a single file with a copy of your whole budget. Keep
+one somewhere safe and you can always get your data back, even if
+you lose every device.
 
 ## Plain JSON export
 
 Settings → Backup & Import → **Export JSON**. Downloads a
 \`monii-watch-YYYY-MM-DD.json\` with everything: accounts,
-transactions, categories, settings.
+transactions, categories, settings, scheduled transactions,
+auto-categorize rules, trips and events, budget templates, saved
+searches, and your net-worth history.
+
+Backups never contain sign-in credentials. Your Google Drive
+sign-in and any personal-server access token stay on the device
+they were entered on, so a backup file is safe to store anywhere
+you'd store other private documents.
 
 ## Encrypted export (.cb-backup)
 
 Settings → Backup & Import → **Export encrypted**. Pick a
-passphrase. Same data but encrypted with XChaCha20-Poly1305 +
-Argon2id (military-grade). Use this if you're emailing the file
-to yourself or storing it in a less-trusted location.
+passphrase. Same data, but scrambled so only that passphrase can
+open it. Use this if you're emailing the file to yourself or
+storing it in a less-trusted location.
 
 ## Restore
 
 Settings → Backup & Import → **Import**. Two modes:
 - **Merge**: adds the contents alongside what's there
-- **Replace all**: wipes the current state and replaces (USE WITH
-  CARE)
+- **Replace all**: clears everything first, then loads the file
+  (USE WITH CARE)
 
-Encrypted backups auto-detect the magic header and prompt for the
-passphrase.
+Encrypted backups are detected automatically and prompt for the
+passphrase. Older backup files still import fine; files made
+before mid-2026 just won't contain the newer items listed above
+(auto-rules, templates, saved searches, net-worth history).
 
 ## When to back up
 
@@ -850,7 +845,9 @@ Settings → Danger zone → **Reset everything**. This wipes:
 - Local prefs (themes, density, sidebar order)
 - Service worker caches
 
-Then it reloads the app and you start fresh with the demo data.
+Then it reloads the app and you start fresh with an empty budget.
+(The welcome tour offers a "Try with sample data" button if you
+want example accounts to poke at.)
 
 ## Before you do this
 
@@ -871,22 +868,34 @@ deletion can be blocked if a sync provider is mid-flight.
     body: `
 A checklist:
 
+## Both devices on the SAME app version?
+
+This is the most common cause after an update. Devices only find
+each other when they run the same version of Monii Watch, because
+newer versions identify the sync room differently (they send a
+scrambled fingerprint of your phrase instead of anything readable).
+Update both devices, then try again. Your phrase and data are fine.
+
 ## Both devices have the SAME pairing phrase?
 
-Settings → Sync → Configure. The phrase is case-sensitive and
-hyphenated. Even "forest lemon spark" and "Forest-Lemon-Spark" are
-different. Type carefully.
+Settings → Sync. The phrase is case-sensitive and hyphenated.
+Even "amber falcon cocoa ridge 4172" and
+"Amber-Falcon-Cocoa-Ridge-4172" are different. Type carefully.
 
-## Both devices online?
+## Both devices online at the same time?
 
-WebRTC needs both peers to be reachable on the network. If one is
-on a restrictive corporate network, P2P may fail.
+Device-to-device sync needs both peers reachable on the network
+at the same moment. If one is on a restrictive corporate network,
+the direct connection may fail.
 
 ## Try the self-hosted server (advanced)
 
-If WebRTC isn't reaching your peers, you can run a tiny
-y-websocket server (the \`server/\` folder in the source has a
-Docker Compose drop-in). Set the URL in Sync → Self-hosted server.
+If the direct connection isn't reaching your peers, you can run a
+tiny sync server (the \`server/\` folder in the source has a Docker
+Compose drop-in). Set the URL in Sync → Self-hosted realtime sync.
+The same server can also help your devices find each other for the
+direct connection: under Sync → advanced, set the Signaling server
+field to \`wss://your-host:port/signaling\`.
 
 ## Last resort: import / export
 
@@ -905,8 +914,9 @@ Common causes, in order of likelihood:
 
 ## You haven't set Ready to Assign to zero
 
-If RTA is huge and your envelopes look empty, you have unassigned
-income. Distribute it to envelopes.
+If Ready to Assign (money you haven't given a job yet) is huge
+and your envelopes look empty, you have unassigned income.
+Distribute it to envelopes.
 
 ## Carry-over from previous months
 
@@ -989,7 +999,10 @@ Open the page and tap **FIRE assumptions**. Fill in:
 - **Return std deviation**: typical 12-18% for stocks
 - **Inflation**: typical 2-4%
 - **Life expectancy**: most people use 90-95
-- **Social Security** (optional): start age + monthly benefit
+- **Social Security** (optional): start age + monthly benefit.
+  Once it kicks in, it reduces how much you withdraw each year.
+  If the benefit is bigger than your spending, the extra is
+  saved and your projected net worth grows instead of shrinking.
 
 Your **current net worth** comes from your accounts. **Annual
 contribution** is auto-derived from your trailing 12-month net
@@ -1065,6 +1078,14 @@ workspace you want. The app reloads.
 Workspaces → trash icon next to a workspace. **Permanent.** Export
 a backup first if you might need it. The default "Personal"
 workspace can't be deleted.
+
+Two rules the app enforces:
+
+- You can't delete the workspace you're currently in. Switch to
+  another one first, then delete.
+- If the app is open in other tabs or windows, close them first.
+  A workspace that's open somewhere else can't be deleted; the
+  app will tell you and you can try again.
 
 ## Caveat: no cross-workspace transfers
 
@@ -1191,15 +1212,27 @@ that you want to grow by 3% every year. Set:
 - Start date: 2026-01-01
 - Auto-escalate: 3
 
-Every January 1, the materialized transactions become 3% larger.
+Every January 1, the created transactions become 3% larger.
 After 5 years: $231.85/mo. After 10: $268.78/mo.
+
+## Month-end dates behave
+
+A monthly schedule set for the 29th, 30th, or 31st stays on that
+day. In months that are too short it moves to the last day
+(February pays on the 28th, or the 29th in a leap year), then
+returns to your chosen day in March. It never drifts to an
+earlier day permanently.
 
 ## Caveats
 
-The auto-escalation is multiplicative compounding from start date,
-NOT from "today." Pausing + resuming doesn't reset the year count.
-This is intentional: it gives a stable, deterministic value at
-any future point.
+The auto-raise compounds from the start date, not from "today."
+Pausing + resuming doesn't reset the year count. This is
+intentional: it gives a stable, predictable value at any future
+point.
+
+If you manually change the amount on a schedule that has
+auto-raise, the raise restarts from your new amount. Your edit
+won't get raised twice.
 
 To disable, set the % back to 0 (or blank) on the scheduled entry.
 `,
@@ -1428,6 +1461,10 @@ The first sync happens within a few seconds. From then on,
 changes push within 5 seconds and incoming changes are picked
 up every 30 seconds.
 
+If you use multiple workspaces (separate budgets), each one
+writes its own snapshot file into the folder. Two workspaces
+never overwrite each other.
+
 ## Per-platform tips
 
 - **macOS**: the standard iCloud folder is
@@ -1493,7 +1530,7 @@ overwriting. Settings → Cloud folder sync → **Restore previous**
 reverts to that copy if the current snapshot ever ends up in a
 state you didn't want (rare, but cheap insurance):
 
-- Reads \`.previous\` and applies it to your local Yjs doc.
+- Reads \`.previous\` and applies it to the data on this device.
 - Force-pushes the restored state to the cloud folder, so other
   devices pull the rolled-back version.
 - One step of "undo" only. There's no \`.previous.previous\`.
@@ -1689,7 +1726,8 @@ and triggers a download if yes.
 
 The same JSON snapshot as Settings → Backup & Import → Export
 JSON. Includes accounts, transactions, categories, settings,
-everything synced.
+everything synced. Like every backup, it never contains sign-in
+credentials (Drive sign-in, server tokens).
 
 ## Backup history
 
@@ -2011,9 +2049,9 @@ the app and tell a friend about it. That's also support.
     category: 'transactions',
     tags: ['receipt', 'ocr', 'last 4', 'card', 'auto', 'route', 'auto-assign', 'auto-route'],
     body: `
-When you upload a receipt photo, Monii's OCR pipeline reads the
-text and looks for a "card ending in 1234" / "VISA ****1234"
-pattern. If it matches an account you've configured with a
+When you upload a receipt photo, Monii reads the text out of the
+image (OCR) and looks for a "card ending in 1234" /
+"VISA ****1234" pattern. If it matches an account you've configured with a
 **last 4 digits** field, the charge auto-routes to that account.
 
 ## Setup (one-time per account)
@@ -2064,8 +2102,8 @@ after the line items, so the trailing match is most reliable.
 
 ## Privacy
 
-- The last 4 digits stay in your synced Yjs doc (encrypted
-  in transit).
+- The last 4 digits stay in your own data (encrypted whenever
+  they leave the device for sync).
 - The full card number is never stored. The OCR pipeline only
   ever sees what's printed on the receipt, typically just the
   last 4.
@@ -2175,9 +2213,8 @@ wins.
 ## Privacy
 
 Auto-categorize runs entirely on-device. No payee data leaves
-your machine. The rules sync to your other devices via the
-normal end-to-end-encrypted Yjs sync, the same as everything
-else.
+your machine. The rules sync to your other devices through the
+same encrypted sync as everything else.
 `,
   },
 
@@ -2396,9 +2433,9 @@ Always reconcile against your brokerage's 1099-B at year-end.
 
 ## Privacy
 
-Lot data lives in the same encrypted Yjs doc as everything
-else. Nothing is sent to a stock-quote service or a tax
-provider; manual price entry only. Future updates may add
+Lot data lives on your device and syncs encrypted, like
+everything else. Nothing is sent to a stock-quote service or a
+tax provider; manual price entry only. Future updates may add
 opt-in price fetching, but it'll always be off by default.
 `,
   },
@@ -2451,10 +2488,10 @@ doesn't delete the underlying data, just your chosen layout.
 
 ## Sync
 
-The widget order + sizing is synced across your devices via the
-normal Yjs sync. Exception: the **Quick notes** widget content
-is per-device-only and stays in localStorage. A sticky note
-belongs to one device.
+The widget order + sizing is synced across your devices like the
+rest of your data. Exception: the **Quick notes** widget content
+stays on the device you wrote it on. A sticky note belongs to
+one device.
 `,
   },
 
@@ -2508,11 +2545,27 @@ Big money values (Net Worth tile, Ready to Assign) get a
 subtle gradient background to read more like a metric pill
 than plain text.
 
+## Prism effects (Liquid Glass only)
+
+The Liquid Glass theme has an optional extra layer of shine:
+buttons glint when pressed, panel edges pick up the palette
+color, and dialogs cast deeper shadows. Turn it on under
+Settings → Appearance, below the glass palette picker
+("Prism effects"). It applies instantly; turn it off the same
+way if it's too much.
+
+## Date format
+
+Settings → Appearance also has a **Date format** choice (like
+05/09/2026 vs 9 May 2026 vs May 9, 2026). New users are asked
+during onboarding; you can change it any time and every date in
+the app follows.
+
 ## Where this lives
 
-Everything is CSS-only with no behavior changes. If a particular
-animation bothers you, the OS-level **Reduce Motion** preference
-disables them globally. Per-effect toggles aren't planned.
+Everything is visual only, with no behavior changes. If the
+animations bother you, the OS-level **Reduce Motion** preference
+disables them globally.
 `,
   },
 
@@ -2592,8 +2645,8 @@ in \`docs/CAPACITOR.md\` in the repo.
     category: 'sync-privacy',
     tags: ['sync', 'devices', 'backup', 'overview', 'compare'],
     body: `
-Monii Watch keeps every device in step using your choice of four
-options. They are independent. You can use any one, any
+Monii Watch keeps every device in step using your choice of
+several options. They are independent. You can use any one, any
 combination, or none at all if you only run the app on a single
 device.
 
@@ -2604,13 +2657,27 @@ Open Settings, then Sync to configure them.
 | Option | What it does | Best for |
 |---|---|---|
 | Pairing phrase (P2P) | Direct connection between your devices when both are online. | Friends and family using the same phrase. No setup beyond picking the phrase. |
+| Cloud folder (desktop app) | Encrypted snapshot written into a folder your cloud app already syncs (iCloud Drive, OneDrive, Dropbox). | Desktop users. The easiest cloud option; no sign-in needed. |
 | Google Drive | Encrypted snapshot uploaded to your own Drive. | Users who already use Drive and want a free off-site backup. Requires a one-time OAuth setup. |
-| Self-hosted realtime sync | Live websocket sync through your own server. | Power users with a Plex box, NAS, Pi, or VPS. Lets devices catch up even if other devices are offline. |
+| Self-hosted realtime sync | Live sync through your own server. | Power users with a Plex box, NAS, Pi, or VPS. Lets devices catch up even if other devices are offline. |
 | Personal backup server | Periodic encrypted snapshot uploaded to your own server. | Same audience as self-hosted sync, lighter weight, no realtime connection. |
 
-All four use the same end-to-end encryption. Your pairing phrase
-is the encryption key. Anyone holding the bytes (Google, your own
-server, a peer on the network) sees only ciphertext.
+All of them use the same end-to-end encryption. Your pairing phrase
+is both the shared secret that pairs devices AND the password
+that scrambles every copy of your data that leaves a device.
+Treat it like a password. Anyone holding the bytes (Google, your
+own server, a peer on the network) sees only scrambled data.
+
+Two things worth knowing up front:
+
+- **All devices must run the same app version to pair.** After
+  updating one device, update the others too.
+- **Sign-ins stay on each device.** Your Google Drive connection
+  and any server access token are stored on the device where you
+  entered them. They never sync to paired devices and are never
+  inside backups, so each device connects (or reconnects) on its
+  own. The "last synced" time shown in Settings is also
+  per-device.
 
 ## What we never use
 
@@ -2621,8 +2688,9 @@ server, a peer on the network) sees only ciphertext.
 
 ## Choosing one
 
-- If you only have one device and want a backup, pick Google Drive
-  (zero setup) or Personal backup server (if you have a server).
+- If you only have one device and want a backup, pick Cloud
+  folder sync (easiest, on desktop), Google Drive, or Personal
+  backup server (if you have a server).
 - If you have multiple devices that go online together regularly,
   pairing phrase is enough.
 - If your devices rarely overlap (phone here, laptop there), add a
@@ -2649,22 +2717,34 @@ step automatically when they are both online.
 ## Setup, step by step
 
 1. Open Settings, then Sync.
-2. Pick a phrase. The "Generate" button gives you a random
-   three-word phrase that is easy to type, like
-   "purple-river-radio". Or type your own. Treat it like a
-   password.
+2. Pick a phrase. The "New" button gives you a random phrase of
+   four words plus a short code, like
+   "amber-falcon-cocoa-ridge-4172". Or type your own. Treat it
+   like a password: it is both the room secret AND the key that
+   scrambles your data, so a longer phrase is a stronger lock.
+   (Older three-word phrases keep working; only newly generated
+   ones use the longer format.)
 3. Click "Save and turn on sync".
 4. On every other device you want to sync, repeat steps 1 to 3
    with the SAME phrase. Within a few seconds the devices find
    each other and pull in the latest data.
+
+## Keep every device on the same app version
+
+Devices only see each other when they run the same version of
+Monii Watch. Newer versions stopped sending anything readable to
+the public helper servers; they send a scrambled fingerprint of
+your phrase instead, and older versions compute a different one.
+If sync stops after an update, update the other devices too.
 
 ## What "P2P" actually means
 
 Peer-to-peer means your devices talk to each other directly.
 There is no Monii server in the middle. Public signaling servers
 help your devices find each other on the network, but they never
-see your data. The data stream is encrypted with the pairing
-phrase before it leaves the device.
+see your data or your phrase — only that scrambled fingerprint.
+The data stream is encrypted with the pairing phrase before it
+leaves the device.
 
 ## What it CAN do
 
@@ -2769,19 +2849,33 @@ megabyte.
 ## What happens after that
 
 - The first connect uploads your current state.
-- Every change pushes a new snapshot after a five-second
-  debounce.
-- The app polls every minute to pull in changes from other
+- Every change pushes a new snapshot a few seconds later.
+- The app checks every minute to pull in changes from other
   devices.
-- The encryption key never leaves your machine. Google sees
-  ciphertext.
+- The encryption key never leaves your machine. Google only ever
+  stores scrambled data.
+- If you use multiple workspaces (separate budgets), each one
+  keeps its own snapshot file in Drive. They never overwrite
+  each other.
+
+## The sign-in stays on this device
+
+Your Google sign-in is stored on each device separately. It never
+syncs to paired devices, and it is never included in backup
+files. That means:
+
+- Each device connects to Drive on its own (same five steps).
+- After an app update, a device may ask you to reconnect Drive
+  once. That's normal; approve and it carries on.
+- The "last synced" time shown in Settings is for THIS device,
+  not the whole household.
 
 ## Security notes
 
-- The OAuth scope is \`drive.file\`. The app can only see and
-  modify the snapshot file it created. It cannot read the rest of
-  your Drive.
-- The access token expires after about an hour. The app silently
+- The permission the app asks Google for is the narrowest one:
+  it can only see and modify the snapshot file it created. It
+  cannot read the rest of your Drive.
+- The sign-in expires after about an hour. The app silently
   re-prompts when it does.
 - You can revoke access any time from
   https://myaccount.google.com/permissions.
@@ -2849,13 +2943,26 @@ WSS. The server's \`README.md\` has copy-paste recipes for both.
    encryption key. The server cannot read your data without it.
 3. Open the "Self-hosted realtime sync" section.
 4. Enter your server URL. Three formats work:
-   - \`ws://192.168.1.10:1234\` for a LAN setup.
+   - \`ws://192.168.1.10:1234\` for a home-network setup.
    - \`wss://sync.example.com\` for an internet-facing server.
-   - \`http://192.168.1.10:1234\` works too (the app upgrades to
-     WebSocket).
+   - \`http://192.168.1.10:1234\` works too (the app upgrades the
+     connection automatically).
+
+   If your server requires an access token, add it to the end of
+   the URL: \`wss://sync.example.com?token=your-token\`.
 5. Click Save. Within a few seconds the section shows "Connected".
 
-Repeat on every device you want to sync.
+Repeat on every device you want to sync. As with the pairing
+phrase, all devices need to be on the same app version to land in
+the same room.
+
+## Bonus: use it for peer discovery too
+
+The same server can replace the public helper servers that
+device-to-device sync uses to find peers. Under Sync → advanced,
+set the **Signaling server** field to
+\`wss://your-host:port/signaling\`. From then on, your devices
+find each other through your own server instead of a public one.
 
 ## How this differs from Personal backup server
 
@@ -2873,11 +2980,11 @@ even on slow or flaky networks.
 
 - The encryption key is your pairing phrase. The server never
   sees it.
-- The server stores Yjs CRDT state, encrypted. Nobody with
-  filesystem access to the server can read your data without the
-  phrase.
-- The room name (the path component of the URL) doesn't leak
-  anything. Different pairing phrases produce different rooms.
+- The server stores your data in scrambled form. Someone with
+  access to the server's disk cannot read it without the phrase.
+- The room identifier the server sees is a scrambled fingerprint
+  of your phrase, not the phrase itself. Different pairing
+  phrases produce different rooms.
 `,
   },
 
@@ -2985,24 +3092,221 @@ Repeat on every device you want backed up.
   default. Override with \`MONII_BACKUP_KEEP\`. Older versions
   roll off automatically.
 
+## The access token stays on this device
+
+The token you paste is stored on each device separately. It never
+syncs to paired devices, and it is never included in backup
+files. Enter it once on every device you want backed up. After an
+app update, a device may ask you to re-enter it once. The "last
+backed up" time shown in Settings is for THIS device only.
+
+If you use multiple workspaces (separate budgets), each one backs
+up under its own name on the server, so two workspaces never
+overwrite each other.
+
 ## Restoring an old version
 
-The Sync settings page shows the latest backup time. If you ever
-need to roll back, contact the server administrator (probably
-you) and copy the desired versioned snapshot from
-\`MONII_BACKUP_DIR/<workspace>/snapshots/\` over the latest one
-at \`MONII_BACKUP_DIR/<workspace>/snapshot.bin\`. The next pull
-on each device will pick it up.
+The Sync settings page shows this device's latest backup time.
+The server keeps older versions on disk, but there is no in-app
+restore button yet. If you ever need to roll back, whoever runs
+the server (probably you) can copy the desired versioned snapshot
+from \`MONII_BACKUP_DIR/<workspace>/snapshots/\` over the latest
+one at \`MONII_BACKUP_DIR/<workspace>/snapshot.bin\`. The next
+pull on each device will pick it up.
 
 ## Privacy
 
 - The encryption key is your pairing phrase. The server never
   sees it.
-- The server stores opaque ciphertext. Anyone with filesystem
-  access cannot read your data.
-- Use a bearer token unless your server is on a private LAN. The
-  token is sent on every request and is what stops a stranger
-  from uploading garbage to your backup folder.
+- The server stores only scrambled data. Someone with access to
+  the server's disk still cannot read your budget.
+- Use an access token unless your server is on a private home
+  network. The token is sent on every request and is what stops
+  a stranger from uploading garbage to your backup folder.
+`,
+  },
+
+  // ============================================================
+  // v0.7.31 — sync safety, statement review, app lock
+  // ============================================================
+
+  {
+    id: 'sync-conflicts',
+    title: 'What happens when two devices edit the same thing?',
+    category: 'sync-privacy',
+    tags: ['conflict', 'merge', 'sync', 'toast', 'newer', 'both devices', 'offline'],
+    body: `
+Say you edit a transaction's category on your phone while your
+laptop is offline, and someone edits the same transaction's memo
+on the laptop. What happens when they reconnect?
+
+## Different items merge cleanly
+
+Changes to DIFFERENT things always combine. A transaction added
+on the phone and a category renamed on the laptop both survive.
+This covers almost all everyday use. When another device's
+changes arrive, you'll see a small toast: "Synced changes from
+another device". That's normal and good.
+
+## The same item edited on both: most recent wins
+
+If both devices changed the SAME item while apart, the app keeps
+the most recent edit. If your device had the newer one, you may
+see "Kept your newer edits during a sync merge". The older edit
+is replaced; nothing crashes, and the rest of your data is
+untouched.
+
+If a specific change seems to have vanished, check More →
+Recovery & safety → Audit log to see what changed and when, and
+redo the edit you wanted.
+
+## A banner about a newer app version
+
+If your budget was last written by a device running a NEWER
+version of Monii Watch, a banner asks you to update this device.
+That protects features the newer version added. Update, and the
+banner goes away.
+`,
+  },
+
+  {
+    id: 'iphone-data-safety',
+    title: 'Keeping your data safe on iPhone',
+    category: 'sync-privacy',
+    tags: ['iphone', 'ios', 'safari', 'storage', 'evict', 'home screen', 'backup', 'pwa'],
+    body: `
+Your budget lives on your phone, not on a server. That's great
+for privacy, but it means the phone's copy is precious. Two
+habits keep it safe.
+
+## Why this matters on iPhone
+
+Safari can clear a website's stored data when the phone runs low
+on space, or when you haven't visited a site in a while. Monii
+asks the system to protect its storage from that cleanup, and
+usually that's honored. But "usually" isn't a backup plan.
+
+## Habit 1: install to the Home Screen
+
+If you use Monii in Safari, add it to your Home Screen (share
+button → "Add to Home Screen"). Installed apps get stronger
+storage protection than a browser tab, plus a proper icon and
+full-screen view.
+
+## Habit 2: keep a backup or a second copy
+
+Any ONE of these means a lost phone or a cleared Safari can't
+take your budget with it:
+
+- Sync with another device using a pairing phrase (Settings →
+  Sync). Your laptop then holds a full copy.
+- Turn on any cloud option (Google Drive or a personal server).
+- Export a backup file now and then: Settings → Backup & Import
+  → Export JSON, and save it to Files or iCloud.
+
+The export reminder banner nudges you if it's been more than 30
+days since your last export. Don't dismiss it forever.
+`,
+  },
+
+  {
+    id: 'app-lock',
+    title: 'Locking the app with a PIN',
+    category: 'sync-privacy',
+    tags: ['pin', 'lock', 'app lock', 'privacy', 'security', 'wrong pin', 'lockout'],
+    body: `
+App lock puts a PIN screen in front of Monii Watch, so someone
+borrowing your phone can't casually open your budget.
+
+## Turning it on
+
+Settings → **App lock**. Pick a PIN of at least 4 digits and an
+auto-lock delay. The app then locks at startup, and again after
+it's been in the background longer than your chosen delay.
+
+## It's per-device
+
+The PIN belongs to the device you set it on. Your phone can be
+locked while your desktop stays open. Paired devices don't
+receive your PIN; set one on each device you want protected.
+
+## Wrong PIN too many times
+
+After 5 wrong tries in a row, the lock screen makes you wait 30
+seconds before the next try. Each further wrong try doubles the
+wait, up to 30 minutes. Entering the right PIN resets the
+counter. This makes guessing a 4-digit PIN impractically slow.
+
+## Forgot your PIN?
+
+There's no back door, by design. You'll need to reset the app on
+that device (Settings → Danger zone), which wipes its local
+data. Your budget survives if any paired device has a copy or
+you have a backup file, which is a good reason to set one of
+those up first.
+
+## What it protects (and doesn't)
+
+The lock is a shoulder-surfing and borrowed-phone deterrent. It
+doesn't encrypt the data on the device itself; your phone's own
+passcode and disk encryption do that job.
+`,
+  },
+
+  {
+    id: 'statement-review-table',
+    title: 'Reviewing a statement import',
+    category: 'transactions',
+    tags: ['statement', 'review', 'import', 'estimated', 'statement type', 'credit card', 'rows', 'ai'],
+    body: `
+After you upload a bank or credit-card statement, Monii shows a
+review table: one row per transaction it found. Nothing is saved
+until you press the Save button, so take a minute here.
+
+## What each row shows
+
+Date, description, amount, and a category guess. Every field is
+editable; uncheck a row to leave it out entirely.
+
+## The statement-type selector
+
+At the top there's a selector: **Credit card / Bank / Other**.
+It's pre-set from the account you're importing into, but check
+it. It matters for payments: "Payment Thank You -$50" on a
+credit-card statement is money that REDUCES what you owe, so on
+a credit-card import Monii flips it to +$50. Switch the selector
+and you'll see those amounts update live, so what you review is
+what gets saved. Amounts you've edited by hand are left alone.
+
+## "Estimated amount — verify before importing"
+
+Sometimes the amount on a row can't be read from the document
+(a blurry photo, an odd layout). Rather than drop the row, Monii
+fills in a best guess and marks it with this warning. Check
+those rows against the real statement and type the correct
+amount before saving.
+
+## Fixing a misread
+
+Open "View raw extracted text" to see exactly what Monii read
+from your document. You can correct the text there and hit
+Re-parse to rebuild the table without re-uploading. If you fix a
+vendor name in the table, Monii remembers the correction and
+applies it automatically on future imports.
+
+## On-device AI parse (optional)
+
+If you've turned on Settings → On-device AI parsing, a small AI
+model that runs entirely on your device can take a second pass
+at hard-to-read statements. It never replaces a table you've
+already started editing, and nothing leaves your device.
+
+## Imported rows are plain transactions
+
+Statement rows are always imported as regular transactions,
+never converted into transfers automatically. If a row is really
+a transfer between two of your accounts (like a credit-card
+payment from checking), you can link or edit it afterward.
 `,
   },
 ];

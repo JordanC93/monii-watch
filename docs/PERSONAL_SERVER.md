@@ -1,12 +1,17 @@
 # Personal server: realtime sync + encrypted backup
 
-The Monii Watch sync binary in `server/` does two things for you, both
-optional, both opt-in:
+The Monii Watch sync binary in `server/` does three things for you, all
+optional, all opt-in:
 
 1. **Realtime WebSocket sync** (always available). Devices connect to
    the server and stay in step in real time, even when other devices
    are offline.
-2. **Encrypted snapshot backup** (optional). The app uploads encrypted
+2. **WebRTC signaling** (v0.7.31, always available). Devices doing
+   direct peer-to-peer sync use a signaling server to find each other.
+   Point Settings → Sync → "Signaling server" at
+   `ws(s)://<host>:<port>/signaling` and that discovery step runs on
+   your box instead of the public `signaling.yjs.dev`.
+3. **Encrypted snapshot backup** (optional). The app uploads encrypted
    snapshots on a debounced cadence. The server keeps a few historical
    versions for rollback. Server holds opaque ciphertext.
 
@@ -50,8 +55,11 @@ Set up a systemd service or pm2 daemon so it restarts on reboot.
 | `MONII_PERSIST_DIR` | Path for the realtime sync's LevelDB persistence. Empty = in-memory only (state lost on restart). | (empty) |
 | `MONII_PUBLIC_DIR` | Override the static-file root if you want to serve the SPA from this server too. | `./public` |
 | `MONII_BACKUP_DIR` | Path for encrypted backup snapshots. When set, the `/backup/*` HTTP API turns on. | (empty, backup off) |
-| `MONII_BACKUP_TOKEN` | Bearer token. When set, the app must include it in `Authorization: Bearer <token>`. | (empty, unauthenticated) |
+| `MONII_BACKUP_TOKEN` | Bearer token. When set, the app must include it in `Authorization: Bearer <token>`. **Required when `HOST` is not loopback** — since v0.7.31, an unauthenticated server that is reachable beyond localhost refuses `/backup/*` requests (503) instead of serving them to the whole LAN. | (empty) |
 | `MONII_BACKUP_KEEP` | How many historical snapshots to keep per workspace. Older ones roll off. | `10` |
+| `MONII_MAX_WORKSPACES` | Cap on distinct backup workspaces. Bounds total disk use — per-workspace retention alone doesn't, since new workspace names can be minted freely. | `50` |
+| `MONII_SYNC_TOKEN` | When set, websocket sync AND `/signaling` connections must carry it. Devices append it to the server URL they enter in the app: `wss://host?token=<value>`. | (empty) |
+| `MONII_ALLOWED_ORIGINS` | Comma-separated CORS allowlist for `/backup/*`. Unset = cross-origin requests allowed only when `MONII_BACKUP_TOKEN` guards the routes. | (empty) |
 
 ## Wire format (backup endpoint)
 
@@ -61,14 +69,21 @@ defaults to `default`.
 
 | Method | Path | What it does |
 |---|---|---|
-| `PUT` | `/backup/<ws>/snapshot.bin` | Upload the latest snapshot. Body is the raw ciphertext. The server keeps a copy in `snapshots/<unix-ms>.bin` AND writes to `snapshot.bin`. |
-| `GET` | `/backup/<ws>/snapshot.bin` | Download the latest. |
+| `PUT` | `/backup/<ws>/snapshot.bin` | Upload the latest snapshot. Body is the raw ciphertext. The server keeps a copy in `snapshots/<unix-ms>.bin` AND writes to `snapshot.bin`. Honors `If-Unmodified-Since`: if the stored snapshot is newer, responds 412 with the current `Last-Modified` and does not write (the app then pulls, merges, and retries once — so two devices pushing concurrently merge instead of overwriting each other). |
+| `GET` | `/backup/<ws>/snapshot.bin` | Download the latest. Carries `Last-Modified`. |
 | `GET` | `/backup/<ws>/snapshots` | List historical versions. JSON: `[{ name, size, mtime }, ...]`, newest first. |
 | `GET` | `/backup/<ws>/snapshots/<name>` | Download a specific version. |
 | `OPTIONS` | any | CORS preflight. |
 
 When `MONII_BACKUP_TOKEN` is set, every request must include
 `Authorization: Bearer <token>`. Mismatch returns 401 with no body.
+
+Since v0.7.31 the app derives the `<workspace>` slug from its active
+local workspace automatically when the setting is left at `default`,
+so two workspaces on the same device no longer overwrite each other's
+snapshots. The token itself is stored per-device in the app (it never
+syncs between devices) — enter it once on each device that should
+back up.
 
 ## Encryption
 

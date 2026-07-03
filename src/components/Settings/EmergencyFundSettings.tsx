@@ -63,8 +63,8 @@ export function EmergencyFundSettings() {
             <HelpHint title="Linked Category">
               The envelope you're using as your emergency fund. Once
               linked, the Goals page shows a special tile tracking your
-              progress toward the target above. Leave unlinked if you'd
-              rather just see a target suggestion.
+              progress toward the target above. Leave unlinked if you
+              only want a target suggestion.
             </HelpHint>
           </label>
           <Select

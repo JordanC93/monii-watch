@@ -67,9 +67,10 @@ export function BulkPasteModal({ open, onClose, accountId }: { open: boolean; on
             One transaction per line. Each line should include a date, a
             payee name, and an amount (negative for spending, positive
             for income). After you click Parse, you'll see a review
-            screen where you can fix anything before importing. Already-
-            imported transactions are detected by date + amount + payee
-            so re-pasting won't duplicate them.
+            screen where you can fix anything before importing. Rows that
+            look like transactions you already have (same amount, a close
+            date, a similar payee) get flagged and unchecked there, so
+            re-pasting is safe.
           </HelpHint>
         </div>
         <div>

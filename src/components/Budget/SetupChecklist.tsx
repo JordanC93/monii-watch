@@ -19,6 +19,8 @@ import { isMacOS, isTouchDevice } from '../../lib/device';
 export function SetupChecklist() {
   const accounts = useBudget((s) => s.accounts);
   const assignments = useBudget((s) => s.assignments);
+  const categories = useBudget((s) => s.categories);
+  const groups = useBudget((s) => s.groups);
   const settings = useBudget((s) => s.settings);
   const month = useBudget((s) => s.selectedMonth);
   const setChatOpen = useUI((s) => s.setChatOpen);
@@ -26,6 +28,7 @@ export function SetupChecklist() {
 
   const incomeSet = settings.monthlyIncome > 0;
   const hasAccount = accounts.some((a) => !a.closed);
+  const hasCategory = categories.some((c) => !c.hidden);
   const hasAssignmentThisMonth = assignments.some((a) => a.month === month && a.assigned > 0);
   const triedChat = useMemo(() => {
     try { return localStorage.getItem('monii:triedChat') === '1'; } catch { return false; }
@@ -42,39 +45,50 @@ export function SetupChecklist() {
     return `Press ${key} and type "spent $12 at Chipotle".`;
   }, []);
 
+  // Ordered the way a first-timer should actually do them: an account
+  // first (nothing works without one), then fund an envelope, then record
+  // a purchase. Income is useful but optional, so it goes last.
   const items = [
-    {
-      id: 'income',
-      done: incomeSet,
-      icon: <Sparkles size={14} />,
-      title: 'Tell Monii Watch your income',
-      hint: 'Used by the tax estimator and to surface insights.',
-      action: () => openModal({ type: 'welcome' }),
-      actionLabel: 'Open tour',
-    },
     {
       id: 'account',
       done: hasAccount,
       icon: <Wallet size={14} />,
-      title: 'Add your first account',
-      hint: 'Checking, savings, credit card, wherever your money lives.',
+      title: 'Add your checking account',
+      hint: 'Start with the one you spend from. Savings, credit cards, and the rest can come later.',
       action: () => openModal({ type: 'addAccount' }),
       actionLabel: 'Add account',
     },
-    {
-      id: 'assign',
-      done: hasAssignmentThisMonth,
-      icon: <ListChecks size={14} />,
-      title: 'Give a dollar a job',
-      hint: 'Click any "Assigned" cell on the budget table and put money toward a category.',
-      action: undefined,
-      actionLabel: undefined,
-    },
+    // If the user chose "start blank" during onboarding there are no
+    // categories yet, so "put money in an envelope" is impossible — swap
+    // in a create-category step until one exists.
+    hasCategory
+      ? {
+          id: 'assign',
+          done: hasAssignmentThisMonth,
+          icon: <ListChecks size={14} />,
+          title: 'Put money in an envelope',
+          hint: 'Type an amount into any category\'s "Assigned" box below. The green Ready to Assign number up top is money without a job yet.',
+          action: undefined,
+          actionLabel: undefined,
+        }
+      : {
+          id: 'assign',
+          done: false,
+          icon: <ListChecks size={14} />,
+          title: 'Create your first category',
+          hint: 'A category is an envelope with a name, like Groceries or Rent. Make one, then put money in it.',
+          action: () => {
+            const firstGroup = groups.find((g) => !g.hidden) ?? groups[0];
+            if (firstGroup) openModal({ type: 'addCategory', groupId: firstGroup.id });
+            else openModal({ type: 'addGroup' });
+          },
+          actionLabel: 'Create',
+        },
     {
       id: 'chat',
       done: triedChat,
       icon: <MessageSquare size={14} />,
-      title: 'Try fast-add via chat',
+      title: 'Record a purchase',
       hint: chatHint,
       action: () => {
         try { localStorage.setItem('monii:triedChat', '1'); } catch {}
@@ -82,11 +96,23 @@ export function SetupChecklist() {
       },
       actionLabel: 'Open chat',
     },
+    {
+      id: 'income',
+      done: incomeSet,
+      icon: <Sparkles size={14} />,
+      title: 'Set your income',
+      hint: 'Powers per-paycheck math and the tax estimate. Optional.',
+      action: () => openModal({ type: 'onboardingWizard' }),
+      actionLabel: 'Quick setup',
+    },
   ];
 
   const completed = items.filter((i) => i.done).length;
   const total = items.length;
   const allDone = completed === total;
+  // The one item the user should do next. Gets a highlighted border so a
+  // beginner scanning the card knows where to start without reading all four.
+  const nextId = items.find((i) => !i.done)?.id;
 
   // Hide the checklist if the user dismissed it OR completed everything.
   if (settings.setupChecklistDismissed) return null;
@@ -112,15 +138,19 @@ export function SetupChecklist() {
         </button>
       </div>
       <div className="text-[12px] text-fg-subtle mb-3">
-        Monii Watch works the moment you have an account and some categories. The list below covers what most users want set up first.
+        Do these in order and you're budgeting. Each one takes under a minute.
       </div>
       <ul className="space-y-1.5">
         {items.map((item) => (
           <li
             key={item.id}
             className={cn(
-              'flex items-start gap-2.5 p-2.5 rounded-lg border border-border',
-              item.done ? 'bg-positive/5 border-positive/30' : 'bg-surface-2/30',
+              'flex items-start gap-2.5 p-2.5 rounded-lg border',
+              item.done
+                ? 'bg-positive/5 border-positive/30'
+                : item.id === nextId
+                  ? 'bg-accent/5 border-accent/40'
+                  : 'bg-surface-2/30 border-border',
             )}
           >
             <div className={cn(

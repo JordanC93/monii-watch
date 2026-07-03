@@ -355,8 +355,8 @@ export function SettingsPage() {
             body: (
               <>
                 The date of your most recent paycheck. We use it as an
-                anchor to project all your future paychecks. Just pick
-                the most recent payday and you're done.
+                anchor to project all your future paychecks. Pick the
+                most recent payday.
               </>
             ),
           }}>

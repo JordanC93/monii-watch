@@ -357,20 +357,16 @@ export default function App() {
   const yearInReviewShownFor = useBudget((s) => s.settings.yearInReviewShownFor);
   const monthlyReviewLastShown = useBudget((s) => s.settings.monthlyReviewLastShown);
   const vacationMode = useBudget((s) => s.settings.vacationMode);
-  const onboardingWizardCompleted = useBudget((s) => s.settings.onboardingWizardCompleted);
   const quarterlyReviewLastShown = useBudget((s) => s.settings.quarterlyReviewLastShown);
   const openModal = useUI((s) => s.openModal);
   const currentModal = useUI((s) => s.modal);
 
-  // Onboarding wizard auto-open: after the welcome tour finishes AND the
-  // user hasn't seen the wizard yet. Stamps `onboardingWizardCompleted`
-  // when they finish or skip.
-  useEffect(() => {
-    if (!onboardingCompleted) return;
-    if (onboardingWizardCompleted) return;
-    if (currentModal !== null) return;
-    openModal({ type: 'onboardingWizard' });
-  }, [onboardingCompleted, onboardingWizardCompleted, currentModal, openModal]);
+  // v0.7.31 — the Quick-setup wizard no longer auto-opens the moment the
+  // welcome tour closes. Two back-to-back modals overwhelmed first-time
+  // users, and the tour's final step now hands off to ONE concrete action
+  // instead. The wizard stays reachable from the Setup checklist's
+  // "Quick setup" button and Settings → Income & Deductions; it stamps
+  // `onboardingWizardCompleted` when finished or skipped.
 
   // Goal completion celebration. When any underfunded goal newly hits
   // `funded` status this month, queue up the celebration modal. Each

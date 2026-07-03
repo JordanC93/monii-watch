@@ -2,6 +2,98 @@
 
 ## Released
 
+### v0.7.31 — deep-audit hardening wave: data integrity, sync robustness, security, glass polish, docs refresh
+
+A five-wave audit-and-fix campaign, the largest correctness pass the
+app has had. Full engineering detail lives in the v0.7.31-dev commit
+messages; user-facing highlights below.
+
+**READ FIRST — two things need action after updating:**
+
+- **All devices sharing a pairing phrase must update together.** The
+  room name sent to relay servers is now a scrambled fingerprint of
+  the phrase instead of the phrase itself (the phrase is also your
+  backup encryption password, and it no longer travels the wire).
+  Devices on older versions compute a different fingerprint and won't
+  see updated devices until they update too. Phrases themselves are
+  unchanged and keep working.
+- **Cloud sign-ins are now per-device.** The Google Drive connection
+  and the personal-server access token no longer copy themselves to
+  paired devices through sync (they were silently handing your
+  credentials to every paired device). Each device migrates its own
+  copy automatically; a device that relied on receiving them will ask
+  to reconnect Drive or re-enter the server token once.
+
+**Data-safety fixes** (several were silent-corruption class):
+
+- Typing into the budget right after switching months could assign
+  money to the PREVIOUS month.
+- Pairing a brand-new device could reset the whole budget's settings
+  for everyone.
+- Two devices starting up while offline could each create the same
+  scheduled transaction — duplicate rent bills after they synced.
+  Copies now merge into one.
+- JSON backups silently left out auto-rules, trips & events, budget
+  templates, saved searches, and net-worth history, and embedded live
+  cloud credentials. Backups now carry everything and never contain
+  credentials. Old backup files still import.
+- Deleting an account, category, or payee now also cleans up scheduled
+  transactions and auto-rules that pointed at it, and a start-up
+  repair pass fixes any broken references already in your data.
+- When two devices edit the same item while apart, the most recent
+  edit now wins (previously a coin flip). You'll see a small note when
+  changes from another device merge in.
+- Undo works from the very first Ctrl+Z / Cmd+Z of a session
+  (previously the first press always did nothing).
+- The app now asks the browser to protect its storage from being
+  cleared under disk pressure (matters most on iPhone).
+
+**Number fixes**: the Budget page no longer freezes for users east of
+GMT; the debt payoff planner rolls a paid-off debt's minimum into the
+snowball (payoff dates were overstated); monthly schedules on the
+29th–31st keep their day instead of drifting to the 28th forever;
+receipt totals over $999.99 scan correctly; December–January
+statements no longer date January rows a year in the past; the FIRE
+planner lets Social Security income above spending grow your net
+worth; net worth and the budget now agree about foreign-currency
+accounts.
+
+**Sync & self-hosting**: cloud backups stopped re-uploading in an
+infinite loop (battery + quota drain); each workspace keeps its own
+cloud snapshot (a second workspace no longer overwrites the first's
+backup); concurrent uploads from two devices merge instead of
+overwriting; new pairing phrases are 4 words + 4 digits (much harder
+to guess); the self-hosted server can now also handle peer discovery
+(`/signaling`), supports an access token, got several hardening fixes,
+and a fresh `npm install && npm start` works again. App lock now makes
+you wait after 5 wrong PIN tries.
+
+**Liquid Glass**: the animated backdrop now runs entirely on the GPU
+(it was redrawing the whole screen every frame — real battery cost);
+new optional "Prism effects" under the palette picker (buttons glint
+when pressed, panel edges pick up the palette color, dialogs cast
+deeper shadows); fixed text bleeding out of the theme cards; pinch
+zoom works again in the browser.
+
+**Docs & onboarding**: the in-app Help center, glossary, inline hints,
+welcome tour, and setup wizard were all reviewed against current
+behavior and rewritten where needed for someone whose first budgeting
+app this is. Self-host guides updated for the new server features.
+
+Tests: 325 → 434, now covering the sync, backup, and crypto layers
+that previously had none.
+
+### v0.7.30 — parser rewrites + OCR pipeline + local AI parsing + performance
+
+(Backfilled — this release shipped without a changelog entry.)
+Statement parsing rewritten to handle five bank layouts; on-device
+image cleanup before OCR (straightening, denoising, contrast); optional
+on-device AI statement parsing (Settings → On-device AI parsing, model
+downloads once, nothing leaves your device); multi-file upload queue;
+the app remembers your vendor-name corrections; date-format setting
+(ISO / US / EU / long); faster cold start (main bundle -17%); paged
+transaction lists; 40 new tests.
+
 ### v0.7.29 — Lunch-Money-inspired feature wave + statement parsing fixes + cross-cutting QoL
 
 Big bundle. After staring honestly at what other budgeting apps do well

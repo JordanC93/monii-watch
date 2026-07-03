@@ -62,8 +62,9 @@ export function OnboardingWizardModal({ open, onClose }: { open: boolean; onClos
   function commitDeductions() {
     const cents = parseAmountToCents(income);
     if (cents && cents > 0) {
-      // Quick auto-deduction preset: ~22% federal, 7.65% FICA. Skipped if
-      // user has any deductions already; we don't overwrite.
+      // Quick auto-deduction preset: ~12% federal, 7.65% FICA (matches
+      // the copy shown on the deductions step). Skipped if the user has
+      // any deductions already; we don't overwrite.
       if (settings.deductions.length === 0) {
         const perCheck = Math.round(cents / paychecksPerMonth(payFreq));
         const fed = Math.round(perCheck * 0.12);
@@ -120,16 +121,23 @@ export function OnboardingWizardModal({ open, onClose }: { open: boolean; onClos
         {step === 'intro' && (
           <div className="space-y-3">
             <p>
-              60 seconds and you&apos;re set up. We&apos;ll ask for monthly income, pay
-              cadence, your state, and pre-fill reasonable tax deductions. Everything
-              is editable later in Settings → Income & Deductions.
+              Four quick questions about your paycheck. They power things like
+              &quot;you need $83 per paycheck to reach this goal&quot; and the tax
+              estimate. All optional, all editable later in Settings → Income
+              &amp; Deductions.
             </p>
             <ul className="space-y-1.5 text-fg-muted">
-              <li className="flex items-center gap-2"><DollarSign size={13} className="text-accent" /> Monthly income</li>
-              <li className="flex items-center gap-2"><Calendar size={13} className="text-accent" /> Pay frequency</li>
-              <li className="flex items-center gap-2"><Building2 size={13} className="text-accent" /> Your state</li>
-              <li className="flex items-center gap-2"><Receipt size={13} className="text-accent" /> Default deductions</li>
+              <li className="flex items-center gap-2"><DollarSign size={13} className="text-accent" /> What you make per month</li>
+              <li className="flex items-center gap-2"><Calendar size={13} className="text-accent" /> How often you get paid</li>
+              <li className="flex items-center gap-2"><Building2 size={13} className="text-accent" /> Which US state you live in</li>
+              <li className="flex items-center gap-2"><Receipt size={13} className="text-accent" /> What comes out of each paycheck</li>
             </ul>
+            <p className="text-[11.5px] text-fg-subtle">
+              Outside the US? The state and tax questions won&apos;t apply to
+              you. Use &quot;Skip, I&apos;ll set up later&quot; below, and enter
+              just your income in Settings → Income &amp; Deductions whenever
+              you like.
+            </p>
           </div>
         )}
         {step === 'income' && (
@@ -146,8 +154,9 @@ export function OnboardingWizardModal({ open, onClose }: { open: boolean; onClos
               className="text-right tabular w-full"
             />
             <div className="text-[11px] text-fg-subtle mt-1">
-              Pre-tax. We&apos;ll subtract deductions in the next step. Use the average
-              if it varies (freelance / commission income).
+              Your pay <em>before</em> taxes and other paycheck deductions
+              (that&apos;s what &quot;gross&quot; means). If it varies, use a typical
+              month. This stays on your device.
             </div>
           </div>
         )}
@@ -190,10 +199,11 @@ export function OnboardingWizardModal({ open, onClose }: { open: boolean; onClos
               <Receipt size={14} className="text-accent" /> Default deductions
             </div>
             <p className="text-fg-muted">
-              We&apos;ll add two starter deductions per paycheck: Federal income tax
-              (~12% of gross) and FICA (7.65%). Adjust the actual numbers later in
-              Settings → Income & Deductions; this is just to get you a realistic
-              take-home estimate.
+              Deductions are what your employer takes out of each paycheck
+              before the money reaches you. We&apos;ll add two typical estimates —
+              federal income tax (~12%) and Social Security + Medicare (7.65%) —
+              so your take-home number is realistic. Swap in the real numbers
+              from a paystub later in Settings → Income &amp; Deductions.
             </p>
             {parseAmountToCents(income) && (
               <div className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
@@ -216,8 +226,9 @@ export function OnboardingWizardModal({ open, onClose }: { open: boolean; onClos
             </div>
             <div className="text-[14px] font-semibold mb-1">All set.</div>
             <p className="text-[12.5px] text-fg-muted">
-              Open Settings any time to fine-tune. Your first transaction will pre-fill
-              from the payee history.
+              Next stop: the Budget page. Its checklist walks you through
+              anything still missing — an account, your first envelope.
+              Fine-tune these answers anytime in Settings.
             </p>
           </div>
         )}

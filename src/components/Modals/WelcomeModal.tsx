@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
-  Sparkles, ListChecks, Wallet, Cloud, ArrowLeft, ArrowRight, Check,
-  ShieldCheck, MessageSquare, BarChart3, CreditCard, Plus, Rocket, Palette,
+  Sparkles, ListChecks, Wallet, ArrowLeft, ArrowRight, Check,
+  ShieldCheck, MessageSquare, BarChart3, CreditCard, Plus, Palette,
   Calendar,
 } from 'lucide-react';
 // Note: every icon listed above appears in the STEPS body below; the linter
@@ -18,7 +18,6 @@ import { PRESETS, applyPreset, type PresetId } from '../../db/presets';
 import { toast } from '../../lib/toast';
 import { LayoutGrid } from 'lucide-react';
 import { parseAmountToCents } from '../../domain/calc';
-import { useFormatMoney } from '../../lib/format';
 import { ACCOUNT_TYPE_META, type AccountType } from '../../domain/types';
 import { todayIso, DATE_FORMAT_OPTIONS } from '../../domain/date';
 import type { DateFormat } from '../../domain/types';
@@ -28,13 +27,15 @@ import type { ThemeName } from '../../domain/types';
 
 /**
  * Multi-step onboarding. Mixes concept teaching with real setup actions —
- * by the end of the tour the user has set income, added at least one
- * account, and seen the chat panel. Designed for users who have never
- * touched YNAB or any envelope-budgeting app: every step explains *why*
- * before asking *what*.
+ * by the end of the tour the user has picked starter categories, added at
+ * least one account, and seen the chat panel. Designed for users who have
+ * never touched YNAB or any envelope-budgeting app: every step explains
+ * *why* before asking *what*.
  *
- * Steps that already have data (e.g. monthly income already set) auto-mark
- * complete and let the user skip ahead with a "Looks good" button.
+ * Income / pay frequency / deductions are deliberately NOT asked here —
+ * the OnboardingWizardModal ("Quick setup") auto-opens right after this
+ * tour finishes and covers them with better context. Asking twice
+ * back-to-back was the pre-v0.7.31 behavior and it read as a bug.
  *
  * Closing the modal at any step persists the dismissal. The SetupChecklist
  * at the top of the Budget page covers anything the user skipped here.
@@ -43,16 +44,11 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
   const accounts = useBudget((s) => s.accounts);
   const settings = useBudget((s) => s.settings);
   const setChatOpen = useUI((s) => s.setChatOpen);
-  const fmt = useFormatMoney();
 
   const [step, setStep] = useState(0);
 
   // Local form state used by interactive steps. Saved to repo when the
   // user clicks Save on each respective step.
-  const [incomeText, setIncomeText] = useState<string>(
-    settings.monthlyIncome ? (settings.monthlyIncome / 100).toString() : ''
-  );
-  const [incomeCadence, setIncomeCadence] = useState<'monthly' | 'yearly'>('monthly');
   const [acctName, setAcctName] = useState('Checking');
   const [acctType, setAcctType] = useState<AccountType>('checking');
   const [acctBalance, setAcctBalance] = useState('');
@@ -95,14 +91,6 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
 
   function next() { setStep((i) => Math.min(i + 1, STEPS.length - 1)); }
   function prev() { setStep((i) => Math.max(i - 1, 0)); }
-
-  function saveIncome() {
-    const cents = parseAmountToCents(incomeText);
-    if (cents === null || cents <= 0) { next(); return; }
-    const monthly = incomeCadence === 'yearly' ? Math.round(cents / 12) : cents;
-    setSettingsField('monthlyIncome', monthly);
-    next();
-  }
 
   /** Save the current draft and advance to the next step. Called by
    *  the primary "Add & continue" button. */
@@ -158,9 +146,10 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
       body: (
         <>
           <p>
-            Monii Watch is a budgeting app that helps you give every dollar
-            a job <em>before</em> you spend it. Free, no accounts, no
-            subscription.
+            Monii Watch is a budgeting app. It helps you decide what each
+            dollar is for <em>before</em> you spend it, so you always know
+            what's safe to spend. Never budgeted before? That's who this
+            was built for.
           </p>
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11.5px]">
             <div className="bg-positive/10 text-positive rounded-lg p-2.5 text-center">
@@ -180,9 +169,8 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
             </div>
           </div>
           <p className="mt-3 text-[12.5px] text-fg-subtle">
-            This 60-second tour gets you set up. You can skip any step;
-            the Budget page has a checklist that picks up whatever you
-            missed.
+            This short tour gets you set up. You can skip any step; the
+            Budget page has a checklist that picks up whatever you missed.
           </p>
           {/* v0.7.26 — explicit choice. By default the app no longer
               auto-loads sample data on first boot, so the user lands
@@ -252,8 +240,6 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
           </div>
           <p className="mt-3 text-fg-subtle text-[11.5px] leading-snug">
             You can change this anytime from <strong className="text-fg">Settings → Display</strong>.
-            Liquid Glass also gets a palette + highlight-color picker
-            once it's selected.
           </p>
         </>
       ),
@@ -273,9 +259,8 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
       body: (
         <>
           <p>
-            How would you like dates to be shown? This applies everywhere
-            the app prints a date — transactions, schedule, imports,
-            reports.
+            How should dates look? Pick the one you're used to reading.
+            It applies everywhere the app shows a date.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">
             {DATE_FORMAT_OPTIONS.map((opt) => {
@@ -317,84 +302,43 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
     },
     {
       icon: <ListChecks size={28} className="text-accent" />,
-      title: 'How envelope budgeting works',
+      title: 'The whole idea: envelopes',
       body: (
         <>
           <p>
-            <strong>Step 1: Money comes in.</strong> Paychecks, refunds,
-            gifts. Monii Watch calls this the <strong>Ready to Assign</strong>{' '}
-            pool, the green number at the top of the budget.
+            Picture cash envelopes. You have $500. You put $300 in an
+            envelope labeled <strong>Rent</strong> and $200 in one labeled{' '}
+            <strong>Groceries</strong>. When the Groceries envelope is
+            empty, you stop — or move money over from another envelope.
           </p>
           <p className="mt-2">
-            <strong>Step 2: You decide its job.</strong> Drop dollars into
-            categories: rent, groceries, fun money, savings goals. Each
-            category is an envelope; you can only spend what you put in it.
+            Monii Watch works the same way. Money that hasn't been put in
+            an envelope yet is called <strong>Ready to Assign</strong> —
+            money that doesn't have a job yet. It's the green number at the
+            top of the Budget page.
           </p>
           <p className="mt-2">
-            <strong>Step 3: Spend from the envelope.</strong> When a
-            transaction lands on a category, that envelope's "Available"
-            number drops. If it goes red, you've overspent, and Monii Watch offers
-            a one-tap "cover from Ready to Assign" button to fix it.
+            When you buy something, that envelope's <strong>Available</strong>{' '}
+            number drops. If it goes red, you overspent — Monii Watch offers a
+            one-tap button to cover it from Ready to Assign.
           </p>
           <p className="mt-2 text-fg-subtle text-[12.5px]">
-            Why bother? Because every dollar with a job stops feeling like it
-            "could be spent on anything", which is what makes month-to-month
-            balance feel impossible.
+            That's the whole system: money comes in, you give it a job, you
+            spend from the envelope.
           </p>
         </>
       ),
-    },
-    {
-      icon: <Sparkles size={28} className="text-accent" />,
-      title: 'How much do you make?',
-      body: (
-        <>
-          <p>
-            Optional but useful. Monii Watch uses this for the tax estimator
-            and planning hints. Stays on your device.
-          </p>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setIncomeCadence('monthly')}
-              className={cn('h-9 rounded-md border text-[12.5px] font-medium',
-                incomeCadence === 'monthly' ? 'border-accent bg-accent/15 text-accent' : 'border-border bg-surface-2 text-fg-muted')}
-            >Per month</button>
-            <button
-              onClick={() => setIncomeCadence('yearly')}
-              className={cn('h-9 rounded-md border text-[12.5px] font-medium',
-                incomeCadence === 'yearly' ? 'border-accent bg-accent/15 text-accent' : 'border-border bg-surface-2 text-fg-muted')}
-            >Per year</button>
-          </div>
-          <div className="mt-3">
-            <Input
-              autoFocus
-              value={incomeText}
-              onChange={(e) => setIncomeText(e.target.value)}
-              placeholder={incomeCadence === 'yearly' ? '60000' : '5000'}
-              inputMode="decimal"
-              className="w-full text-right tabular text-[16px]"
-            />
-            {parseAmountToCents(incomeText) && incomeCadence === 'yearly' && (
-              <div className="text-[11.5px] text-fg-subtle mt-1">
-                ≈ {fmt(Math.round(parseAmountToCents(incomeText)! / 12))}/month
-              </div>
-            )}
-          </div>
-        </>
-      ),
-      nextLabel: 'Save & continue',
-      onNext: saveIncome,
-      canSkip: true,
     },
     {
       icon: <LayoutGrid size={28} className="text-accent" />,
-      title: 'Pick a starter set of categories',
+      title: 'Pick your starter envelopes',
       body: (
         <>
           <p>
-            Pick a starting set that matches your life. Tap the title to
-            preview the categories before committing. You can always edit,
-            rename, or remove anything later.
+            In Monii Watch, envelopes are called <strong>categories</strong>.
+            Pick a starter set that roughly matches your life — tap a title
+            to preview what's inside. Nothing is permanent: you can rename,
+            add, or delete any of them later.
           </p>
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
             {PRESETS.map((p) => {
@@ -486,28 +430,28 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
        in one visit. */
     {
       icon: <CreditCard size={28} className="text-accent" />,
-      title: 'Adding accounts (heads-up on credit cards)',
+      title: 'Next up: your accounts',
       body: (
         <>
           <p>
-            On the next step you'll add your accounts. Add as many as you
-            want; checking, savings, credit cards, PayPal, brokerage,
-            anything you track money in.
+            An <strong>account</strong> is anywhere your money lives:
+            checking, savings, a credit card, cash in your wallet.
           </p>
           <p className="mt-2">
-            For credit cards specifically, pick type <strong>Credit Card</strong>
-            and enter the balance you currently owe. After onboarding, visit
-            Edit Account to fill in the APR, credit limit, statement closing
-            day, and payment due day.
+            <strong>Start with the one checking account you spend from.</strong>{' '}
+            That's enough to begin budgeting. You can add the rest anytime
+            from the sidebar.
           </p>
           <p className="mt-2">
-            Doing all four unlocks the <strong>Credit Cards page</strong>
-            (utilization bars, days-until-due, interest projections, one-tap
-            Pay) and the <strong>Debt Payoff planner</strong> in Reports.
+            Adding a credit card? Pick type <strong>Credit Card</strong> and
+            enter what you currently owe as the balance. Monii Watch creates a
+            payment envelope for it automatically, so paying the bill is
+            money you've already set aside.
           </p>
           <p className="mt-2 text-fg-subtle text-[12.5px]">
-            Monii Watch also auto-creates a payment category for every credit
-            card so you have an envelope to fund payments from.
+            Later, Edit Account lets you add the card's APR, credit limit,
+            and due dates — that unlocks the Credit Cards page and the Debt
+            Payoff planner in Reports.
           </p>
         </>
       ),
@@ -518,8 +462,8 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
       body: (
         <>
           <p>
-            Add the accounts you'll use day-to-day. You can come back and
-            add more from the sidebar at any time.
+            Add the checking account you spend from first. More accounts
+            can come later, from the sidebar.
           </p>
           {/* v0.7.26 — surface the running list of accounts already
               created inside this step so the user knows whether they've
@@ -628,7 +572,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
     },
     {
       icon: <MessageSquare size={28} className="text-accent" />,
-      title: 'Fast entry: chat',
+      title: 'Record purchases by typing',
       body: (
         <>
           {/* v0.7.26 — platform-aware copy. Touch devices (iOS, Android,
@@ -651,183 +595,78 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
           </p>
           <ul className="mt-2 space-y-1 text-[12.5px]">
             <li>• <code>spent $12 at Chipotle on dining</code></li>
-            <li>• <code>what's my PayPal balance?</code></li>
-            <li>• <code>my monthly income is $5,000</code></li>
+            <li>• <code>what's my checking balance?</code></li>
             <li>• <code>cover overspending</code></li>
-            <li>• <code>set Visa apr to 22%</code></li>
           </ul>
           <p className="mt-3">
-            For known merchants (Chipotle, Whole Foods, Starbucks, Netflix,
-            ~80 common chains) the category is inferred automatically. For
-            unknown ones the chat <strong>asks you</strong> instead of
-            guessing. Every action that mutates anything is followed by a
-            toast with an Undo button.
+            Common merchants get categorized automatically; for unknown ones
+            the chat <strong>asks you</strong> instead of guessing. Every
+            change shows an Undo button — and{' '}
+            <kbd className="kbd-style">{isMacOS() ? '⌘Z' : 'Ctrl+Z'}</kbd>{' '}
+            undoes anything, anywhere, from your very first action.
           </p>
           <p className="mt-2 text-fg-subtle text-[12.5px]">
-            You can also paste a receipt photo or PDF directly into the chat.
-            On-device OCR handles it. Image data never leaves the browser.
-          </p>
-        </>
-      ),
-    },
-    {
-      icon: <Cloud size={28} className="text-accent" />,
-      title: 'Sync between devices',
-      body: (
-        <>
-          <p>
-            Open <strong>Settings → Sync</strong>, turn it on, and copy the
-            pairing phrase. Enter the same phrase on every device you want
-            to share this budget with.
-          </p>
-          <p className="mt-2">
-            Sync is peer-to-peer over WebRTC. Your data flows directly
-            between your devices and is encrypted with the pairing phrase.
-            Public signaling servers help your devices find each other but
-            never see your financial data.
-          </p>
-          <p className="mt-2 text-fg-subtle text-[12.5px]">
-            See <strong>docs/INSTALL.md</strong> in the repo for installing
-            Monii Watch on iPad / iPhone / Mac / Windows / Linux + the full
-            sync pairing walkthrough.
+            You can also paste a receipt photo or PDF into the chat. It's
+            read on your device and turned into a transaction; the image
+            never leaves your device.
           </p>
         </>
       ),
     },
     {
       icon: <BarChart3 size={28} className="text-accent" />,
-      title: 'Reports + insights',
+      title: 'Things to find later',
       body: (
         <>
           <p>
-            The <strong>Reports</strong> page is full of insights derived
-            from your data. Highlights:
-          </p>
-          <ul className="mt-2 space-y-1 text-[12.5px]">
-            <li>• <strong>Financial Health Scorecard</strong>: six
-              dimensions in green/yellow/red with concrete fixes</li>
-            <li>• <strong>Cash Flow Forecast</strong>: projects your
-              balance forward 30/60/90 days</li>
-            <li>• <strong>Year over Year</strong>: this YTD vs same
-              range last year</li>
-            <li>• <strong>Day of week</strong>: which days you spend most</li>
-            <li>• <strong>Tax Summary</strong>: deductibles aggregated +
-              CSV / PDF export</li>
-          </ul>
-          <p className="mt-3">
-            On the Budget page, <strong>click any "Spent" number</strong> to
-            drill into that category: month-by-month chart, top payees,
-            recent transactions. Great for variable bills like electricity.
-          </p>
-          <p className="mt-2 text-fg-subtle text-[12.5px]">
-            Banners on the Budget page surface things you should know:
-            unusual transactions, overdraft warnings, credit utilization
-            alerts, "did you use this?" subscription nudges.
-          </p>
-        </>
-      ),
-    },
-    {
-      icon: <Sparkles size={28} className="text-accent" />,
-      title: 'Sandbox & smart tools',
-      body: (
-        <>
-          <p>
-            <strong>Sandbox mode</strong> lets you try changes without
-            committing. "What if I had a $500 car payment?" Open the
-            command palette ({isTouchDevice() ? (
-              <>via the <strong>search icon in the top right</strong></>
-            ) : (
-              <kbd className="kbd-style">{isMacOS() ? '⌘K' : 'Ctrl+K'}</kbd>
-            )}) → "Enter sandbox mode," override income or add hypothetical
-            bills, see how cash flow + safe-to-spend change. Apply or discard.
-          </p>
-          <p className="mt-2">
-            <strong>Auto-allocation rules</strong> (Settings → Income) fire
-            on each paycheck and pre-fill envelope assignments. So if every
-            paycheck should put $500 into Rent, $300 into Savings, you
-            set it once.
-          </p>
-          <p className="mt-2">
-            <strong>Bill split calculator</strong> ({isTouchDevice() ? (
-              'search icon → Bill split'
-            ) : (
-              <>{isMacOS() ? '⌘K' : 'Ctrl+K'} → Bill split</>
-            )}) does restaurant math + writes IOUs to the ledger atomically.
-          </p>
-          <p className="mt-2 text-fg-subtle text-[12.5px]">
-            And <strong>payee merge</strong> (More → Payees) cleans up
-            "Starbucks" + "STARBUCKS STORE #5821" + "Starbucks Coffee"
-            into one canonical name.
-          </p>
-        </>
-      ),
-    },
-    {
-      icon: <Rocket size={28} className="text-accent" />,
-      title: 'Long-game tools (v0.6+)',
-      body: (
-        <>
-          <p>
-            Once you're comfortable with the basics, Monii Watch ships
-            several power-user features for thinking longer-term:
+            You don't need any of this today. When you're curious:
           </p>
           <ul className="mt-2 space-y-1.5 text-[12.5px]">
-            <li>• <strong>FIRE planner</strong>: visit{' '}
-              <code>/fire</code> for retirement projections, Monte Carlo
-              simulation, and tax-efficient withdrawal sequencing.</li>
-            <li>• <strong>Workspaces</strong>: separate budgets for
-              personal / LLC / household. Visit <code>/workspaces</code>{' '}
-              to add one. Each workspace = its own data + sync room.</li>
-            <li>• <strong>Hard spending limits</strong>: set a cap per
-              category (warn or block) with optional velocity alerts.
-              Edit category → Hard limit.</li>
-            <li>• <strong>Calendar grid</strong>: visit{' '}
-              <code>/calendar/grid</code> for a true day-by-day view of
-              transactions.</li>
-            <li>• <strong>Recurring transfer auto-escalation</strong>:
-              "raise my 401k contribution 1% each year." Configure on any
-              scheduled transfer.</li>
-            <li>• <strong>Goal price-drop tracker</strong>: paste a
-              product page; the app extracts the price and pings you
-              when it drops to your envelope balance.</li>
+            <li>• Open <strong>Reports</strong> to see where your money
+              goes: spending by category, income vs expenses, net worth,
+              and a financial health scorecard.</li>
+            <li>• On the Budget page, <strong>click any "Spent" number</strong>{' '}
+              to see that category's month-by-month history. Handy for
+              variable bills like electricity.</li>
+            <li>• The <strong>Help center</strong> (More → Help center) has
+              plain-English articles on everything, written for people new
+              to budgeting.</li>
           </ul>
-          <p className="mt-3 text-fg-subtle text-[12.5px]">
-            All of these are documented in the Help center under
-            "Advanced features." None require any setup beyond their
-            own page.
-          </p>
         </>
       ),
     },
     {
       icon: <Check size={28} className="text-positive" />,
-      title: "You're all set",
+      title: "You're set. Here's your first move",
       body: (
         <>
           <p>
-            Monii Watch is ready. Open the budget, assign your Ready-to-Assign
-            money to categories, and start recording transactions.
+            Record one thing you bought today — even a coffee. That's how
+            budgeting becomes a habit: money comes in, you give it a job,
+            you write down what you spend.
           </p>
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12.5px]">
             <div className="bg-surface-2/50 rounded-lg p-2.5">
               <div className="font-semibold">Stuck?</div>
               <div className="text-fg-subtle">
-                Open the <strong>Help center</strong> (sidebar → Help, or
-                More → Help center). Search articles written for total
-                beginners. Or replay this tutorial from Settings → More.
+                Open the <strong>Help center</strong> (More → Help center),
+                written for total beginners. Or replay this tour from
+                Settings → More.
               </div>
             </div>
             <div className="bg-surface-2/50 rounded-lg p-2.5">
-              <div className="font-semibold">Lost data?</div>
-              <div className="text-fg-subtle">Settings → Data → Export JSON. Do this regularly.</div>
+              <div className="font-semibold">More devices?</div>
+              <div className="text-fg-subtle">
+                <strong>Settings → Data → Sync</strong> gives you a pairing
+                phrase that links your phone and computer.
+              </div>
             </div>
           </div>
           <button
             onClick={() => { setChatOpen(true); complete(); }}
             className="mt-4 w-full h-10 rounded-lg bg-accent text-accent-fg font-medium text-[13px] flex items-center justify-center gap-1.5 active:scale-[0.99]"
           >
-            <Plus size={14} /> Open chat & start adding transactions
+            <Plus size={14} /> Open chat & add your first purchase
           </button>
         </>
       ),
@@ -835,7 +674,7 @@ export function WelcomeModal({ open, onClose }: { open: boolean; onClose: () => 
       onNext: complete,
     },
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [incomeText, incomeCadence, acctName, acctType, acctBalance, accounts.length, fmt, settings.theme, settings.dateFormat, presetPicked, presetExpanded, acctLast4]);
+  ], [acctName, acctType, acctBalance, accounts.length, settings.theme, settings.dateFormat, presetPicked, presetExpanded, acctLast4]);
 
   const cur = STEPS[step];
   const last = step === STEPS.length - 1;

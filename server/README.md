@@ -28,6 +28,11 @@ you want your own always-on hub and an always-available web UI.
 - Hub-and-spoke + WebRTC mesh together: Monii Watch keeps both
   transports active, so peer-to-peer still works on your LAN even when
   the server is unreachable
+- **Self-hosted WebRTC signaling** (v0.7.31) — the server also answers
+  at `ws(s)://<host>:<port>/signaling`. Point Settings → Sync →
+  "Signaling server" at it and your devices stop using the public
+  `signaling.yjs.dev` for peer discovery — the entire sync path runs
+  on hardware you own.
 - **Self-hosted web UI** — open `http://<your-host>:1234/` in any
   browser and use the full app. No installer, no Mac required, no
   app-store gymnastics. Same UI as the iPad / desktop. Pair via the
@@ -151,6 +156,12 @@ sessions.
 | `HOST` | `0.0.0.0` | Bind address |
 | `MONII_PERSIST_DIR` | *(unset)* | Path for LevelDB on-disk persistence |
 | `MONII_PUBLIC_DIR` | `./public` | Static-files root. Override to point at a custom UI build |
+| `MONII_SYNC_TOKEN` | *(unset)* | When set, websocket sync AND signaling connections must include it. Devices add it to the server URL they enter: `wss://host?token=<value>` |
+| `MONII_BACKUP_DIR` | *(unset)* | Enables the encrypted-snapshot backup endpoint at `/backup/*`. See [docs/PERSONAL_SERVER.md](../docs/PERSONAL_SERVER.md) |
+| `MONII_BACKUP_TOKEN` | *(unset)* | Bearer token for `/backup/*`. **Required when `HOST` is not loopback** — without it the backup routes refuse requests (503) instead of serving the LAN |
+| `MONII_BACKUP_KEEP` | `10` | Historical snapshots retained per workspace |
+| `MONII_MAX_WORKSPACES` | `50` | Cap on distinct backup workspaces (bounds total disk use) |
+| `MONII_ALLOWED_ORIGINS` | *(unset)* | Comma-separated CORS allowlist for `/backup/*`. Unset = cross-origin allowed only when a backup token guards the routes |
 
 ## Connecting your devices
 
@@ -159,8 +170,12 @@ sessions.
 1. Run the server (see above)
 2. Open Monii Watch → **Settings → Sync**
 3. Expand **Self-hosted server (advanced)**
-4. Paste: `ws://<host>:1234` (LAN) or `wss://monii.example.com` (TLS)
+4. Paste: `ws://<host>:1234` (LAN) or `wss://monii.example.com` (TLS).
+   If you set `MONII_SYNC_TOKEN`, append it: `wss://monii.example.com?token=<value>`
 5. Click Save. The status row should show **Server: connected**
+6. Optional: fill **Signaling server** with `ws://<host>:1234/signaling`
+   (or `wss://.../signaling` behind TLS) so peer discovery also runs on
+   your box instead of the public signaling server
 
 ### Web UI (any browser)
 
@@ -205,8 +220,12 @@ changes. Without it, you'd serve a stale dist/ even after pulling.
   port) on your router, and make sure your firewall allows inbound on
   that port.
 - **Connects but doesn't sync**: every device must use the **same
-  pairing phrase**. The server segregates docs by phrase; mismatched
-  phrases land in different docs and never see each other.
+  pairing phrase** AND the **same app version**. The server segregates
+  docs by a fingerprint derived from the phrase (since v0.7.31 the raw
+  phrase never travels the wire), and older app versions compute a
+  different fingerprint — so a v0.7.30 device and a v0.7.31 device
+  land in different docs even with the same phrase. Update all devices
+  together.
 - **"Server: reconnecting…" in the modal**: the URL is configured but the
   server isn't responding. Check `docker logs monii-sync` or the
   bare-node console.

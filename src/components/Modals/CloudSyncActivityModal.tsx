@@ -57,7 +57,7 @@ export function CloudSyncActivityModal({ open, onClose }: { open: boolean; onClo
   }, [entries, filter]);
 
   async function clearAll() {
-    if (!confirm('Clear the activity log? Doesn\'t affect your synced data, just the local debug history.')) return;
+    if (!confirm('Clear the activity log? Your synced data is not affected — this only clears the local history of sync events.')) return;
     const m = await import('../../sync/icloudProvider');
     m.clearActivityLog();
   }

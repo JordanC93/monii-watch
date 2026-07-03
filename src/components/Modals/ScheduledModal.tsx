@@ -294,7 +294,9 @@ export function ScheduledModal({ open, onClose, scheduledId }: Props) {
               Bumps the amount up by this percentage every year on the
               anniversary of the start date. Mostly useful for retirement
               contributions ("raise my 401k contribution by 1% every
-              year"). Leave blank for a flat amount.
+              year"). If you edit the amount by hand later, the raise
+              restarts from the new amount on that date. Leave blank for
+              a flat amount.
             </HelpHint>
           </label>
           <div className="flex items-center gap-2 mt-1">

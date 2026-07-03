@@ -42,7 +42,9 @@ export type GlossaryTerm =
   | 'tracking'
   | 'rta-overspent'
   | 'sandbox'
-  | 'allocation-rule';
+  | 'allocation-rule'
+  | 'scheduled-transaction'
+  | 'pairing-phrase';
 
 const GLOSSARY: Record<GlossaryTerm, GlossaryEntry> = {
   'ready-to-assign': {
@@ -123,7 +125,7 @@ const GLOSSARY: Record<GlossaryTerm, GlossaryEntry> = {
   },
   'rta-overspent': {
     title: 'Negative Ready to Assign',
-    body: 'You\'ve told your envelopes to hold more money than you actually have. Pull some back from a low-priority category until RTA is at zero or above.',
+    body: 'You\'ve told your envelopes to hold more money than you actually have. Pull some back from a low-priority category until Ready to Assign is at zero or above.',
   },
   sandbox: {
     title: 'Sandbox mode',
@@ -132,6 +134,16 @@ const GLOSSARY: Record<GlossaryTerm, GlossaryEntry> = {
   'allocation-rule': {
     title: 'Auto-allocation rule',
     body: 'On a trigger (paycheck, income over X, 1st of month), automatically add money to a category. Manual overrides win; the rule never overwrites a change you made later.',
+  },
+  'scheduled-transaction': {
+    title: 'Scheduled transaction',
+    body: 'A repeating template: payee, amount, and how often (rent on the 1st, Netflix monthly). Monii Watch adds the real transaction each time the date arrives. Monthly entries keep their day of month; one set for the 31st uses Feb 28, then returns to the 31st in March.',
+    articleId: 'recurring-transfers',
+  },
+  'pairing-phrase': {
+    title: 'Pairing phrase',
+    body: 'The secret that links your devices. Enter the same phrase on each device and they sync directly with each other, no account needed. It\'s also the password that encrypts your cloud backups. Treat it like a password; anyone who has it can read your data.',
+    articleId: 'pairing-phrase-setup',
   },
 };
 
